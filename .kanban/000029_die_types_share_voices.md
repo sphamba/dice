@@ -1,7 +1,7 @@
 ---
 name: "fix: d4/d10 and d6/d12 die voices are identical (4 distinct sounds for 6 types)"
 priority: "low"
-state: "live-testing"
+state: "done"
 worktree: "fix/29-die-types-share-voices"
 issuer: "#27"
 complexity: "simple"
@@ -33,17 +33,35 @@ Derive per-type variation from more hash entropy, e.g. a per-mode frequency offs
 - `npx vitest run src/audio/modes.test.js` stays green (extend the per-type variation test to require pairwise distinctness).
 
 # Notes
-## Deliverable
-- `src/audio/modes.js`: `dieModes()` now applies a per-type detune from a second hash modulus (`(seed % 17 - 8) * 0.003`, range ±2.4%) on top of the existing base frequency and mode count. Ratios, amplitudes, and tau derivation are unchanged. This separates the former d4/d10 and d6/d12 collisions (1.5% frequency offset) while keeping every mode in the pinned 2 to 7 kHz band at `DIE_REFERENCE_RADIUS`.
-- `src/audio/modes.test.js`: replaced the single d4 vs d20 check with a pairwise distinctness test over all six types at both `DIE_REFERENCE_RADIUS` and the app radius `0.016*sqrt(3)/2`.
+## Live test (#29, node driver /tmp/dice-lt29/modes-live.mjs over src/audio/modes.js at HEAD 4101720)
 
-## Verification
-- HEAD 4101720 unchanged, clean tree: `npx vitest run src/audio/modes.test.js` 11 passed, `npm run build` green, `dist/index.html` references `./assets/index-BZsgA1fW.js` and `./assets/index-DasNQWd4.css`.
+Scope: only the die voice flow of this task. The app has no audio consumer yet (#28 in progress), so the driver plays the pinned consumer role: calls dieModes() for all 6 DICE_TYPES at DIE_REFERENCE_RADIUS (0.0139) and at the app radius DIE_RADIUS = 0.016*sqrt(3)/2 from src/physics/body.js, and renders each voice to PCM. Repo test suites not run, per live-test rules.
 
-## Assumptions
-- "Distinct voice" means a pairwise different frequency set, not a perceptual threshold. A 1.5% detune is the accepted separation.
-- App radius `0.016*sqrt(3)/2` is the intended live radius and differs from `DIE_REFERENCE_RADIUS` only by scaling, so distinctness carries over.
-- The detune constant is tuned for the six current `DICE_TYPES`; a future type whose `seed % 17` is near an extreme could need a band recheck.
+Results: 8 checks, 0 failed.
+
+| Check | Result |
+|---|---|
+| 6 types pairwise distinct at DIE_REFERENCE_RADIUS | PASS, 6/6 distinct {f, amp, tau} sets |
+| 6 types pairwise distinct at app radius | PASS, 6/6 distinct |
+| Former collisions separated | PASS, d4/d10 min relative f separation 1.527%, d6/d12 1.518% (matches the claimed 1.5% offset) |
+| Contract at reference radius | PASS, 3-5 modes per type, all f in 2-7 kHz, tau <= 0.0327 s and decreasing, amps 1/0.625/0.455/... decreasing |
+| Contract at app radius | PASS, f ascending, top f 6315 Hz, inside the 8 kHz consumer cap |
+| Detune band claim | PASS, max abs detune 2.40% over the 6 types, inside the claimed +/-2.4% |
+| Consumer render | PASS, all 6 voices peak > 0.1, ring-down < 0.5 s (short click) |
+| Unchanged neighbours | PASS, half radius still doubles die f; floor plate lowest mode still f11 = 200 Hz |
+
+Measured mode sets at reference radius (f in Hz):
+- d4: 2193.4 / 3224.3 / 4233.3 / 5264.2 / 6295.1 (5 modes)
+- d10: 2160.4 / 3175.8 / 4169.6 / 5185.0 / 6200.3 (5 modes)
+- d6: 2407.2 / 3538.6 / 4645.9 / 5777.3 (4 modes)
+- d12: 2371.2 / 3485.7 / 4576.4 / 5690.9 (4 modes)
+- d8: 2118.9 / 3114.8 / 4089.5 (3 modes)
+- d20: 2355.2 / 3462.1 / 4545.5 (3 modes)
+
+## Assumptions made while designing the tests
+- The real interface of this change is the dieModes() module API, because the app does not wire audio yet (task #28 still in doing). Tested in the pinned consumer role, same approach as the #27 live test.
+- "Distinct voice" means a pairwise different mode set, not a perceptual threshold. The measured 1.5% separation matches the task's own accepted separation, so no contradiction.
+- Audibility was approximated with an additive decaying-sinusoid render (peak, ring-down), because no playback path exists to listen through.
 
 ## Blockers
 - None.
