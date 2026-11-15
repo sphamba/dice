@@ -1,7 +1,7 @@
 ---
 name: "feat: project scaffold, Vite + Vitest, GitHub Pages deploy"
 priority: "critical"
-state: "doing"
+state: "to-review"
 worktree: "feat/1-project-scaffold"
 issuer: "user"
 complexity: "moderate"
@@ -49,3 +49,11 @@ A dice simulator that runs in the browser (phone and desktop). This task makes o
 - `test -f .github/workflows/pages.yml` exits 0.
 
 # Notes
+- Scaffold complete and committed on `feat/1-project-scaffold`: `package.json` (scripts dev/build/preview/test, type module, private), `vite.config.js` (`base: './'`, Vitest node env, `src/**/*.test.js`), `.gitignore`, `index.html`, `src/style.css`, `src/main.js`, `README.md`, `.github/workflows/pages.yml`, plus `.gitkeep` in the seven still-empty `src/` dirs (`src/render/` already holds code).
+- Canvas sizing lives in `src/render/canvas-size.js` (`backingSize`) so it is unit-testable in the node environment; `src/render/canvas-size.test.js` (6 cases, ratio cap, dpr fallback, 1px minimum) passed before the implementation landed.
+- Verified: clean-checkout `npm ci && npm test && npm run build` exits 0, `dist/index.html` uses `./assets/`, and a headless browser at 1280x800 (dpr 1) and 390x844 (dpr 3) shows no scroll bars, a canvas covering the viewport, backing store 780x1688 on the phone, clear colour rgb(20,21,26), no console errors.
+- Assumption: devDependencies are `vite ^8.3.6` and `vitest ^5.1.0`; the local npm `min-release-age=7` policy excluded vite 8.3.8, so the lock pins 8.3.6 and CI resolves within the same range.
+- Assumption: action majors taken from current release tags: `actions/checkout@v7`, `actions/setup-node@v7` (`cache: npm`, works without a `packageManager` field), `actions/configure-pages@v6`, `actions/upload-pages-artifact@v5` (`path: dist`), `actions/deploy-pages@v5`; workflow uses `concurrency: pages` with `cancel-in-progress: false`.
+- Assumption: the default branch is `main`; the workflow triggers on push to `main` and `workflow_dispatch`.
+- Assumption: the "WebGL2 is not supported by this browser" text goes into the `#ui` overlay (centered, `pointer-events: none`, safe-area padding), which stays empty otherwise.
+- Nothing is blocked; no tests were skipped beyond the trivial task rule (task is moderate, tests written and run).
