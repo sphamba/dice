@@ -1,7 +1,7 @@
 ---
 name: "feat: modal sound haptics plate modes module"
 priority: "medium"
-state: "live-testing"
+state: "done"
 worktree: "feat/27-modal-sound-haptics-modes"
 issuer: "#9"
 complexity: "simple"
