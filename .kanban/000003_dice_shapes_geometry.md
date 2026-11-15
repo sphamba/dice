@@ -1,7 +1,7 @@
 ---
 name: "feat: dice polyhedra geometry d4 to d20 with face values and mass properties"
 priority: "high"
-state: "to-live-test"
+state: "live-testing"
 worktree: "feat/3-dice-shapes-geometry"
 issuer: "user"
 complexity: "moderate"
