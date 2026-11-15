@@ -6,7 +6,7 @@ worktree: ""
 issuer: "user"
 complexity: "simple"
 shortName: "modal-sound-haptics"
-blockedBy: "#27, #28"
+blockedBy: "#28"
 splitter: "done"
 ---
 
