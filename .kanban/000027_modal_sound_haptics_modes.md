@@ -1,7 +1,7 @@
 ---
 name: "feat: modal sound haptics plate modes module"
 priority: "medium"
-state: "doing"
+state: "to-review"
 worktree: "feat/27-modal-sound-haptics-modes"
 issuer: "#9"
 complexity: "simple"
@@ -42,5 +42,5 @@ Pure modal-synthesis module src/audio/modes.js (plate modes, die modes, material
 - Assumption: `DIE_REFERENCE_RADIUS = 0.0139 m`; die frequencies scale as 1/radius, so dice smaller than the reference exceed 7 kHz by design (size scaling wins over the 2 to 7 kHz band). Count 3 to 5, amplitudes and decay constants are starting values for later ear tuning.
 - Assumption: `amp` uses the absolute value of the mode shape, clamped to [0, 1], since the contract requires a non-negative amplitude.
 - Degenerate plates can produce equal frequencies for different (m, n), so ordering and decay assertions are non-strict.
-- Verified on this worktree with the existing `node_modules`: `npx vitest run src/audio/modes.test.js` 11 passed, `npm run build` exits 0 with relative `./assets/` paths in `dist/index.html`. Tree clean, no new commit, HEAD `3920873` on `feat/27-modal-sound-haptics-modes`.
+- Re-verified on this worktree, verification-only run: `npx vitest run src/audio/modes.test.js` 11 passed, `npm run build` exits 0 with relative `./assets/` paths in `dist/index.html`. Tree clean, no new commit, HEAD `3920873` on `feat/27-modal-sound-haptics-modes`.
 - The unrelated `src/physics/world.e2e.test.js` wall-clock budget test fails on this machine regardless of this change.
