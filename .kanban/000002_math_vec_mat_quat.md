@@ -1,12 +1,12 @@
 ---
 name: "feat: 3D math library (vec3, mat4, quaternion)"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "user"
 complexity: "moderate"
 shortName: "math-vec-mat-quat"
-blockedBy: "#1"
+blockedBy: ""
 ---
 
 # Summary
