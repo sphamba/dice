@@ -1,7 +1,7 @@
 ---
 name: "feat: convex collision detection and impulse-based contact resolution"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "feat/5-collision-impulse-solver"
 issuer: "user"
 complexity: "simple"
@@ -9,6 +9,8 @@ shortName: "collision-impulse-solver"
 blockedBy: ""
 splitter: "done"
 map: "{\"files\":[{\"path\":\"src/physics/body.js\",\"symbols\":[{\"name\":\"createBody\",\"kind\":\"fn\",\"ins\":1,\"del\":1,\"isNew\":false}]},{\"path\":\"src/physics/body.test.js\",\"symbols\":[{\"name\":\"createBody\",\"kind\":\"fn\",\"ins\":4,\"del\":5,\"isNew\":false},{\"name\":\"updateDerived\",\"kind\":\"fn\",\"ins\":3,\"del\":4,\"isNew\":false},{\"name\":\"applyImpulse\",\"kind\":\"fn\",\"ins\":1,\"del\":1,\"isNew\":false}]},{\"path\":\"src/physics/world.e2e.test.js\",\"symbols\":[{\"name\":\"mulberry32\",\"kind\":\"fn\",\"ins\":9,\"del\":0,\"isNew\":true},{\"name\":\"randomQuat\",\"kind\":\"fn\",\"ins\":13,\"del\":0,\"isNew\":true},{\"name\":\"randomUnit\",\"kind\":\"fn\",\"ins\":3,\"del\":0,\"isNew\":true},{\"name\":\"worldVertex\",\"kind\":\"fn\",\"ins\":7,\"del\":0,\"isNew\":true},{\"name\":\"lowestVertex\",\"kind\":\"fn\",\"ins\":5,\"del\":0,\"isNew\":true},{\"name\":\"deepestFaceAgainstFloor\",\"kind\":\"fn\",\"ins\":8,\"del\":0,\"isNew\":true},{\"name\":\"boxOvershoot\",\"kind\":\"fn\",\"ins\":16,\"del\":0,\"isNew\":true},{\"name\":\"dropBody\",\"kind\":\"fn\",\"ins\":3,\"del\":0,\"isNew\":true},{\"name\":\"settling\",\"kind\":\"fn\",\"ins\":17,\"del\":0,\"isNew\":true},{\"name\":\"containment\",\"kind\":\"fn\",\"ins\":43,\"del\":0,\"isNew\":true},{\"name\":\"die against die\",\"kind\":\"fn\",\"ins\":15,\"del\":0,\"isNew\":true},{\"name\":\"floor events\",\"kind\":\"fn\",\"ins\":23,\"del\":0,\"isNew\":true},{\"name\":\"energy\",\"kind\":\"fn\",\"ins\":20,\"del\":0,\"isNew\":true},{\"name\":\"performance\",\"kind\":\"fn\",\"ins\":18,\"del\":0,\"isNew\":true}]},{\"path\":\"src/physics/world.js\",\"symbols\":[{\"name\":\"containBody\",\"kind\":\"fn\",\"ins\":36,\"del\":0,\"isNew\":true},{\"name\":\"step\",\"kind\":\"fn\",\"ins\":1,\"del\":0,\"isNew\":false}]}],\"flows\":[],\"role\":\"developer\",\"run\":0,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-15T19:38:00.186Z\",\"head\":\"b836a2a\"}"
+changes: "{\"base\":\"main\",\"ins\":267,\"del\":0,\"files\":2}"
+commits: "[{\"hash\":\"1217f3a\",\"subject\":\"fix(physics): scale inertia by density and keep dice inside the box\",\"when\":\"2026-11-15T20:35:00+01:00\"}]"
 ---
 
 # Summary

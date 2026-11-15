@@ -6,6 +6,7 @@ worktree: "fix/21-clip-degenerate-points"
 issuer: "#14"
 complexity: "simple"
 shortName: "clip-degenerate-points"
+map: "{\"files\":[{\"path\":\"src/physics/collision.js\",\"symbols\":[{\"name\":\"CLIP_WELD\",\"kind\":\"class\",\"ins\":3,\"del\":0,\"isNew\":true},{\"name\":\"snapWeld\",\"kind\":\"fn\",\"ins\":1,\"del\":0,\"isNew\":true},{\"name\":\"clipPolygon\",\"kind\":\"fn\",\"ins\":4,\"del\":2,\"isNew\":false}]},{\"path\":\"src/physics/collision.test.js\",\"symbols\":[{\"name\":\"keeps four clipped points for two flush cubes with a micro twist\",\"kind\":\"case\",\"ins\":8,\"del\":0,\"isNew\":true}]}],\"flows\":[],\"role\":\"developer\",\"run\":0,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-15T19:43:28.187Z\",\"head\":\"d3e0c9d\"}"
 ---
 
 # Summary
