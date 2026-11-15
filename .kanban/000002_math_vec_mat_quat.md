@@ -6,7 +6,7 @@ worktree: ""
 issuer: "user"
 complexity: "simple"
 shortName: "math-vec-mat-quat"
-blockedBy: "#10, #11"
+blockedBy: "#11"
 splitter: "done"
 ---
 

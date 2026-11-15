@@ -1,12 +1,14 @@
 ---
 name: "feat: 3D math mat3 and mat4"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "feat/11-math-mat3-mat4"
 issuer: "#2"
 complexity: "simple"
 shortName: "math-mat3-mat4"
 map: "{\"files\":[{\"path\":\"src/math/mat3.js\",\"symbols\":[{\"name\":\"create\",\"kind\":\"fn\",\"ins\":3,\"del\":0,\"isNew\":true},{\"name\":\"identity\",\"kind\":\"fn\",\"ins\":13,\"del\":0,\"isNew\":true},{\"name\":\"fromQuat\",\"kind\":\"fn\",\"ins\":32,\"del\":0,\"isNew\":true},{\"name\":\"transpose\",\"kind\":\"fn\",\"ins\":24,\"del\":0,\"isNew\":true},{\"name\":\"multiply\",\"kind\":\"fn\",\"ins\":37,\"del\":0,\"isNew\":true},{\"name\":\"invert\",\"kind\":\"fn\",\"ins\":31,\"del\":0,\"isNew\":true},{\"name\":\"fromDiagonal\",\"kind\":\"fn\",\"ins\":13,\"del\":0,\"isNew\":true},{\"name\":\"transformVec3\",\"kind\":\"fn\",\"ins\":10,\"del\":0,\"isNew\":true}]},{\"path\":\"src/math/mat3.test.js\",\"symbols\":[{\"name\":\"near\",\"kind\":\"fn\",\"ins\":1,\"del\":0,\"isNew\":true},{\"name\":\"quaternion\",\"kind\":\"fn\",\"ins\":6,\"del\":0,\"isNew\":true},{\"name\":\"mat3\",\"kind\":\"class\",\"ins\":52,\"del\":0,\"isNew\":true}]},{\"path\":\"src/math/mat4.js\",\"symbols\":[{\"name\":\"create\",\"kind\":\"fn\",\"ins\":3,\"del\":0,\"isNew\":true},{\"name\":\"identity\",\"kind\":\"fn\",\"ins\":20,\"del\":0,\"isNew\":true},{\"name\":\"multiply\",\"kind\":\"fn\",\"ins\":57,\"del\":0,\"isNew\":true},{\"name\":\"invert\",\"kind\":\"fn\",\"ins\":62,\"del\":0,\"isNew\":true},{\"name\":\"transpose\",\"kind\":\"fn\",\"ins\":40,\"del\":0,\"isNew\":true},{\"name\":\"fromRotationTranslation\",\"kind\":\"fn\",\"ins\":39,\"del\":0,\"isNew\":true},{\"name\":\"fromRotationTranslationScale\",\"kind\":\"fn\",\"ins\":43,\"del\":0,\"isNew\":true},{\"name\":\"ortho\",\"kind\":\"fn\",\"ins\":23,\"del\":0,\"isNew\":true},{\"name\":\"lookAt\",\"kind\":\"fn\",\"ins\":50,\"del\":0,\"isNew\":true},{\"name\":\"normalFromMat4\",\"kind\":\"fn\",\"ins\":47,\"del\":0,\"isNew\":true}]},{\"path\":\"src/math/mat4.test.js\",\"symbols\":[{\"name\":\"near\",\"kind\":\"fn\",\"ins\":1,\"del\":0,\"isNew\":true},{\"name\":\"quaternion\",\"kind\":\"fn\",\"ins\":6,\"del\":0,\"isNew\":true},{\"name\":\"transformPoint\",\"kind\":\"fn\",\"ins\":5,\"del\":0,\"isNew\":true},{\"name\":\"mat4\",\"kind\":\"class\",\"ins\":73,\"del\":0,\"isNew\":true}]}],\"flows\":[],\"role\":\"developer\",\"run\":0,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-15T17:29:33.686Z\",\"head\":\"249883b\"}"
+changes: "{\"base\":\"main\",\"ins\":668,\"del\":0,\"files\":4}"
+commits: "[{\"hash\":\"d6b6cf0\",\"subject\":\"feat(math): add mat3 and mat4 with unit tests\",\"when\":\"2026-11-15T18:28:48+01:00\"}]"
 ---
 
 # Summary

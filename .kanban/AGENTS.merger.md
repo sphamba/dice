@@ -2,13 +2,17 @@
 
 The run prompt owns the step order (read task, abort a stale rebase, clear context paths, rebase, resolve, test, report). This file only removes waste from that path.
 
+## Decision rule
+
+- When a command fails or a result looks odd, match it to this file first. Most failures in this workflow are by design. Think only about failures this file does not explain.
+
 ## Workflow
 
-- Treat the `git rebase main` output as the truth. "Current branch ... is up to date" or "Fast-forwarded" means a no-op merge: run no fetch, no history or merge-base inspection, and no conflict pass. Go straight to the test gate.
-- Do not `git fetch` before the rebase. The daemon resolves the local `main`; a network fetch changes nothing.
 - Batch the pre-rebase checks into one command: `git status --short --branch && git log --oneline -5`.
-- Clear the context paths with `git update-index --no-skip-worktree -- AGENTS.md TASK.md && git restore --staged --worktree -- AGENTS.md TASK.md || true`. On untracked paths both commands fail by design; never investigate that failure.
-- Before the test gate, make sure dependencies exist: `[ -d node_modules ] || npm ci`.
+- Clear the context paths with one command: `git update-index --no-skip-worktree -- AGENTS.md TASK.md && git restore --staged --worktree -- AGENTS.md TASK.md || true`. These paths are untracked in this repo, so both inner commands print errors and change nothing. That outcome is success. Never run `git ls-files` on them, never deduce tracking status from `git status` (empty status says nothing about tracking), and never reason about it.
+- Treat the `git rebase main` output as the truth. "Current branch ... is up to date" or "Fast-forwarded" is a final no-op merge: no fetch, no history or merge-base inspection, no conflict pass, and no re-check of the result. Go straight to the test gate.
+- Do not `git fetch` before the rebase. The daemon resolves the local `main`; a network fetch changes nothing.
+- Before the test gate: `[ -d node_modules ] || npm ci`.
 
 ## Conflicts (only when the rebase stops)
 
