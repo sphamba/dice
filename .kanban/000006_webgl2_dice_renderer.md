@@ -1,7 +1,7 @@
 ---
 name: "feat: WebGL2 renderer with orthographic top-down view, face labels and shadows"
 priority: "high"
-state: "live-testing"
+state: "done"
 worktree: "feat/6-webgl2-dice-renderer"
 issuer: "user"
 complexity: "complex"
@@ -60,3 +60,5 @@ Review of b52bbed against Specs: approved, no fixes needed. Scoped vitest run = 
 - Verified integration points: shape winding is CCW from outside and matches cullFace(BACK); math arrays are Float32Array so uniform calls are WebGL-safe; body.position/orientation/shape.type and box {W,H,D} match the physics/world modules; context lost/restored rebuilds GPU resources; dispose removes listeners and deletes GL objects; main.js untouched (dev scene correctly omitted per spec).
 - Accepted interpretations (developer-documented, sound): underline only on single-digit labels "6"/"9" (inverted 16/19 read 91/61, not valid face values, so no ambiguity); camera.js split out of renderer.js as the matrix module the Tests section anticipates.
 - Deferred to the later live test per spec: atlas pixel appearance, shadow acne tuning, visual color/label readability.
+
+Live test (2026-11-15, headless Chromium/SwiftShader, worktree head be7545e): 31 checks, 24 pass, 7 fail. All 7 failures trace to 2 confirmed product defects, filed as #22 (d6 pip scale floods the atlas with ink; d6 renders solid white) and #23 (floor strip's second triangle culled; upper-left floor half never renders). Everything else matches an independent shader-exact reference within 1 RGB unit: grid hue per type, silhouette/clear background, idle+flip floor shadow and lit samples, stack d12 top face shadowed by the floating d6 vs lit control, resize re-projection, context lost/restored, dispose, no console errors. Reference and driver: /tmp/dice-lt/reference.mjs + expected.json, /tmp/dice-lt/live.test.mjs + live.log. Emulation limits: SwiftShader software GL, context loss forced via WEBGL_lose_context extension, no real hardware GPU paths exercised.
