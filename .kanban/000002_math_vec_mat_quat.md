@@ -2,7 +2,7 @@
 name: "feat: 3D math library (vec3, mat4, quaternion)"
 priority: "high"
 state: "done"
-worktree: "feat/2-math-vec-mat-quat"
+worktree: ""
 issuer: "user"
 complexity: "simple"
 shortName: "math-vec-mat-quat"
