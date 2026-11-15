@@ -2,7 +2,7 @@
 name: "feat: device motion gravity, iOS permission and portrait lock"
 priority: "high"
 state: "done"
-worktree: "feat/12-motion-pointer-input-gravity"
+worktree: ""
 issuer: "#7"
 complexity: "simple"
 shortName: "motion-pointer-input-gravity"
