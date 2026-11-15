@@ -12,6 +12,8 @@ const DIE_BASE_FREQUENCY = 2000;
 
 const DIE_FREQUENCY_STEP = 100;
 
+const DIE_DETUNE_STEP = 0.003;
+
 const DIE_MODE_RATIOS = [1, 1.47, 1.93, 2.4, 2.87];
 
 const DIE_TAU = 0.05;
@@ -59,10 +61,11 @@ export function dieModes(type, radius = DIE_REFERENCE_RADIUS) {
   const seed = hashType(String(type));
   const scale = DIE_REFERENCE_RADIUS / size;
   const base = (DIE_BASE_FREQUENCY + (seed % 5) * DIE_FREQUENCY_STEP) * scale;
+  const detune = 1 + ((seed % 17) - 8) * DIE_DETUNE_STEP;
   const count = 3 + (seed % 3);
   const modes = [];
   for (let k = 0; k < count; k++) {
-    const f = base * DIE_MODE_RATIOS[k];
+    const f = base * DIE_MODE_RATIOS[k] * detune;
     modes.push({
       f,
       amp: clamp(1 / (1 + 0.6 * k), 0, 1),

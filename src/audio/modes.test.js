@@ -137,10 +137,15 @@ describe('dieModes', () => {
     }
   });
 
-  it('differs between die types', () => {
-    const d4 = dieModes('d4', DIE_REFERENCE_RADIUS).map((mode) => mode.f);
-    const d20 = dieModes('d20', DIE_REFERENCE_RADIUS).map((mode) => mode.f);
-    expect(d4).not.toEqual(d20);
+  it('gives every die type a distinct voice', () => {
+    const types = ['d4', 'd6', 'd8', 'd10', 'd12', 'd20'];
+    const appRadius = (0.016 * Math.sqrt(3)) / 2;
+    for (const radius of [DIE_REFERENCE_RADIUS, appRadius]) {
+      const voices = types.map((type) =>
+        JSON.stringify(dieModes(type, radius).map((mode) => mode.f)),
+      );
+      expect(new Set(voices).size).toBe(types.length);
+    }
   });
 
   it('raises frequencies as the die shrinks', () => {
