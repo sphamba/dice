@@ -1,7 +1,7 @@
 ---
 name: "feat: convex collision detection and impulse-based contact resolution"
 priority: "high"
-state: "doing"
+state: "to-review"
 worktree: "feat/5-collision-impulse-solver"
 issuer: "user"
 complexity: "simple"
@@ -30,16 +30,17 @@ All world tests use the iPhone 15 box `boxFromViewport(393, 852, 3)` and `DIE_RA
 - Performance: 10 dice for 1 s simulated (480 steps) runs in < 500 ms in Node.
 
 # Notes
-Verified the combined collision (#14) and impulse solver (#15) halves on top of `main` (e13e6b3, merged into this worktree by fast-forward; nothing of my own was outstanding there).
+Verified the combined collision (#14) and impulse solver (#15) halves on top of `main` (fast-forwarded; `main` is an ancestor of HEAD).
 
-- Two defects fixed, commit b836a2a. (1) `body.js` scaled the density-normalised shape inertia tensor by the mass instead of the density, giving an inverse inertia about 2000x too large: contact impulses spun the dice instead of stopping them and every drop fell through the floor. (2) `world.step` now projects every body vertex into the box after `integratePositions`; the existing radius clamp only runs in `setBox` and would float a die whose face rests flush on a wall, and a die pushed by another die can exceed the speculative contact margin in one step.
+- One defect fixed, commit 1217f3a: `world.step` now projects every body vertex into the box after `integratePositions`. The radius clamp only runs in `setBox`, so it would float a die whose face rests flush on a wall, and a die pushed by another die can exceed the speculative contact margin in one step. The inertia fix (density instead of mass in `createBody`) already landed on `main` as ef08eee.
 - New `src/physics/world.e2e.test.js` covers all six spec checks: settling for d4/d6/d8/d10/d12/d20, containment of 10 dice under 4 g random gravity, die-die rest depth after 5 s, floor impact event speed with silence at rest, energy (no rise above drop height), and performance.
-- Evidence: `npx vitest run src/physics` 7 files / 64 tests pass; `npm run build` exits 0; clean-room `git archive HEAD` copy runs `npm ci && npm test` (18 files / 184 tests) and `npm run build`, and `dist/index.html` uses relative `./assets/` paths.
-- Measured values vs spec: settling linear speed <= 1.8e-5 m/s, angular <= 5.7e-4 rad/s, lowest vertex 0.0000 mm, face alignment 1.0000; containment worst overshoot 0.0000 mm; die-die rest depth 0.21 mm; first floor event 0.7126 m/s vs analytic 0.7146 m/s; energy rise -0.04 mm; 480 steps for 10 dice ~200 ms standalone.
+- Evidence: `npx vitest run src/physics` gives 7 files / 66 tests passing; `npm run build` exits 0 and `dist/index.html` uses relative `./assets/` paths; working tree clean.
+- Measured values vs spec: settling linear speed <= 1.8e-5 m/s, angular <= 5.7e-4 rad/s, lowest vertex 0.0000 mm, face alignment 1.0000; containment worst overshoot 0.0000 mm; die-die rest depth 0.21 mm; first floor event 0.7126 m/s against analytic 0.7146 m/s; energy rise -0.04 mm; 480 steps for 10 dice about 200 ms standalone.
 
 Assumptions:
 - "Drop from z = D/2" means the body centre starts at `BOX.D / 2`; the drop height for the event check is the world z of the lowest vertex at that moment.
-- The energy check runs with the shipped restitution constants, because `contacts.js` exposes no restitution parameter; the assertion (never above the drop height) is the e=0 claim and holds a fortiori with e = 0.3.
+- The energy check runs with the shipped restitution constants because `contacts.js` exposes no restitution parameter; the assertion (never above the drop height) is the e=0 claim and holds a fortiori with e = 0.3.
 - The die-die spec is read as the depth at rest after 5 s, not the transient impact depth (which peaks at about 1.4 mm during the first 40 steps).
 - The containment test keeps a 30 s vitest timeout because 10 s of simulated time with 10 dice takes about 7 s under vitest.
-- `SETTLING`/random fixtures use a seeded mulberry32 RNG so the checks are deterministic.
+- `SETTLING` and other random fixtures use a seeded mulberry32 RNG so the checks are deterministic.
+- The clean-room copy check from the earlier run was not repeated because the working tree had no uncommitted changes; the in-place scoped suite and build were re-run instead.
