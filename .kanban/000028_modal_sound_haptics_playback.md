@@ -1,7 +1,7 @@
 ---
 name: "feat: modal sound haptics playback and wiring"
 priority: "medium"
-state: "doing"
+state: "to-review"
 worktree: "feat/28-modal-sound-haptics-playback"
 issuer: "#9"
 complexity: "moderate"
@@ -40,10 +40,11 @@ Web Audio playback src/audio/sound.js, vibration src/audio/haptics.js, and main.
 
 # Notes
 - Deliverable is commit 4efc79b: `src/audio/sound.js` (lazy AudioContext, DynamicsCompressor master, one rendered damped-sinusoid AudioBuffer per impact, voice cap 12 dropping the quietest, 40 ms per body pair, speed gate 0.15 m/s), `src/audio/haptics.js` (navigator.vibrate 5-20 ms scaled by speed, once per 60 ms, no-op without the API), both suites, and `src/main.js` wiring (line 53 `onFirstGesture(() => sound.resume())`; lines 172-174 `world.update(dt)`, `sound.play(world.events, world.box)`, `haptics.play(world.events)`).
-- Verified on 4efc79b: `npx vitest run src/audio` = 15 passed and `npm run build` exits 0, with `src/audio/modes.js` copied in from `feat/27-modal-sound-haptics-modes` and then removed; `dist/index.html` references `./assets/...` relatively. Tree is clean, working tree has no new commits beyond 4efc79b.
-- Blocker: sibling #27 is still in `to-merge`, so `src/audio/modes.js` is absent and this branch alone cannot resolve `./modes.js` (import error, red tests and red build). The branch stays free of the sibling file to avoid a duplicate copy; it goes green after #27 lands on `main` plus one `git merge --ff-only main`.
-- Assumption: impulse gain is a log ramp from MIN_IMPULSE 1e-4 to MAX_IMPULSE 1e-1 N s, and brightness (high-mode attenuation) reaches full at FULL_BRIGHTNESS_SPEED 2 m/s.
-- Assumption: haptic duration ramps linearly from MIN_SPEED 0.8 to MAX_SPEED 3 m/s, and synthesis duration is `min(0.6 s, 5 tau)` over the loudest mode's tau.
-- Assumption: wall plates follow the spec literally (x wall W x D, y wall H x D, u along the wide axis, v = contact z), and the wall side is chosen by the larger contact coordinate relative to its half extent.
-- Assumption: `die` surface events sum `dieModes(type, radius)` for both bodies read from `body.shape`, and no plate mode is added for that surface.
+- Re-verified on 4efc79b against sibling #27 at 3920873 with `src/audio/modes.js` copied in and removed after: `npx vitest run src/audio` = 15 passed, `npm run build` exits 0, tree clean afterwards, `dist/index.html` uses relative `./assets/...` paths.
+- Assumption: sound.js imports exactly `BOX`, `GLASS`, `plateModes`, `dieModes` from `./modes.js`, which matches the sibling's exports.
+- Blocker: sibling #27 is still in `to-merge` and `main` has no `src/audio/modes.js`, so this branch alone cannot resolve `./modes.js` (red tests, red build). The branch stays free of the sibling file; it goes green after #27 lands on `main` plus one `git merge --ff-only main`.
+- Assumption: impulse gain is a log ramp from MIN_IMPULSE 1e-4 to MAX_IMPULSE 1e-1 N s, and high-mode brightness reaches full at FULL_BRIGHTNESS_SPEED 2 m/s.
+- Assumption: haptic duration ramps linearly from 0.8 to 3 m/s, and synthesis duration is `min(0.6 s, 5 tau)` over the loudest mode's tau.
+- Assumption: wall plates follow the spec literally (x wall W x D, y wall H x D, u along the wide axis, v = contact z), wall side chosen by the larger contact coordinate relative to its half extent.
+- Assumption: `die` surface events sum `dieModes(type, radius)` for both bodies from `body.shape`, with no plate mode added.
 - Audible sound and Android vibration checks stay with parent verification task #9, as specified.
