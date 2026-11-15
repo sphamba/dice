@@ -1,7 +1,7 @@
 ---
 name: "feat: input, device motion gravity with shake, portrait lock, pointer drag and fling"
 priority: "high"
-state: "doing"
+state: "to-review"
 worktree: "feat/7-motion-pointer-input"
 issuer: "user"
 complexity: "simple"
@@ -23,3 +23,9 @@ Verify the input task once both halves have landed: device motion gravity, iOS p
 - No wiring in `src/main.js`: that belongs to #8.
 
 # Notes
+- Verified both landed halves against the Specs; no code changes were needed, working tree stays clean at HEAD 8725309.
+- `src/input/motion.js`: exports `createMotion`, `unlockOnFirstGesture`, `onFirstGesture`; negated `accelerationIncludingGravity` rotated by `Math.round(angle/90) mod 4`, iOS sign flip, clamped to `MAX_GRAVITY = 39.24`, pushes `(0, 0, -9.81)` at create; permission and portrait-lock rejections are caught.
+- `src/input/pointer.js`: exports `createPointer(canvas, { world, toWorld })` and `heldBodies()`; drag writes velocity `(target - position) / FIXED_DT` clamped to `MAX_DRAG_SPEED = 2`, release flings from the last `FLING_WINDOW_MS = 80` ms clamped to `MAX_FLING_SPEED = 3`.
+- `npx vitest run src/input`: 2 files, 14 tests passed. `npm run build`: exit 0, `dist/index.html` references `./assets/...` relative paths.
+- `src/main.js` still has no input wiring, as the Specs require (that is #8).
+- Assumption: #8 and #9 consume `createMotion`, `unlockOnFirstGesture`, `createPointer` and `heldBodies` exactly as exported now; any extra contract they need is their own card's work.
