@@ -1,7 +1,7 @@
 ---
 name: "feat: modal sound haptics playback and wiring"
 priority: "medium"
-state: "doing"
+state: "to-review"
 worktree: "feat/28-modal-sound-haptics-playback"
 issuer: "#9"
 complexity: "moderate"
@@ -38,3 +38,8 @@ Web Audio playback src/audio/sound.js, vibration src/audio/haptics.js, and main.
 - Audible sound and Android vibration manual checks happen at the parent verification task (#9), not here.
 
 # Notes
+- Commit 4efc79b adds src/audio/sound.js (lazy AudioContext + DynamicsCompressor master, one rendered damped-sinusoid AudioBuffer per impact, voice cap 12 with quietest dropped, 40 ms per body pair, speed gate 0.15 m/s), src/audio/haptics.js (navigator.vibrate 5-20 ms, once per 60 ms, no-op without the API), their suites, and main.js wiring: onFirstGesture(sound.resume), sound.play(world.events, world.box) and haptics.play(world.events) after world.update.
+- src/audio/modes.js is not on this branch (sibling task #27, state to-merge). `npx vitest run src/audio` (15 passed) and `npm run build` were verified with that file copied in from feat/27-modal-sound-haptics-modes, then removed, so the branch stays free of the sibling's file; both reruns are green only once #27 lands.
+- Assumptions: impulse gain is a log ramp from MIN_IMPULSE 1e-4 to MAX_IMPULSE 1e-1 N s, brightness (high-mode attenuation) reaches full at 2 m/s, haptic duration ramps from 0.8 to 3 m/s, synthesis duration = min(0.6 s, 5 tau); all are exported or local constants in sound.js/haptics.js.
+- Assumption: wall plates follow the spec literally (x wall W x D, y wall H x D, plate coordinates u along the wide axis), and the wall side is chosen by the larger contact coordinate relative to its half extent.
+- Audible sound and Android vibration checks stay with parent verification task #9, as specified.
