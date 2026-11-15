@@ -7,6 +7,7 @@ issuer: "user"
 complexity: "simple"
 shortName: "motion-pointer-input"
 blockedBy: "#12, #13"
+splitter: "done"
 ---
 
 # Summary

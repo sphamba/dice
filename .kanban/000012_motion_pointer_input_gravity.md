@@ -1,7 +1,7 @@
 ---
 name: "feat: device motion gravity, iOS permission and portrait lock"
 priority: "high"
-state: "doing"
+state: "to-review"
 worktree: "feat/12-motion-pointer-input-gravity"
 issuer: "#7"
 complexity: "simple"
@@ -35,3 +35,8 @@ These modules only export functions. The wiring in `src/main.js` is done by the 
 - `npm run build` exits 0.
 
 # Notes
+- Added `src/input/motion.js`: `deviceToWorldGravity(accel, angle, sign=1)`, `MAX_GRAVITY`, `DEFAULT_GRAVITY`, `createMotion({onGravity})`, `onFirstGesture(fn)`, `unlockOnFirstGesture()`. Added `src/input/motion.test.js` (8 tests, all pass); `npm run build` passes and `dist/index.html` uses relative asset paths; clean-room `git archive` copy passes `npm ci && npm test && npm run build` (80 tests).
+- Assumption: iOS Safari reports `accelerationIncludingGravity` negated relative to the W3C/Android convention (confirmed by W3C list and Stack Overflow reports; no real device available here), so the module applies `sign = -1` on iOS (user agent iPhone/iPad/iPod, or Macintosh with touch points) and `+1` elsewhere.
+- Assumption: device-to-screen mapping is a rotation of the vector by `screen.orientation.angle` (90 -> `(-ay, ax, az)`, 180 -> negated x/y, 270 -> `(ay, -ax, az)`), falling back to `window.orientation` and then 0 for non-multiples of 90.
+- Assumption: `createMotion` calls `onGravity(DEFAULT_GRAVITY)` at creation, so the 1 s no-data fallback needs no timer; only events with non-null `accelerationIncludingGravity` replace it. Clamping scales the vector to `MAX_GRAVITY = 4 * 9.81` and keeps its direction.
+- Assumption: `onFirstGesture` callbacks run synchronously inside the first `pointerdown`/`keydown` before motion permission and portrait lock are requested; a callback registered after unlock runs immediately. Wiring into `src/main.js` stays with task #8.

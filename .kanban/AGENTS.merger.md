@@ -8,6 +8,7 @@ The run prompt owns the step order (read task, abort a stale rebase, clear conte
 
 ## Pre-rebase
 
+- Read the task file once, with the read tool, at the start of the run. Keep the state and summary from that read. Do not cat or re-read it in later bash commands.
 - Batch the pre-rebase checks into one command: `git status --short --branch && git log --oneline -5`.
 - Clear the context paths with one command: `git update-index --no-skip-worktree -- AGENTS.md TASK.md 2>/dev/null; git restore --staged --worktree -- AGENTS.md TASK.md 2>/dev/null; true`. It prints nothing and never fails. Do not inspect tracking or skip-worktree state, do not explain suppressed errors, and never deduce path status from `git status`. Go straight to the rebase.
 
@@ -25,9 +26,8 @@ The run prompt owns the step order (read task, abort a stale rebase, clear conte
 
 ## Gate and exit
 
-- `npm test` in the worktree is the whole merge gate: no build step, no lint step, no changed-files-only variant.
+- `npm test` in the worktree is the whole merge gate: no build step, no lint step, no changed-files-only variant. Run the gate and the closing check as one command: `npm test && git status --short --branch`; the status line must show a clean tree and no rebase in progress. Do not re-verify acceptance criteria, re-count tests, or re-list files.
 - A passing summary line ends the gate. Never compare its test or file counts to any other run, task file, or expectation; counts legitimately differ between tasks.
-- After the gate passes, run one check only: `git status --short --branch` (clean tree, no rebase in progress). Do not re-verify acceptance criteria, re-count tests, or re-list files.
 - A conflict-free rebase produces no `merge:` bullets. Only a rebase that stopped on conflicts gets one `merge:` bullet per resolved hunk, naming the other task and whether both sides survived.
 - Final reply shape: one line naming the rebase result and the test result, then any `merge:` bullets, nothing else. No Notes write; the tool list is closed.
 - Suite success: leave the state at `merging`. Suite failure: `kanban_get`, then `kanban_set_state` to `to-do`, and name the failing suites in the final reply.
