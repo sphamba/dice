@@ -38,8 +38,29 @@ These modules only export functions. The wiring in `src/main.js` is done by the 
 - `npm run build` exits 0.
 
 # Notes
-- Added `src/input/motion.js`: `deviceToWorldGravity(accel, angle, sign=1)`, `MAX_GRAVITY`, `DEFAULT_GRAVITY`, `createMotion({onGravity})`, `onFirstGesture(fn)`, `unlockOnFirstGesture()`. Added `src/input/motion.test.js` (8 tests, all pass); `npm run build` passes and `dist/index.html` uses relative asset paths; clean-room `git archive` copy passes `npm ci && npm test && npm run build` (80 tests).
-- Assumption: iOS Safari reports `accelerationIncludingGravity` negated relative to the W3C/Android convention (confirmed by W3C list and Stack Overflow reports; no real device available here), so the module applies `sign = -1` on iOS (user agent iPhone/iPad/iPod, or Macintosh with touch points) and `+1` elsewhere.
-- Assumption: device-to-screen mapping is a rotation of the vector by `screen.orientation.angle` (90 -> `(-ay, ax, az)`, 180 -> negated x/y, 270 -> `(ay, -ax, az)`), falling back to `window.orientation` and then 0 for non-multiples of 90.
-- Assumption: `createMotion` calls `onGravity(DEFAULT_GRAVITY)` at creation, so the 1 s no-data fallback needs no timer; only events with non-null `accelerationIncludingGravity` replace it. Clamping scales the vector to `MAX_GRAVITY = 4 * 9.81` and keeps its direction.
-- Assumption: `onFirstGesture` callbacks run synchronously inside the first `pointerdown`/`keydown` before motion permission and portrait lock are requested; a callback registered after unlock runs immediately. Wiring into `src/main.js` stays with task #8.
+# Notes
+
+## Live test result: pass (39/39 checks, no defects filed)
+
+Setup: headless Chromium (Playwright) against the app served statically from the worktree root (python http.server, port 8642). The module is not wired into main.js (that is task #8), so I drove it on the real app origin by dynamic import plus real browser input: real mouse click, real keypress, real fullscreen/orientation APIs, and synthetic DeviceMotionEvent dispatch. Expected vectors came from an independent reference implementation of the documented rule (g = -R(screenAngle) * (sign * accel), clamped to 4 * 9.81), not from the module source.
+
+- App page loads with no console errors and the canvas renders; module exports are sane (MAX_GRAVITY 39.24, DEFAULT_GRAVITY (0,0,-9.81), all four functions).
+- deviceToWorldGravity matches the reference within 1e-6: flat phone gives (0,0,-9.81) at angles 0/90/180/270; upright portrait at 0 gives (0,-9.81,0); tilt vectors rotate correctly at all four angles; magnitude above 4*9.81 clamps to 39.24 with direction kept; free fall gives (0,0,0).
+- createMotion on desktop: onGravity(DEFAULT_GRAVITY) fires once at creation; no further calls within 1.2 s without events (the 1 s no-data fallback holds); events with null or partially null accelerationIncludingGravity are ignored; screen.orientation.angle is read live per event (changed to 90 mid-session, next event rotated correctly).
+- iOS sign normalization (iPhone 13 emulation, UA matches /iPhone/): iOS-convention flat (0,0,-9.81) gives gravity (0,0,-9.81), upright (0,-9.81,0) gives (0,-9.81,0), angle 90 with (1,-2,9.81) gives (2,1,9.81). Feeding W3C-convention values on the iOS-emulated page flips gravity to +z, consistent with the platform-normalization assumption.
+- Macintosh branch (Macintosh UA, maxTouchPoints 5): sign -1 applied, as assumed.
+- First gesture: a real click and a real keypress each run queued onFirstGesture callbacks exactly once, synchronously inside the event and before the permission and lock requests run (callback observed permission counter still 0). The shared handler is removed after first use (second click, and a click after keydown, do nothing). Calling unlockOnFirstGesture() twice is a no-op. onFirstGesture registered after unlock runs immediately.
+- requestPermission: called exactly once when present; resolve('granted') and reject() are both swallowed with no unhandled rejections and callbacks still run. With the API absent (real desktop Chromium, and Chromium with iPhone UA) unlock still works.
+- Portrait lock: headless Chromium granted requestFullscreen (fullscreenElement set) on desktop and mobile-emulated contexts; screen.orientation.lock exists but never applies (orientation stayed landscape-primary on desktop, portrait-primary on phone emulation) and its rejection is caught silently, so the app follows rotation. This matches the spec.
+
+## Test assumptions
+- Real sensor hardware was not available, so real devicemotion data, the real iOS permission dialog, and real lock success or failure could not be observed. These paths were exercised with UA and touch emulation, a maxTouchPoints spoof, a patched DeviceMotionEvent.requestPermission, and synthetic devicemotion events.
+- Desktop Chromium emits no devicemotion events, which doubles as the desktop and no-data fallback test.
+- The screenAngle fallback to window.orientation was not testable: Chromium always provides screen.orientation.angle.
+
+## Assumption contradictions observed
+- The Notes assume non-multiples of 90 fall back to angle 0; the code instead rounds to the nearest multiple (45 behaves as 90, 135 as 180). Real sensors report only multiples of 90, so there is no user impact, but the assumption text does not match the implementation.
+- Desktop Chrome also has document.fullscreenEnabled true and screen.orientation.lock defined, so per the spec a first click puts a desktop user into fullscreen before the silently failing portrait lock. Observed, follows the spec literally.
+
+## Environment notes
+- No global playwright on this machine; used the package from another repo via NODE_PATH. Headless Chromium caps navigator.maxTouchPoints at 1, so the Macintosh branch needed a page-side spoof to reach its > 1 condition.

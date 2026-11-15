@@ -1,13 +1,15 @@
 ---
 name: "feat: dice polyhedra geometry d4 to d20 with face values and mass properties"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "feat/3-dice-shapes-geometry"
 issuer: "user"
 complexity: "moderate"
 shortName: "dice-shapes-geometry"
 blockedBy: ""
 splitter: "done"
+changes: "{\"base\":\"main\",\"ins\":589,\"del\":0,\"files\":2}"
+commits: "[{\"hash\":\"b6f651c\",\"subject\":\"feat(dice): add d4 to d20 polyhedra with face values and mass properties\",\"when\":\"2026-11-15T19:10:17+01:00\"}]"
 ---
 
 # Summary

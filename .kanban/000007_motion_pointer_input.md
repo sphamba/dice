@@ -8,6 +8,7 @@ complexity: "simple"
 shortName: "motion-pointer-input"
 blockedBy: ""
 splitter: "done"
+map: "{\"files\":[],\"flows\":[],\"role\":\"developer\",\"run\":0,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-15T18:13:24.748Z\",\"head\":\"8725309\"}"
 ---
 
 # Summary
