@@ -1,7 +1,7 @@
 ---
 name: "fix: body.js scales per-unit-density shape inertia by mass a second time"
 priority: "critical"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "#14"
 complexity: "simple"
