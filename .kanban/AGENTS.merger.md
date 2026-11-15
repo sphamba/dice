@@ -2,27 +2,27 @@
 
 The run prompt owns the step order (read task, abort a stale rebase, clear context paths, rebase, resolve, test, report). This file only removes waste from that path.
 
-## Decision rule
+## General
 
+- Spend no thinking tokens re-narrating the run prompt or the step list. Tool time is trivial here; model latency is the whole run cost. Pick the next command in one short sentence, then call it.
 - When a command fails or a result looks odd, match it to this file first. Most failures in this workflow are by design. Think only about failures this file does not explain.
 
 ## Pre-rebase
 
-- Read the task file once, with the read tool, at the start of the run. Keep the state and summary from that read. Do not cat or re-read it in later bash commands.
+- Read the task file once, with the read tool, at the start of the run. Do not cat or re-read it in later bash commands.
 - Run all pre-rebase prep as one command: `git status --short --branch && git log --oneline -5 && git update-index --no-skip-worktree -- AGENTS.md TASK.md 2>/dev/null; git restore --staged --worktree -- AGENTS.md TASK.md 2>/dev/null; true`. Judge branch state and a rebase in progress from the printed status; the path clear runs unconditionally and is safe either way. If the status shows a rebase you did not start, abort it as the next command.
-- The restore part of the prep command prints nothing on success. That silence is success: do not re-run status or log to confirm the clear. Start the rebase in the next command.
+- The restore part prints nothing on success. That silence is success: do not re-run status or log to confirm the clear. Start the rebase in the next command.
 - Do not inspect tracking or skip-worktree state, do not explain suppressed errors, and never deduce path status from `git status`. Go straight to the rebase.
 
 ## Rebase
 
-- Treat the `git rebase main` output as the truth. "Current branch ... is up to date" or "Fast-forwarded" is a final no-op merge: no fetch, no history or merge-base inspection, no conflict pass, and no re-check of the result. Go straight to the test gate.
-- "Successfully rebased and updated refs/heads/..." is also a clean result: your commits replayed with no conflicts. Do not parse the output again to tell a replay from a fast-forward. Both are success, and the next step is the same. Go straight to the test gate.
+- Treat the `git rebase main` output as the truth. "Current branch ... is up to date", "Fast-forwarded", and "Successfully rebased and updated refs/heads/..." are all final clean results: no fetch, no history or merge-base inspection, no conflict pass, no re-parse. Do not tell a replay from a fast-forward; the next step is the same. Go straight to the test gate.
 - Do not `git fetch` before the rebase. The daemon resolves the local `main`; a network fetch changes nothing.
 
 ## Conflicts (only when the rebase stops)
 
 - In a rebase the sides invert: `--ours` is the base branch, `--theirs` is your commit. `git checkout --theirs <path>` keeps your side.
-- Read the other side with `git blame -L <start>,<end> main -- <path>` and `git log --oneline -1 <sha>`. The subject suffix `(#NNN)` maps to `.kanban/0000NN_*.md`; read that task's Summary and Specs.
+- Read the other side with `git blame -L <start>,<end> main -- <path>` and `git log --oneline -1 <sha>`. A subject suffix `(#NNN)` maps to `.kanban/0000NN_*.md`; read that task's Summary and Specs.
 - Both sides fit: re-apply the other side by hand. They do not fit: keep your side and add one open question through `kanban_update` with `openQuestions`.
 - Continue with `GIT_EDITOR=true git rebase --continue`. A rebase can stop once per replayed commit; resolve and continue again. On a sign failure, retry with `GIT_EDITOR=true git -c commit.gpgsign=false rebase --continue`.
 
