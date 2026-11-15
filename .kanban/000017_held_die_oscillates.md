@@ -1,11 +1,13 @@
 ---
 name: "fix: held die oscillates around the pointer instead of following at hold height"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/17-held-die-oscillates"
 issuer: "#13"
 complexity: "simple"
 map: "{\"files\":[{\"path\":\"src/input/pointer.js\",\"symbols\":[{\"name\":\"drive\",\"kind\":\"fn\",\"ins\":9,\"del\":0,\"isNew\":false},{\"name\":\"pump\",\"kind\":\"fn\",\"ins\":0,\"del\":10,\"isNew\":false},{\"name\":\"createPointer\",\"kind\":\"fn\",\"ins\":1,\"del\":2,\"isNew\":false},{\"name\":\"onDown\",\"kind\":\"fn\",\"ins\":0,\"del\":1,\"isNew\":false},{\"name\":\"destroy\",\"kind\":\"fn\",\"ins\":1,\"del\":2,\"isNew\":false}]},{\"path\":\"src/input/pointer.test.js\",\"symbols\":[{\"name\":\"makeDie\",\"kind\":\"fn\",\"ins\":8,\"del\":0,\"isNew\":true},{\"name\":\"dragWorld\",\"kind\":\"fn\",\"ins\":7,\"del\":0,\"isNew\":true},{\"name\":\"setup\",\"kind\":\"fn\",\"ins\":2,\"del\":5,\"isNew\":false},{\"name\":\"grabs the highest die under the point\",\"kind\":\"case\",\"ins\":3,\"del\":10,\"isNew\":false},{\"name\":\"drives the held die at hold height within one frame of a still pointer\",\"kind\":\"case\",\"ins\":9,\"del\":0,\"isNew\":true},{\"name\":\"keeps a still die at hold height at every frame rate\",\"kind\":\"case\",\"ins\":16,\"del\":0,\"isNew\":true},{\"name\":\"follows a pointer jump without overshoot at every frame rate\",\"kind\":\"case\",\"ins\":15,\"del\":0,\"isNew\":true},{\"name\":\"releases with the pointer velocity and lets go of the die\",\"kind\":\"case\",\"ins\":0,\"del\":0,\"isNew\":false}]},{\"path\":\"src/physics/world.js\",\"symbols\":[{\"name\":\"createWorld\",\"kind\":\"fn\",\"ins\":2,\"del\":0,\"isNew\":false},{\"name\":\"step\",\"kind\":\"fn\",\"ins\":1,\"del\":0,\"isNew\":false}]},{\"path\":\"src/physics/world.test.js\",\"symbols\":[{\"name\":\"beforeStep\",\"kind\":\"case\",\"ins\":16,\"del\":0,\"isNew\":true}]}],\"flows\":[],\"role\":\"developer\",\"run\":0,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-15T18:52:35.232Z\",\"head\":\"cad2780\"}"
+changes: "{\"base\":\"main\",\"ins\":96,\"del\":39,\"files\":4}"
+commits: "[{\"hash\":\"e6acf18\",\"subject\":\"fix(input): drive held dice at the integration step so they follow the pointer\",\"when\":\"2026-11-15T19:51:35+01:00\"}]"
 ---
 
 # Summary
