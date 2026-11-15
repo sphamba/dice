@@ -1,7 +1,7 @@
 ---
 name: "feat: collision detection for dice vs box planes and dice vs dice"
 priority: "high"
-state: "live-testing"
+state: "done"
 worktree: "feat/14-collision-impulse-solver-collision"
 issuer: "#5"
 complexity: "moderate"
