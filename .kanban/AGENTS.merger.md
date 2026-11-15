@@ -4,8 +4,8 @@ The run prompt owns the step order (read task, abort a stale rebase, clear conte
 
 ## Turn discipline
 
-- Turn 1: emit the prep command as the first tool call, with no thinking and no text before it. This file already fixes the command. A first turn that plans the run or quotes the command is pure output with no information.
-- Between tool calls: when a result matches a listed outcome below, emit the next tool call in the same turn. Empty thinking is the target; one clause naming the branch (clean / conflict / fail) is the ceiling. Never re-quote command text, timeouts, output lines, branch names, counts, or rules of this file in thinking or in lead-in text. Lead-in text is banned: text exists only in the final reply.
+- Turn 1: emit the prep command as the first tool call, with no text before it. If a thinking block appears anyway, it holds at most one word (`prep`) and never the command, a plan, or any text from this file; the command is already fixed below and echoed again in the call itself.
+- Between tool calls: when a result matches a listed outcome below, emit the next tool call in the same turn. If thinking appears, it is empty or one clause naming the branch (clean / conflict / fail). Never re-quote command text, timeouts, output lines, branch names, counts, or rules of this file in thinking or in lead-in text. Lead-in text is banned: text exists only in the final reply.
 - A passing gate ends the run in that turn: write the one-line final reply directly, with no thinking before it.
 
 ## Prep and rebase (one command)

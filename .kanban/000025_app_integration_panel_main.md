@@ -9,6 +9,7 @@ shortName: "app-integration-panel-main"
 splitter: "done"
 changes: "{\"base\":\"main\",\"ins\":162,\"del\":16,\"files\":1}"
 commits: "[{\"hash\":\"4af8263\",\"subject\":\"feat: wire world, renderer, input and panel into the main loop\",\"when\":\"2026-11-15T21:01:40+01:00\"}]"
+map: "{\"files\":[{\"path\":\"src/main.js\",\"symbols\":[{\"name\":\"resize\",\"kind\":\"fn\",\"ins\":0,\"del\":10,\"isNew\":false},{\"name\":\"randomRange\",\"kind\":\"fn\",\"ins\":1,\"del\":0,\"isNew\":true},{\"name\":\"randomAxis\",\"kind\":\"fn\",\"ins\":6,\"del\":0,\"isNew\":true},{\"name\":\"showUnsupported\",\"kind\":\"fn\",\"ins\":1,\"del\":0,\"isNew\":true},{\"name\":\"freePosition\",\"kind\":\"fn\",\"ins\":26,\"del\":0,\"isNew\":true},{\"name\":\"spawnDie\",\"kind\":\"fn\",\"ins\":17,\"del\":0,\"isNew\":true},{\"name\":\"removeDie\",\"kind\":\"fn\",\"ins\":5,\"del\":0,\"isNew\":true},{\"name\":\"rollDice\",\"kind\":\"fn\",\"ins\":18,\"del\":0,\"isNew\":true},{\"name\":\"applySize\",\"kind\":\"fn\",\"ins\":13,\"del\":0,\"isNew\":true},{\"name\":\"frame\",\"kind\":\"fn\",\"ins\":7,\"del\":0,\"isNew\":true}]}],\"flows\":[],\"role\":\"developer\",\"run\":0,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-15T20:07:29.497Z\",\"head\":\"4af8263\"}"
 ---
 
 # Summary
