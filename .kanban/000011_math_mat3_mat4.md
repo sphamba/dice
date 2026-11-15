@@ -36,9 +36,24 @@ Implement src/math/mat3.js and src/math/mat4.js (gl-matrix style, no dependencie
 - `npm run build` exits 0.
 
 # Notes
-- Added src/math/mat3.js (create, identity, fromQuat, transpose, multiply, invert, fromDiagonal, transformVec3) and src/math/mat4.js (create, identity, multiply, invert, transpose, fromRotationTranslation, fromRotationTranslationScale, ortho, lookAt, normalFromMat4), column-major, out-first, no imports.
-- Added src/math/mat3.test.js and src/math/mat4.test.js, 16 tests pass with npx vitest run on both files; npm run build passes.
-- Assumption: fromDiagonal takes separate x, y, z numbers, not a vector.
-- Assumption: invert and normalFromMat4 return null for a singular matrix, matching gl-matrix.
-- Assumption: fromRotationTranslationScale applies scale before rotation, as in gl-matrix.
-- Committed as 249883b.
+Live test report (worktree feat/11-math-mat3-mat4, commit d6b6cf0).
+
+What was tested
+- The change is a math library with no app callers yet, so I tested it as a downstream consumer: direct module imports in Node 24, plus a real WebGL2 render in headless Chromium that uploads the matrices with uniformMatrix4fv(loc, false, m) and uniformMatrix3fv.
+- Node usage checks, 28/28 passed: physics inertia flow with Float64Array (fromDiagonal, fromQuat, multiply, transpose, transformVec3; I_world^-1 = R*I_body^-1*R^T agrees with the per-vector route to 1e-12); multiply(invert(M), M) = identity for a rigid transform; in-place aliasing out===a and out===b in multiply; mixed array types (Float32Array out, Float64Array out, plain array out); every function returns its out argument; fromQuat equals the mat4 rotation part for 4 quaternions; ortho maps (left,bottom,-near) to (-1,-1,-1) and (right,top,-far) to (1,1,1) and the box center to NDC center; lookAt for a normal camera and for a straight-down shadow light; invert and normalFromMat4 return null for singular matrices; fromRotationTranslationScale applies scale before rotation; normalFromMat4 of a rigid transform equals the rotation part and keeps a transformed normal perpendicular to a transformed tangent under non-uniform scale.
+- Browser WebGL2 checks, 16/16 passed: matrices uploaded directly with transpose=false render correctly through proj*view*model (ortho + lookAt + fromRotationTranslation / fromRotationTranslationScale): model translation, 90-degree rotation with non-uniform scale, a straight-down shadow light camera (ground quad centered, world -z appears up in light view, quad moves in view when translated in world -z), and normalFromMat4 passed to a lighting shader through uniformMatrix3fv (60-degree tilted quad lights at dot 0.5 and shows the foreshortened height).
+- Confirmed the spec constraints: column-major layout, out-first signature, no imports between the two modules, quat layout [x,y,z,w], right-handed system (x right, y up on screen, z toward viewer).
+
+Assumptions I made while designing the tests
+- Nothing in src imports the new modules yet, so no app-level UI flow exists for this change. The module API plus a real WebGL draw is the real interface.
+- The app scaffold is WebGL2, so I used a webgl2 context for the uniformMatrix4fv check.
+- fromDiagonal takes separate x, y, z numbers (matches the task Notes).
+- Quaternions are kept unit length by callers (physics normalizes), so I did not treat non-unit quat input as a defect.
+
+Observations (gl-matrix parity, within spec, no defects filed)
+- lookAt with up parallel to the view direction (a straight-down light with up (0,1,0), the classic shadow camera trap) silently zeroes the x and y basis and yields a singular view. Same behavior as gl-matrix. Callers must pass a different up vector.
+- fromQuat and fromRotationTranslation with a non-unit quaternion produce a scaled (non-orthogonal) matrix. Same as gl-matrix; callers must normalize.
+- The earlier dev Notes (singular returns null, scale before rotation, fromDiagonal signature) all matched observed behavior.
+
+Environment notes (not defects of this change)
+- Headless Chromium (SwiftShader) warned "GPU stall due to ReadPixels" and once dropped the WebGL context after about 25 readPixels calls in one page. A page reload reran the same checks fine. If future pixel tests grow, batch reads or split across pages.

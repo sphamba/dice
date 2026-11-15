@@ -1,7 +1,7 @@
 ---
 name: "feat: 3D math library (vec3, mat4, quaternion)"
 priority: "high"
-state: "live-testing"
+state: "done"
 worktree: "feat/2-math-vec-mat-quat"
 issuer: "user"
 complexity: "simple"
@@ -28,10 +28,28 @@ Verify the complete 3D math library across all four modules once the vec3/quat (
 - No new dependencies were added; no dangling imports or re-exports between the parallel halves.
 
 # Notes
-- All four modules and their test files present: `vec3.js`, `quat.js`, `mat3.js`, `mat4.js` plus `*.test.js` beside each.
-- `npx vitest run src/math`: 39 tests in 5 files pass. `npm run build`: passes, `dist/index.html` uses relative `./assets/...` paths.
-- Added `src/math/conventions.test.js` to cover the cross-module checks: quat rotation matches `mat3.fromQuat` and `mat4.fromRotationTranslation`, quat and mat4 inverses agree, and all four modules write Float64Array output. Committed as `0bdf7c7`.
-- Assumption: `mat3.invert`, `mat4.invert`, and `mat4.normalFromMat4` return `null` on singular input while `vec3.normalize` and `quat.normalize` fall back to zero/identity; treated as intentional per-type handling, no code change.
-- Assumption: `mat3.test.js` importing `mat4` is a test-only cross-check, not a runtime coupling between modules.
-- No dependency changes: `package.json` and the lockfile match `main`; no dangling runtime imports (only `src/main.js` imports `./render/canvas-size.js`).
-- Conventions confirmed: gl-matrix out-argument style, column-major matrices, `[x, y, z, w]` quaternions, right-handed cross product, plain array and typed-array output supported.
+Live test result: pass. No defects found. No defect tasks filed.
+
+## What was tested
+Ran the library through its real interface (the four ES modules in src/math) as a consumer would, with a usage script executed by node v24 from the worktree cwd. No unit test suite was run. npm run build exits 0. The app UI does not import the math modules yet, so no browser flow applies to this change.
+
+## Results (48/48 checks pass)
+- Cross-module agreement: quat rotation of a vector matches mat3.fromQuat and mat4.fromRotationTranslation to 1e-12. quat.fromMat3(mat3.fromQuat(q)) roundtrips to q. mat4.inverse rotation part matches quat.invert.
+- Composition: quat.multiply and mat4.multiply compose two rotations with the same order semantics (argument b applies first); both match sequential rotation.
+- Inverse: quat.invert and mat4.invert undo their forward transforms.
+- Conventions: quaternions are [x, y, z, w]; matrices are column-major with translation at indices 12-14 and last row 0,0,0,1; cross([1,0,0],[0,1,0]) = [0,0,1] and +90 degrees about +z maps +x to +y (right-handed).
+- Out-argument style: every checked call returns the out object. Plain arrays, Float32Array and Float64Array all work as inputs and outputs.
+- Renderer flow: ortho plus lookAt maps a top-down camera correctly (near-plane corner to NDC (1,1,-1)); fromRotationTranslationScale builds model matrices; normalFromMat4 keeps normals perpendicular under non-uniform scale and equals the rotation part for pure rotation.
+- Physics flow: quat.integrate over 240 steps at 4 rad/s stays unit and lands within 2.4e-4 of the exact 8 rad rotation. This drift is the expected first-order truncation error of the scheme, not a defect.
+- Degenerate inputs match the task's stated assumptions: mat3.invert, mat4.invert and mat4.normalFromMat4 return null on singular input; vec3.normalize gives zero and quat.normalize / quat.invert give identity on zero input. No NaNs.
+- Hygiene: no import, require or re-export statements in vec3.js, quat.js, mat3.js, mat4.js. package.json and lockfile are unchanged vs main. No runtime dependencies.
+
+## Assumptions made when designing the usage tests
+- The math modules are not wired into the app yet, so node scripts importing the modules are the real usage for this task. Browser flows belong to later tasks.
+- setAxisAngle expects a normalized axis, as in gl-matrix. My first run passed unnormalized axes and got wrong rotations; with unit axes all results are correct. Consumers must normalize first.
+- vec3.transformQuat(out, v, q) and quat.rotateVec3(out, q, v) swap the argument order between modules; both give identical results when called with the right order. Matches the gl-matrix style.
+- quat.integrate is a first-order scheme, so a small deterministic drift over long integration is accepted.
+- Build output is not part of this task's flow beyond a successful build, because main.js does not use math yet.
+
+## Technical difficulties while testing
+All failures in the first run came from my test harness, not the library: wrong argument order for rotateVec3, unnormalized axes for setAxisAngle, a rotation-only result compared against rotation plus translation, wrong ortho/lookAt point expectations, and scalar values passed where arrays were expected. Fixed in the harness; no code issues behind them.
