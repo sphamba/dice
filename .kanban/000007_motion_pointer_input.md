@@ -1,7 +1,7 @@
 ---
 name: "feat: input, device motion gravity with shake, portrait lock, pointer drag and fling"
 priority: "high"
-state: "to-merge"
+state: "merging"
 worktree: "feat/7-motion-pointer-input"
 issuer: "user"
 complexity: "simple"
