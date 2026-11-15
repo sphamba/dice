@@ -1,2 +1,196 @@
-// Ceiling: no collision response yet. The collision task replaces this body with the impulse solver.
-export function solveContacts() {}
+import * as vec3 from '../math/vec3.js';
+import { applyImpulse } from './body.js';
+
+export const SOLVER_ITERATIONS = 10;
+
+export const RESTITUTION_THRESHOLD = 0.1;
+
+export const RESTITUTION_BOX = 0.3;
+
+export const RESTITUTION_DIE = 0.4;
+
+export const FRICTION_BOX = 0.4;
+
+export const FRICTION_DIE = 0.3;
+
+export const BAUMGARTE = 0.2;
+
+export const SLOP = 0.0002;
+
+export const MAX_BIAS_SPEED = 1;
+
+export const EVENT_MIN_SPEED = 0.05;
+
+export const CONTACT_ANGULAR_DAMPING = 6;
+
+const AXIS_X = Float64Array.from([1, 0, 0]);
+
+const AXIS_Z = Float64Array.from([0, 0, 1]);
+
+const vec = () => new Float64Array(3);
+
+const scratchSpin = vec();
+const scratchVelocityA = vec();
+const scratchVelocityB = vec();
+const scratchRelative = vec();
+const scratchImpulse = vec();
+
+function pointVelocity(out, body, lever) {
+  if (!body) return vec3.set(out, 0, 0, 0);
+  return vec3.add(out, body.linearVelocity, vec3.cross(scratchSpin, body.angularVelocity, lever));
+}
+
+function relativeVelocity(out, contact) {
+  pointVelocity(scratchVelocityA, contact.a, contact.ra);
+  pointVelocity(scratchVelocityB, contact.b, contact.rb);
+  return vec3.sub(out, scratchVelocityA, scratchVelocityB);
+}
+
+function angularTerm(body, lever, direction) {
+  if (!body) return 0;
+  vec3.cross(scratchSpin, lever, direction);
+  vec3.transformMat3(scratchSpin, scratchSpin, body.invInertiaWorld);
+  vec3.cross(scratchSpin, scratchSpin, lever);
+  return vec3.dot(scratchSpin, direction);
+}
+
+function effectiveMass(contact, direction) {
+  let inverse = 0;
+  if (contact.a) inverse += contact.a.invMass + angularTerm(contact.a, contact.ra, direction);
+  if (contact.b) inverse += contact.b.invMass + angularTerm(contact.b, contact.rb, direction);
+  return inverse > 0 ? 1 / inverse : 0;
+}
+
+function tangentBasis(first, second, normal) {
+  vec3.cross(first, normal, Math.abs(normal[2]) < 0.9 ? AXIS_Z : AXIS_X);
+  vec3.normalize(first, first);
+  return vec3.cross(second, normal, first);
+}
+
+function prepare(contact, dt) {
+  const a = contact.a;
+  const b = contact.b ?? null;
+  const point = Float64Array.from(contact.point);
+  const normal = Float64Array.from(contact.normal);
+  const tangents = [vec(), vec()];
+  tangentBasis(tangents[0], tangents[1], normal);
+
+  const prepared = {
+    a,
+    b,
+    surface: contact.surface,
+    point,
+    ra: vec3.sub(vec(), point, a.position),
+    rb: b ? vec3.sub(vec(), point, b.position) : vec(),
+    friction: b ? FRICTION_DIE : FRICTION_BOX,
+    approach: 0,
+    target: 0,
+    normal: { direction: normal, impulse: 0 },
+    tangents: tangents.map((direction) => ({ direction, impulse: 0 })),
+  };
+  prepared.normal.mass = effectiveMass(prepared, normal);
+  for (const tangent of prepared.tangents) {
+    tangent.mass = effectiveMass(prepared, tangent.direction);
+  }
+
+  relativeVelocity(scratchRelative, prepared);
+  const normalSpeed = vec3.dot(scratchRelative, normal);
+  prepared.approach = -normalSpeed;
+  const bounce =
+    prepared.approach > RESTITUTION_THRESHOLD
+      ? (b ? RESTITUTION_DIE : RESTITUTION_BOX) * prepared.approach
+      : 0;
+  const depth = contact.depth ?? 0;
+  prepared.target = depth < 0
+    ? (bounce > 0 ? bounce : depth / dt)
+    : bounce + Math.min((BAUMGARTE * Math.max(depth - SLOP, 0)) / dt, MAX_BIAS_SPEED);
+  return prepared;
+}
+
+function applyPair(contact, direction, magnitude) {
+  vec3.scale(scratchImpulse, direction, magnitude);
+  applyImpulse(contact.a, scratchImpulse, contact.point);
+  if (!contact.b) return;
+  vec3.negate(scratchImpulse, scratchImpulse);
+  applyImpulse(contact.b, scratchImpulse, contact.point);
+}
+
+function solveAxis(contact, axis, isFriction) {
+  relativeVelocity(scratchRelative, contact);
+  const speed = vec3.dot(scratchRelative, axis.direction);
+  const previous = axis.impulse;
+  let next = previous + axis.mass * ((isFriction ? 0 : contact.target) - speed);
+  if (isFriction) {
+    const limit = contact.friction * contact.normal.impulse;
+    next = Math.min(Math.max(next, -limit), limit);
+  } else {
+    next = Math.max(next, 0);
+  }
+  axis.impulse = next;
+  if (next !== previous) applyPair(contact, axis.direction, next - previous);
+}
+
+function groupKey(ids, contact) {
+  const idOf = (body) => {
+    if (!ids.has(body)) ids.set(body, ids.size);
+    return ids.get(body);
+  };
+  return contact.b ? `${idOf(contact.a)}|${idOf(contact.b)}` : `${idOf(contact.a)}|${contact.surface}`;
+}
+
+export function solveContacts(world, dt) {
+  const contacts = world.contacts ?? [];
+  if (contacts.length === 0 || !(dt > 0)) return;
+
+  const prepared = contacts.map((contact) => prepare(contact, dt));
+  const events = (world.events ??= []);
+  const groups = new Map();
+  const ids = new Map();
+  for (const contact of prepared) {
+    const key = groupKey(ids, contact);
+    let group = groups.get(key);
+    if (!group) {
+      group = {
+        a: contact.a,
+        b: contact.b,
+        surface: contact.surface,
+        point: contact.point,
+        speed: 0,
+        impulse: 0,
+        contacts: [],
+      };
+      groups.set(key, group);
+    }
+    group.contacts.push(contact);
+    if (contact.approach > group.speed) {
+      group.speed = contact.approach;
+      group.point = contact.point;
+    }
+  }
+
+  for (let iteration = 0; iteration < SOLVER_ITERATIONS; iteration += 1) {
+    for (const contact of prepared) {
+      solveAxis(contact, contact.normal, false);
+      for (const tangent of contact.tangents) solveAxis(contact, tangent, true);
+    }
+  }
+
+  const touching = new Set();
+  for (const group of groups.values()) {
+    for (const contact of group.contacts) group.impulse += contact.normal.impulse;
+    touching.add(group.a);
+    if (group.b) touching.add(group.b);
+    if (group.speed <= EVENT_MIN_SPEED) continue;
+    events.push({
+      a: group.a,
+      b: group.b,
+      surface: group.surface,
+      point: group.point,
+      speed: group.speed,
+      impulse: group.impulse,
+    });
+  }
+
+  const damping = 1 / (1 + CONTACT_ANGULAR_DAMPING * dt);
+  for (const body of touching) vec3.scale(body.angularVelocity, body.angularVelocity, damping);
+}
