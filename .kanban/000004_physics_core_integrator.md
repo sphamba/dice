@@ -6,7 +6,7 @@ worktree: ""
 issuer: "user"
 complexity: "moderate"
 shortName: "physics-core-integrator"
-blockedBy: "#2"
+blockedBy: ""
 ---
 
 # Summary
