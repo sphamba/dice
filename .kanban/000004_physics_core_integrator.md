@@ -1,7 +1,7 @@
 ---
 name: "feat: physics core, rigid bodies, symplectic Euler, box world with device gravity"
 priority: "high"
-state: "to-review"
+state: "to-merge"
 worktree: "feat/4-physics-core-integrator"
 issuer: "user"
 complexity: "moderate"
