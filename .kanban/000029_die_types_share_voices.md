@@ -1,11 +1,12 @@
 ---
 name: "fix: d4/d10 and d6/d12 die voices are identical (4 distinct sounds for 6 types)"
 priority: "low"
-state: "merging"
+state: "to-do"
 worktree: "fix/29-die-types-share-voices"
 issuer: "#27"
 complexity: "simple"
 shortName: "die-types-share-voices"
+map: "{\"files\":[{\"path\":\"src/audio/modes.js\",\"symbols\":[{\"name\":\"DIE_DETUNE_STEP\",\"kind\":\"class\",\"ins\":1,\"del\":0,\"isNew\":true},{\"name\":\"dieModes\",\"kind\":\"fn\",\"ins\":2,\"del\":1,\"isNew\":false}]},{\"path\":\"src/audio/modes.test.js\",\"symbols\":[{\"name\":\"gives every die type a distinct voice\",\"kind\":\"case\",\"ins\":9,\"del\":4,\"isNew\":true}]}],\"flows\":[],\"role\":\"developer\",\"run\":0,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-15T22:00:39.096Z\",\"head\":\"4101720\"}"
 ---
 
 # Summary
