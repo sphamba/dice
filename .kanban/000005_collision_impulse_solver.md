@@ -1,7 +1,7 @@
 ---
 name: "feat: convex collision detection and impulse-based contact resolution"
 priority: "high"
-state: "live-testing"
+state: "done"
 worktree: "feat/5-collision-impulse-solver"
 issuer: "user"
 complexity: "simple"
@@ -32,17 +32,30 @@ All world tests use the iPhone 15 box `boxFromViewport(393, 852, 3)` and `DIE_RA
 - Performance: 10 dice for 1 s simulated (480 steps) runs in < 500 ms in Node.
 
 # Notes
-Verified the combined collision (#14) and impulse solver (#15) halves on top of `main` (fast-forwarded; `main` is an ancestor of HEAD).
+Live test of the collision + impulse change (HEAD 1217f3a) on 2026-11-15, run from the worktree like a user session.
 
-- One defect fixed, commit 1217f3a: `world.step` now projects every body vertex into the box after `integratePositions`. The radius clamp only runs in `setBox`, so it would float a die whose face rests flush on a wall, and a die pushed by another die can exceed the speculative contact margin in one step. The inertia fix (density instead of mass in `createBody`) already landed on `main` as ef08eee.
-- New `src/physics/world.e2e.test.js` covers all six spec checks: settling for d4/d6/d8/d10/d12/d20, containment of 10 dice under 4 g random gravity, die-die rest depth after 5 s, floor impact event speed with silence at rest, energy (no rise above drop height), and performance.
-- Evidence: `npx vitest run src/physics` gives 7 files / 66 tests passing; `npm run build` exits 0 and `dist/index.html` uses relative `./assets/` paths; working tree clean.
-- Measured values vs spec: settling linear speed <= 1.8e-5 m/s, angular <= 5.7e-4 rad/s, lowest vertex 0.0000 mm, face alignment 1.0000; containment worst overshoot 0.0000 mm; die-die rest depth 0.21 mm; first floor event 0.7126 m/s against analytic 0.7146 m/s; energy rise -0.04 mm; 480 steps for 10 dice about 200 ms standalone.
+Method
+- Served the worktree with python http.server and drove the shipped physics modules in headless Chromium (Playwright, SwiftShader). Fixtures and expected values came from an independent Node reference script (box math W=D=68.06 mm, H=147.55 mm; drop height h=21.464 mm; expected impact sqrt(2gh)=0.6489 m/s). The SAT depth instrument was validated in Node against closed forms (0.001 m face overlap, separated pair, coincident pair, 45 degree rotated overlap) before use. No unit or e2e suite ran.
+- The browser UI does not wire the physics yet (main.js only clears the canvas), so no dice flow exists to click through. Flows ran in-page through the served modules: settling drove the frame API world.update(1/60) for 5 s; the other scenarios used the fixed step world.step(1/480). This is a test limit, not a product defect of this task.
 
-Assumptions:
-- "Drop from z = D/2" means the body centre starts at `BOX.D / 2`; the drop height for the event check is the world z of the lowest vertex at that moment.
-- The energy check runs with the shipped restitution constants because `contacts.js` exposes no restitution parameter; the assertion (never above the drop height) is the e=0 claim and holds a fortiori with e = 0.3.
-- The die-die spec is read as the depth at rest after 5 s, not the transient impact depth (which peaks at about 1.4 mm during the first 40 steps).
-- The containment test keeps a 30 s vitest timeout because 10 s of simulated time with 10 dice takes about 7 s under vitest.
-- `SETTLING` and other random fixtures use a seeded mulberry32 RNG so the checks are deterministic.
-- The clean-room copy check from the earlier run was not repeated because the working tree had no uncommitted changes; the in-place scoped suite and build were re-run instead.
+Results (all pass)
+| Check | Measured | Spec limit |
+| Settling d4, d6, d8, d10, d12, d20 (5 s) | linear <= 1.8e-5 m/s, angular <= 7.3e-4 rad/s, lowest vertex 0.000 mm, face alignment 1.0000 | 0.005 m/s, 0.1 rad/s, 0.5 mm, 0.99 |
+| Containment, 10 dice, 10 s, 1-4 g random gravity every 0.2 s | worst vertex overshoot 0.0000 mm, 0 violations | 1 mm |
+| Die-die, two d6 fall onto each other | rest depth -11.8 mm (they separate and rest apart, both face-down on the floor); 16544 pair contact events; sampled transient depth <= 0.125 mm at 100-step sampling | <= 0.5 mm at rest |
+| Floor event, d6 dropped from z = D/2 | first floor event 0.6518 m/s at step 31 against analytic 0.6489 m/s (+0.4 percent); 8 floor events, decaying bounces; no floor events in the last 2 s | +/-20 percent of sqrt(2gh); silent at rest |
+| Energy | lowest vertex never above the drop height (rise 0.000 mm) | never above drop height |
+| Performance, 480 steps x 10 dice | ~440 ms warm in Node (median of 5 runs, mixed d4-d20 fixture), ~390 ms with a spread spawn, ~440 ms in headless Chromium | < 500 ms |
+
+Assumptions
+- "Drop from z = D/2" means the body centre starts at D/2, as the task already states.
+- Die-die reads "after 5 s" as the at-rest depth; the dice ended side by side on the floor, which satisfies the no-penetration gate. Pair contact events prove they interacted (16544 events).
+- Containment spawn: 8 dice on one layer (spacing 30 mm > die diameter 27.7 mm) plus 2 offset dice that start up to ~4.6 mm inside their neighbours; the solver resolved this within the first steps without a containment violation.
+- Energy ran with the shipped restitution constants because contacts.js exposes no restitution parameter, as the task already states.
+
+Contradicting observation
+- The task notes measured "about 200 ms standalone" for 480 steps x 10 dice; this machine measured ~440 ms warm on a comparable mixed-type fixture and ~390 ms with a spread spawn. The 500 ms limit passes in both Node and the browser, but the margin is machine-dependent (12-25 percent). A cold first pass (JIT warm-up included) measured 550 ms, above the limit.
+
+Environment only (not product defects)
+- Headless Chromium printed one WebGL CONTEXT_LOST_WEBGL console warning when the app page loaded (SwiftShader). No page errors; the canvas was present. The renderer is outside this task's scope.
+- No defects were filed; no open questions.

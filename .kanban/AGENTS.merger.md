@@ -1,11 +1,11 @@
 # merger: durable guidance for future merger runs
 
-The run prompt owns the step order (read task, abort a stale rebase, clear context paths, rebase, resolve, test, report). This file only removes waste from that path. The clean path is three model turns: prep+rebase, gate, final reply, with two tool calls. Tool time is small and fixed (a few seconds of git, then the test gate). The only cost worth cutting is model output, and the measured waste is thinking that restates this file.
+The run prompt owns the step order (read task, abort a stale rebase, clear context paths, rebase, resolve, test, report). This file only removes waste from that path. The clean path is three model turns: prep+rebase, gate, final reply, with two tool calls. Tool time is small and fixed (a few seconds of git, then the test gate). The only cost worth cutting is model output, and the observed waste is thinking that restates this file.
 
 ## General
 
-- Every command you need is verbatim in this file. Emit it as a tool call. Never type a command from this file into thinking or lead-in text; the tool call is the only place a command appears. A thinking block that re-quotes a command or a rule is pure output with no information.
-- If a result is covered by this file, the matching thinking block stays empty or holds one short sentence. If a command fails or a result looks odd, match it to this file first: most failures in this workflow are by design. Spend thinking only on results this file does not explain.
+- Start the run with the prep tool call. No planning turn: this file already fixes the first command. Emit commands only inside tool calls; a command quoted in thinking or lead-in text is pure output with no information.
+- Sanctioned thinking content is one short sentence that names the next step or branch (clean / conflict / fail / state change). If a result matches this file, stop there. Never re-quote command text, timeouts, rules, gate numbers, or the reply shape in thinking. Spend thinking only on results this file does not explain.
 
 ## Prep and rebase (one command)
 
@@ -26,7 +26,7 @@ The run prompt owns the step order (read task, abort a stale rebase, clear conte
 
 - `npm test` in the worktree is the whole merge gate: no build step, no lint step, no changed-files-only variant. Run the gate and the closing check as one command with a 3000-second timeout: `npm test && git status --short --branch`; the status line must show a clean tree and no rebase in progress. Do not re-verify acceptance criteria, re-count tests, or re-list files.
 - After a rebase the closing status can show no ahead/behind or tracking markers. That is normal. Only a clean tree and no rebase line matter.
-- A passing summary line ends the gate. Write the final reply straight from the shape rule below; no thinking turn plans it. Never compare its test or file counts to any other run, task file, or expectation; counts legitimately differ between tasks.
+- A passing summary line ends the gate. Write the final reply in the same turn, with empty or one-sentence thinking. Never compare its test or file counts to any other run, task file, or expectation, and never restate the counts in thinking first; the reply quotes them from the tool result.
 - A conflict-free rebase produces no `merge:` bullets. Only a rebase that stopped on conflicts gets one `merge:` bullet per resolved hunk, naming the other task and whether both sides survived.
 - Final reply shape: exactly one line naming the rebase result and the test result, then any `merge:` bullets, nothing else. No second paragraph and no explanation of absent bullets; silence means none. No Notes write; the tool list is closed.
 - Suite success: leave the state at `merging`. Suite failure: `kanban_get`, then `kanban_set_state` to `to-do`, and name the failing suites in the final reply.
