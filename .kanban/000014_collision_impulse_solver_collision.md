@@ -1,7 +1,7 @@
 ---
 name: "feat: collision detection for dice vs box planes and dice vs dice"
 priority: "high"
-state: "doing"
+state: "to-review"
 worktree: "feat/14-collision-impulse-solver-collision"
 issuer: "#5"
 complexity: "moderate"
@@ -36,3 +36,10 @@ World, bodies and the fixed-timestep loop come from task #4 (`src/physics/`: `bo
 - `npm run build` exits 0.
 
 # Notes
+- `src/physics/collision.js` adds `detectContacts(world, dt)`: box contacts per die vertex on the 6 planes (`floor`/`lid`/`wall`, inward normal, depth = -signed distance) and die-die contacts via sphere broadphase plus SAT over both face normals and edge-dir cross products, then Sutherland-Hodgman face clipping or closest-point edge contact. Exports `SLOP` (1e-4 m), `EDGE_BIAS` (1.05) and `BROADPHASE_MARGIN`.
+- `src/physics/world.js` now has `contacts: []`, clears it and calls `detectContacts` between `integrateVelocities` and `solveContacts`.
+- `src/physics/collision.test.js` covers separated/face/edge SAT, box penetration, speculative gap, fast-approach tunnelling, resting face, die-die normal orientation and world wiring. `npx vitest run src/physics` = 37 passed; `npm run build` = green.
+- Assumption: the box speculative margin is `-v_n * dt + SLOP` only when the vertex moves toward the plane, so trailing vertices of a fast die can also emit contacts in that swept range.
+- Assumption: die-die has no speculative margin (broadphase adds only `SLOP`), and contacts need SAT overlap > 0.
+- Assumption: the crossing-cube test pose is a hardcoded analytic edge-edge construction (rotation z 30 deg, x 30 deg, y 36 deg); its expected normal is derived from the same shape edge dir.
+- Assumption: bodies whose shape lacks `vertices` (the fake shapes in #4 tests) are skipped by detection, and `contacts.js` stays a no-op for the #15 solver half.
