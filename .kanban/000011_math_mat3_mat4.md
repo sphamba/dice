@@ -2,7 +2,7 @@
 name: "feat: 3D math mat3 and mat4"
 priority: "high"
 state: "done"
-worktree: "feat/11-math-mat3-mat4"
+worktree: ""
 issuer: "#2"
 complexity: "simple"
 shortName: "math-mat3-mat4"
