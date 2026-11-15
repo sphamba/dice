@@ -1,13 +1,16 @@
 ---
 name: "feat: 3D math library (vec3, mat4, quaternion)"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "feat/2-math-vec-mat-quat"
 issuer: "user"
 complexity: "simple"
 shortName: "math-vec-mat-quat"
 blockedBy: ""
 splitter: "done"
+map: "{\"files\":[{\"path\":\"src/math/conventions.test.js\",\"symbols\":[{\"name\":\"near\",\"kind\":\"fn\",\"ins\":1,\"del\":0,\"isNew\":true},{\"name\":\"rotates vectors the same way through quat, mat3 and mat4\",\"kind\":\"case\",\"ins\":13,\"del\":0,\"isNew\":true},{\"name\":\"inverts a rotation consistently across quat and mat4\",\"kind\":\"case\",\"ins\":9,\"del\":0,\"isNew\":true},{\"name\":\"writes Float64Array output in every module\",\"kind\":\"case\",\"ins\":6,\"del\":0,\"isNew\":true}]}],\"flows\":[],\"role\":\"developer\",\"run\":0,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-15T17:34:38.367Z\",\"head\":\"0bdf7c7\"}"
+changes: "{\"base\":\"main\",\"ins\":43,\"del\":0,\"files\":1}"
+commits: "[{\"hash\":\"0bdf7c7\",\"subject\":\"test(math): verify cross-module quat, mat3, mat4 conventions\",\"when\":\"2026-11-15T18:33:12+01:00\"}]"
 ---
 
 # Summary
