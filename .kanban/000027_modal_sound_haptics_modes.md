@@ -1,7 +1,7 @@
 ---
 name: "feat: modal sound haptics plate modes module"
 priority: "medium"
-state: "doing"
+state: "to-review"
 worktree: "feat/27-modal-sound-haptics-modes"
 issuer: "#9"
 complexity: "simple"
@@ -36,3 +36,9 @@ Pure modal-synthesis module src/audio/modes.js (plate modes, die modes, material
 - `npm run build` exits 0.
 
 # Notes
+- Added `src/audio/modes.js`: `BOX`/`GLASS` materials, `plateModes(a, b, u, v, material, maxModes = 24)` and `dieModes(type, radius)`, both returning ascending `{ f, amp, tau }` lists below 8 kHz. Extra exports `MAX_MODE_FREQUENCY`, `DEFAULT_MAX_MODES`, `DIE_REFERENCE_RADIUS`.
+- Added `src/audio/modes.test.js`: 11 tests (ascending order and `f_11 = material.f11`, 8 kHz cap, count cap, odd-odd-only excitation at center, zero amplitude at corners, a/b and u/v symmetry, shorter decay for higher modes, die range 2 to 7 kHz, per-type variation, size scaling).
+- Assumptions: `DIE_REFERENCE_RADIUS = 0.0139 m` matches the current die shape, die frequencies scale as 1/radius, die count 3 to 5 and amp/decay constants are starting values for later ear tuning.
+- Degenerate plates can have equal frequencies for different (m, n), so mode ordering and decay are non-strict in the tests.
+- Verification: `npx vitest run src/audio/modes.test.js` 11 passed; `npm run build` exits 0; clean-room `git archive` copy builds with relative asset paths. The unrelated `src/physics/world.e2e.test.js` performance budget test (500 ms for ten dice) fails on this machine both before and after the change.
+- Committed as one commit on `feat/27-modal-sound-haptics-modes`.
