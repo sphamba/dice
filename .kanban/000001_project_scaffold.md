@@ -1,7 +1,7 @@
 ---
 name: "feat: project scaffold, Vite + Vitest, GitHub Pages deploy"
 priority: "critical"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "user"
 complexity: "moderate"
