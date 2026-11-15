@@ -5,6 +5,7 @@ state: "backlog"
 worktree: ""
 issuer: "#24"
 complexity: "trivial"
+blockedBy: "question"
 ---
 
 # Summary

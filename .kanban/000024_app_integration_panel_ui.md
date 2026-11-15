@@ -56,11 +56,24 @@ export function createPanel(root, { initialSet, onAdd, onRemove, onRoll }) // �
 - No stub or placeholder for `src/main.js` work; #25 owns it.
 
 # Notes
-- `src/ui/panel.js` implements the pinned contract exactly: `MAX_DICE`, `DEFAULT_SET`, `STORAGE_KEY`, `parseStoredSet`, `canAdd`, `canRemove`, `createPanel(root, {initialSet, onAdd, onRemove, onRoll}) -> {getSet}`. Only import is `DICE_TYPES` from `src/dice/shapes.js`.
-- Panel DOM: one row per type in `DICE_TYPES` order (`−` button, `aria-live="polite"` count, `+` button), plus a Roll button; `+` disabled at total 10 and `−` at count 0 (re-synced for all rows on every change); `pointerdown` propagation stopped on the panel subtree.
-- Space key: document-level `keydown`, `code === 'Space'`, `repeat` ignored, `preventDefault()` then `onRoll()`.
-- Storage: read and write wrapped in try/catch (private mode, quota); the set is written with `JSON.stringify` on each change.
-- `src/style.css`: panel-scoped rules only (`.panel*`), bottom edge via `place-self: end center` on the `#ui` grid so the existing safe-area padding applies; `pointer-events: auto`; 44 px minimum buttons; `:focus-visible` ring.
-- Assumptions: `parseStoredSet` fills missing type keys with 0, while an unknown key, non-integer, negative value, non-object JSON or total above 10 falls back to `DEFAULT_SET`; `initialSet` goes through the same validation via `JSON.stringify`; no total counter is displayed (not in the specs); the Space listener is never removed because the contract returns only `getSet()`.
-- `createPanel` is not unit-tested per the specs; its behaviour (clicks, cap, disabled states, Space, storage, `pointerdown` guard) was verified with a throwaway DOM-shim probe, now deleted.
-- Verification: `npx vitest run src/ui/panel.test.js` 9 passed; clean-room copy of HEAD `npm test` 196 passed, `npm run build` OK, relative asset paths in `dist/index.html`. Commit `4160868`.
+Live test of commit acd71bd, run from this worktree. src/main.js does not import the panel yet (wiring is #25), so the test mounted createPanel on #ui in the real page with the pinned contract callbacks. Serve: python3 -m http.server 8737. Browser: headless Chromium, viewports 1280x800 and 375x667, Playwright driver /tmp/dice-panel-live.mjs, log /tmp/dice-panel-live.log, screenshots /tmp/dice-panel-initial.png and /tmp/dice-panel-capped.png.
+
+Result: 44 checks, 44 pass, 0 fail, no console or page errors. One behavior finding, filed as #26.
+
+Passes:
+- Contract: MAX_DICE=10, DEFAULT_SET, STORAGE_KEY='dice.set'. getSet() returns a copy. initialSet {d20:3,d6:1} renders and writes nothing to storage until a change.
+- Render: panel inside #ui at the bottom edge (border-box bottom 784 of 800, centered), background alpha 0.72, no overflow at 375x667. Rows in DICE_TYPES order, minus/count/plus per row. #ui stays pointer-events none, panel subtree auto.
+- Counts: default 2 x d6. Add and Remove update the count, fire onAdd/onRemove once, and write JSON.stringify(set) to localStorage on every change. Reload restores the stored set. Minus disabled at count 0, every plus disabled at total 10 with greyed style (opacity 0.35), clicks on disabled buttons do nothing, plus buttons re-enable after a remove.
+- Roll: button click, Space keydown and Space on the focused Roll button each give exactly one roll. defaultPrevented is true on Space. repeat=true is ignored. KeyA is ignored. Enter still clicks the focused Roll button. Space on a focused minus rolls once and does not activate the button (side effect accepted by the specs).
+- Accessibility: role=group, aria-label "Dice set", "Add d20"/"Remove d20" per row, "Roll dice", aria-live=polite counts, every button at least 44x44 CSS px.
+- pointerdown guard: a pointerdown on the panel never reaches a document-level listener, a pointerdown on #view does, and panel buttons still work with the guard active.
+- Storage validation: 9 invalid payloads (bad JSON, unknown key d7, negative, 1.5, total 12, "null", "[]", a quoted string, a bare number) all fall back to DEFAULT_SET on reload.
+
+Finding: stored '{"d8":1}' renders d6=2. parseStoredSet inherits DEFAULT_SET values for keys missing from the stored JSON, but the previous Notes recorded the assumption "fills missing type keys with 0". Specs do not pin this case. Filed #26 with an open question.
+
+Assumptions and limits of this test:
+- Mounting the panel with the pinned callbacks stands in for #25 wiring. No die drag exists yet, so the pointerdown guard was measured against a document-level listener, not against canvas drag.
+- Headless Chromium reports env(safe-area-inset-*) as 0, so inset padding was not measured. The #ui rule keeps the existing env() padding and the panel stayed inside the viewport at both sizes.
+- localStorage throwing (private mode or quota) was not exercised live. The read and write paths sit in try/catch in src/ui/panel.js.
+- The :focus-visible ring was not asserted in the live run. The rule exists in src/style.css for .panel-step and .panel-roll.
+- Semi-transparency was checked against the flat page background. The renderer did not draw the box in these page loads.
