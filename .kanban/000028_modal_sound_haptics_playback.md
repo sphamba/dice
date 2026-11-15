@@ -2,7 +2,7 @@
 name: "feat: modal sound haptics playback and wiring"
 priority: "medium"
 state: "done"
-worktree: "feat/28-modal-sound-haptics-playback"
+worktree: ""
 issuer: "#9"
 complexity: "moderate"
 shortName: "modal-sound-haptics-playback"
