@@ -2,7 +2,7 @@
 name: "fix: face clipping emits up to 6 degenerate contact points under near-flush alignment"
 priority: "low"
 state: "done"
-worktree: "fix/21-clip-degenerate-points"
+worktree: ""
 issuer: "#14"
 complexity: "simple"
 shortName: "clip-degenerate-points"
