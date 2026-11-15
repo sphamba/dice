@@ -1,7 +1,7 @@
 ---
 name: "feat: dice set panel UI, storage, roll button and Space key"
 priority: "high"
-state: "doing"
+state: "to-review"
 worktree: "feat/24-app-integration-panel-ui"
 issuer: "#8"
 complexity: "moderate"
@@ -53,3 +53,11 @@ export function createPanel(root, { initialSet, onAdd, onRemove, onRoll }) // �
 - No stub or placeholder for `src/main.js` work; #25 owns it.
 
 # Notes
+- `src/ui/panel.js` implements the pinned contract exactly: `MAX_DICE`, `DEFAULT_SET`, `STORAGE_KEY`, `parseStoredSet`, `canAdd`, `canRemove`, `createPanel(root, {initialSet, onAdd, onRemove, onRoll}) -> {getSet}`. Only import is `DICE_TYPES` from `src/dice/shapes.js`.
+- Panel DOM: one row per type in `DICE_TYPES` order (`−` button, `aria-live="polite"` count, `+` button), plus a Roll button; `+` disabled at total 10 and `−` at count 0 (re-synced for all rows on every change); `pointerdown` propagation stopped on the panel subtree.
+- Space key: document-level `keydown`, `code === 'Space'`, `repeat` ignored, `preventDefault()` then `onRoll()`.
+- Storage: read and write wrapped in try/catch (private mode, quota); the set is written with `JSON.stringify` on each change.
+- `src/style.css`: panel-scoped rules only (`.panel*`), bottom edge via `place-self: end center` on the `#ui` grid so the existing safe-area padding applies; `pointer-events: auto`; 44 px minimum buttons; `:focus-visible` ring.
+- Assumptions: `parseStoredSet` fills missing type keys with 0, while an unknown key, non-integer, negative value, non-object JSON or total above 10 falls back to `DEFAULT_SET`; `initialSet` goes through the same validation via `JSON.stringify`; no total counter is displayed (not in the specs); the Space listener is never removed because the contract returns only `getSet()`.
+- `createPanel` is not unit-tested per the specs; its behaviour (clicks, cap, disabled states, Space, storage, `pointerdown` guard) was verified with a throwaway DOM-shim probe, now deleted.
+- Verification: `npx vitest run src/ui/panel.test.js` 9 passed; clean-room copy of HEAD `npm test` 196 passed, `npm run build` OK, relative asset paths in `dist/index.html`. Commit `4160868`.
