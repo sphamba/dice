@@ -2,7 +2,7 @@
 name: "feat: sequential impulse contact solver with friction and impact events"
 priority: "high"
 state: "done"
-worktree: "feat/15-collision-impulse-solver-contacts"
+worktree: ""
 issuer: "#5"
 complexity: "moderate"
 shortName: "collision-impulse-solver-contacts"
