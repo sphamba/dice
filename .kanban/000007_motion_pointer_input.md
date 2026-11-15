@@ -1,7 +1,7 @@
 ---
 name: "feat: input, device motion gravity with shake, portrait lock, pointer drag and fling"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "feat/7-motion-pointer-input"
 issuer: "user"
 complexity: "simple"
@@ -9,6 +9,8 @@ shortName: "motion-pointer-input"
 blockedBy: ""
 splitter: "done"
 map: "{\"files\":[],\"flows\":[],\"role\":\"developer\",\"run\":0,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-15T18:13:24.748Z\",\"head\":\"8725309\"}"
+changes: "{\"base\":\"main\",\"ins\":0,\"del\":0,\"files\":0}"
+commits: "[]"
 ---
 
 # Summary
