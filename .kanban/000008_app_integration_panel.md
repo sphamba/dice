@@ -1,12 +1,12 @@
 ---
 name: "feat: app integration, dice set panel, roll button and Space key"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "user"
 complexity: "simple"
 shortName: "app-integration-panel"
-blockedBy: "#25"
+blockedBy: ""
 splitter: "done"
 ---
 
