@@ -2,10 +2,11 @@
 name: "feat: collision detection for dice vs box planes and dice vs dice"
 priority: "high"
 state: "to-do"
-worktree: ""
+worktree: "feat/14-collision-impulse-solver-collision"
 issuer: "#5"
 complexity: "moderate"
 shortName: "collision-impulse-solver-collision"
+splitter: "done"
 ---
 
 # Summary

@@ -6,7 +6,8 @@ worktree: "feat/5-collision-impulse-solver"
 issuer: "user"
 complexity: "simple"
 shortName: "collision-impulse-solver"
-blockedBy: ""
+blockedBy: "#14, #15"
+splitter: "done"
 ---
 
 # Summary
