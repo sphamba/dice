@@ -1,7 +1,7 @@
 ---
 name: "feat: sequential impulse contact solver with friction and impact events"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "#5"
 complexity: "moderate"
