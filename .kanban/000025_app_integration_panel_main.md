@@ -1,7 +1,7 @@
 ---
 name: "feat: main loop wiring, resize and DPR handling, die spawn and roll"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "#8"
 complexity: "moderate"
