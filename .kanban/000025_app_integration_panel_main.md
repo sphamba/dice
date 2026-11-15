@@ -1,7 +1,7 @@
 ---
 name: "feat: main loop wiring, resize and DPR handling, die spawn and roll"
 priority: "high"
-state: "doing"
+state: "to-review"
 worktree: "feat/25-app-integration-panel-main"
 issuer: "#8"
 complexity: "moderate"
@@ -39,3 +39,10 @@ const panel = createPanel(ui, { onAdd, onRemove, onRoll }); // → { getSet() }
 - Do not create or stub `src/ui/panel.js`; `npm run build` is expected to stay red in your worktree until #24 merges — that is fine.
 
 # Notes
+- `src/main.js` rewritten as the only changed file: WebGL2 check kept, world from `boxFromViewport(innerWidth, innerHeight, devicePixelRatio)`, renderer on `#view`, `createMotion` -> `world.setGravity`, `createPointer`, `unlockOnFirstGesture`, rAF loop (`dt` clamped at `MAX_FRAME_DT`, `world.update` then `renderer.draw(world.bodies)`).
+- Resize, `screen.orientation` change and DPR change share one `applySize()`: new box -> `world.setBox`, canvas backing store from `backingSize(canvas.clientWidth, canvas.clientHeight, devicePixelRatio)` (dpr capped at 2 for rendering only), `renderer.resize`, then the `(resolution: Ndppx)` media query is re-registered so browser zoom and screen moves are caught again.
+- `spawnDie(type)` keeps a per-type insertion-ordered list in a `Map`, so `removeDie(type)` removes the newest body of that type; spawn loop is 50 tries of a non-overlapping (center distance > 2 x `DIE_RADIUS`) position, then one forced random position for the solver to separate.
+- `rollDice()` skips bodies in `pointer.heldBodies()`, sets a random horizontal 0.4-0.8 m/s, adds a lift of 0.3-0.6 m/s opposite the normalized gravity, and a 15-40 rad/s spin about a random axis. The six bounds are exported as `ROLL_SPEED_MIN/MAX`, `ROLL_LIFT_MIN/MAX`, `ROLL_SPIN_MIN/MAX`.
+- Panel wired as `createPanel(ui, { onAdd: spawnDie, onRemove: removeDie, onRoll: rollDice })`, then the initial set is spawned from `panel.getSet()`.
+- Assumptions: "upper half of the box depth" means z in [D/2, D - DIE_RADIUS]; `toWorld` maps CSS px with the live box (`x` right, `y` up, scale `box.W / innerWidth`) so pointer picking matches the ortho camera; held bodies keep all their velocities on roll.
+- Verification: `npm test` 200/200 passed and `npm run build` is green in this worktree (main merged #24, so `src/ui/panel.js` exists); clean-room `git archive HEAD` + `npm ci` + test + build passes with relative asset paths in `dist/index.html`; a headless Chromium (SwiftShader) smoke run on the built app showed 0 console errors, the panel with its Roll button, rendered dice, and no errors after a Roll click and a Space press.
