@@ -1,7 +1,7 @@
 ---
 name: "feat: synthesized impact sounds with plate modes, and haptics"
 priority: "medium"
-state: "to-live-test"
+state: "live-testing"
 worktree: "feat/9-modal-sound-haptics"
 issuer: "user"
 complexity: "simple"
