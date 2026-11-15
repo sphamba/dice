@@ -1,4 +1,5 @@
 import * as vec3 from '../math/vec3.js';
+import { detectContacts } from './collision.js';
 import { integratePositions, integrateVelocities } from './integrator.js';
 import { solveContacts } from './contacts.js';
 
@@ -30,6 +31,7 @@ export function createWorld({ W, H, D }) {
     bodies: [],
     gravity: Float64Array.from([0, 0, -9.81]),
     box: { W, H, D },
+    contacts: [],
     events: [],
     beforeStep: null,
     addBody(body) {
@@ -51,6 +53,7 @@ export function createWorld({ W, H, D }) {
     step(dt) {
       if (world.beforeStep) world.beforeStep(dt);
       integrateVelocities(world.bodies, world.gravity, dt);
+      detectContacts(world, dt);
       solveContacts(world, dt);
       integratePositions(world.bodies, dt);
     },
