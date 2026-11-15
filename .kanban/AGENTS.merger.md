@@ -9,8 +9,8 @@ The run prompt owns the step order (read task, abort a stale rebase, clear conte
 ## Pre-rebase
 
 - Read the task file once, with the read tool, at the start of the run. Keep the state and summary from that read. Do not cat or re-read it in later bash commands.
-- Batch the pre-rebase checks into one command: `git status --short --branch && git log --oneline -5`.
-- Clear the context paths with one command: `git update-index --no-skip-worktree -- AGENTS.md TASK.md 2>/dev/null; git restore --staged --worktree -- AGENTS.md TASK.md 2>/dev/null; true`. It prints nothing and never fails. Do not inspect tracking or skip-worktree state, do not explain suppressed errors, and never deduce path status from `git status`. Go straight to the rebase.
+- Run all pre-rebase prep as one command: `git status --short --branch && git log --oneline -5 && git update-index --no-skip-worktree -- AGENTS.md TASK.md 2>/dev/null; git restore --staged --worktree -- AGENTS.md TASK.md 2>/dev/null; true`. Judge branch state and a rebase in progress from the printed status; the path clear runs unconditionally and is safe either way. If the status shows a rebase you did not start, abort it as the next command.
+- Do not inspect tracking or skip-worktree state, do not explain suppressed errors, and never deduce path status from `git status`. Go straight to the rebase.
 
 ## Rebase
 
