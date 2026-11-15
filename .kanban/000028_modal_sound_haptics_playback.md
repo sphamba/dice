@@ -1,7 +1,7 @@
 ---
 name: "feat: modal sound haptics playback and wiring"
 priority: "medium"
-state: "live-testing"
+state: "done"
 worktree: "feat/28-modal-sound-haptics-playback"
 issuer: "#9"
 complexity: "moderate"
@@ -41,13 +41,29 @@ Web Audio playback src/audio/sound.js, vibration src/audio/haptics.js, and main.
 - Audible sound and Android vibration manual checks happen at the parent verification task (#9), not here.
 
 # Notes
-- Deliverable: commit a968634 (4efc79b rebased onto `main` 4101720), no source change this run. `src/audio/sound.js` (lazy AudioContext on resume, DynamicsCompressor master, one rendered damped-sinusoid AudioBuffer per impact <= 0.6 s, `MAX_VOICES = 12` dropping the quietest, one voice per body pair per 40 ms, `MIN_EVENT_SPEED = 0.15`), `src/audio/haptics.js` (`navigator.vibrate` 5-20 ms scaled by speed, strongest event with `MIN_SPEED = 0.8`, `GAP_MS = 60`, feature-gated no-op), both suites, and `src/main.js` wiring.
-- Verification: HEAD a968634 unchanged, `git merge --ff-only main` reports "Already up to date" and `src/audio/modes.js` plus `modes.test.js` are native to the branch, so no temporary staging was needed. `npx vitest run src/audio` = 3 files, 26 tests passed. `npm run build` exits 0 (44.04 kB bundle, `✓ built in`). `dist/index.html` uses relative `./assets/index-BWOSxVib.js` and `./assets/index-DasNQWd4.css` paths. Tree clean, no commit made.
-- Verification: wiring greps at `src/main.js` lines 11-12 (imports), 50-51 (`createSound`/`createHaptics`), 53 (`onFirstGesture(() => sound.resume())`), 173-174 (`sound.play(world.events, world.box)`, `haptics.play(world.events)`) directly after `world.update`.
-- Assumption: sound.js imports exactly `BOX`, `GLASS`, `plateModes`, `dieModes` from `./modes.js`, matching the landed sibling exports.
-- Assumption: impulse gain is a log ramp from 1e-4 to 1e-1 N s, and high-mode brightness reaches full at 2 m/s.
-- Assumption: haptic duration ramps linearly from 0.8 to 3 m/s, and synthesis duration is `min(0.6 s, 5 tau)` over the loudest mode's tau.
-- Assumption: wall plates follow the spec literally (x wall W x D, y wall H x D, u along the wide axis, v = contact z), the wall side chosen by the larger contact coordinate against its half extent.
-- Assumption: `die` surface events sum `dieModes(type, radius)` for both bodies from `body.shape`, with no plate mode added.
-- Blocker: none.
-- Manual checks left to other roles: audible sound and Android vibration on parent verification task #9.
+Live test (real usage in headless Chromium via Playwright, serving dist of commit a968634 from the worktree; page-level instrumentation only, no source edits): all checks pass, no product defects found, no defect cards filed.
+
+Harness: init-script spies on the AudioContext constructor and resume, createDynamicsCompressor, AudioBufferSourceNode.start (buffer duration, length, peak amplitude), AudioNode.connect edges, and navigator.vibrate. Viewports 390x844@2 and 866x1790@2 (the latter gives box D ≈ 0.1 m so spawn-fall impacts cross the 0.8 m/s haptic gate).
+
+Results (all pass):
+- Sound is fully silent before the first gesture: 0 AudioContexts, 0 buffer renders, 0 voices while the dice fall on load.
+- The first gesture creates exactly 1 AudioContext and 1 DynamicsCompressor; later gestures reuse the same context.
+- Routing is BufferSource -> Gain -> DynamicsCompressor -> AudioDestination.
+- Roll button: 5-9 voices per roll; every rendered buffer is <= 0.600 s, non-silent (peaks 0.63-0.93), voice gains 0.15-0.57 inside (0,1]; voices receive ended events (released).
+- Panel '+': the added die falls and sounds.
+- Drag-fling onto a die (frame-guided pick at css 261,432): 17 voices and 12 vibrate calls in one window, no errors.
+- Haptics: vibrate only for impacts over 0.8 m/s (2-12 calls per session), durations 6-7 ms, consistent with measured speeds just over the gate and inside the 5-20 ms range; fires pre-gesture too (spec has no gesture requirement); none while idle.
+- Speed gate quiet side: settled dice produce 0 starts over 2.2 s idle.
+- 0 pageerrors, 0 console errors, 0 failed requests across all runs.
+
+Environment limits (not product issues):
+- Headless SwiftShader renders 2-6 fps, so physics runs in slow motion and the 40 ms pair gap, 60 ms haptic gap, and 12-voice cap cannot be violated live (the frame interval exceeds the gaps). These stay covered by the unit suite.
+- The headless AudioContext is created already 'running' (also with --autoplay-policy=user-gesture-required), so the suspended -> resume() branch never ran live. Unit-covered.
+- Playwright actionability waits on .panel-roll stall about 10 s at 2 fps (frame pacing); worked around with raw mouse clicks at button coordinates.
+- Audible loudness/quality and real Android vibration remain manual checks for task #9 per the task.
+
+Test-design assumptions:
+- Spawn-fall impact speeds: about 0.6-0.85 m/s at D = 0.05 m (MIN_BOX_EDGE clamp) and 0.84-1.19 m/s at D = 0.1 m, derived from box.js geometry (METERS_PER_DEVICE_PIXEL, MIN_BOX_EDGE) to choose a viewport that crosses the 0.8 m/s haptic gate.
+- Sweep speeds during flings were about 0.4-0.7 m/s, below MAX_FLING_SPEED; the die still hit walls above 0.8 m/s (12 vibrates).
+- The panel is visually near-invisible on the dark theme, but clicks land (elementFromPoint = BUTTON.panel-roll); panel styling is out of scope here.
+- Buffer duration/peak/gain were read at start time via wrappers; synthesis internals beyond that were not inspected.
