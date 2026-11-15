@@ -1,7 +1,7 @@
 ---
 name: "feat: device motion gravity, iOS permission and portrait lock"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "#7"
 complexity: "simple"
