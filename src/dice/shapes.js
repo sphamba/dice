@@ -285,6 +285,7 @@ function freezeShape(shape) {
     Object.freeze(face.normal);
     Object.freeze(face);
   }
+  for (const edge of shape.edges) Object.freeze(edge);
   for (const dir of shape.edgeDirs) Object.freeze(dir);
   Object.freeze(shape.vertices);
   Object.freeze(shape.faces);
