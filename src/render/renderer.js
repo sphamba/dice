@@ -70,10 +70,11 @@ function buildDieMesh(gl, shape) {
   ], new Uint16Array(indices));
 }
 
+// Strip order keeps both emitted triangles CCW: (v0,v1,v2) and (v2,v1,v3).
+export const FLOOR_VERTICES = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
+
 function buildFloorMesh(gl) {
-  return createVAO(gl, [
-    { location: 0, data: new Float32Array([-1, -1, 1, -1, 1, 1, -1, 1]), size: 2 },
-  ]);
+  return createVAO(gl, [{ location: 0, data: FLOOR_VERTICES, size: 2 }]);
 }
 
 export function createRenderer(gl) {
