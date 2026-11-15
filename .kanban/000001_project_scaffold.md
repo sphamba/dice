@@ -1,7 +1,7 @@
 ---
 name: "feat: project scaffold, Vite + Vitest, GitHub Pages deploy"
 priority: "critical"
-state: "to-merge"
+state: "merging"
 worktree: "feat/1-project-scaffold"
 issuer: "user"
 complexity: "moderate"
