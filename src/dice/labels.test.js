@@ -1,10 +1,57 @@
 import { describe, expect, it } from 'vitest';
 import { DICE_TYPES, createShape } from './shapes.js';
-import { faceRects, faceVertexUvs } from './labels.js';
+import { buildLabelAtlas, faceRects, faceVertexUvs } from './labels.js';
 
 const RADIUS = 0.75;
 const EPS = 1e-9;
 const FACE_COUNT = { d4: 4, d6: 6, d8: 8, d10: 10, d12: 12, d20: 20 };
+const PIP_COUNT = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6 };
+const PIP_RADIUS_FRACTION = 0.13;
+const PIP_OFFSET_FRACTION = 0.42;
+const D6_COLOR = [0.78, 0.22, 0.18];
+
+class RecordingContext {
+  constructor() {
+    this.ellipses = [];
+    this._path = [];
+  }
+  beginPath() {
+    this._path = [];
+  }
+  ellipse(x, y, rx, ry) {
+    this._path.push({ x, y, rx, ry });
+  }
+  fill() {
+    if (this._path.length === 0) throw new Error('fill without an open path');
+    this.ellipses.push(...this._path);
+    this._path = [];
+  }
+  fillRect() {}
+}
+
+function recordAtlas(shape, color) {
+  const previous = globalThis.OffscreenCanvas;
+  const contexts = [];
+  globalThis.OffscreenCanvas = class {
+    constructor(width, height) {
+      this.width = width;
+      this.height = height;
+      this.ctx = new RecordingContext();
+      contexts.push(this.ctx);
+    }
+    getContext() {
+      return this.ctx;
+    }
+  };
+  let atlas;
+  try {
+    atlas = buildLabelAtlas(shape, color);
+  } finally {
+    if (previous === undefined) delete globalThis.OffscreenCanvas;
+    else globalThis.OffscreenCanvas = previous;
+  }
+  return { atlas, ellipses: contexts[0].ellipses };
+}
 
 function overlap(a, b) {
   return (
@@ -80,5 +127,67 @@ describe('faceVertexUvs', () => {
         }
       }
     }
+  });
+});
+
+describe('buildLabelAtlas d6 pips', () => {
+  it('draws every pip inside its own cell at the face-radius scale', () => {
+    const shape = createShape('d6', RADIUS);
+    const { atlas, ellipses } = recordAtlas(shape, D6_COLOR);
+    const { size, rects } = atlas;
+    const total = shape.faces.reduce((n, face) => n + PIP_COUNT[face.value], 0);
+    expect(ellipses).toHaveLength(total);
+
+    let index = 0;
+    shape.faces.forEach((face, f) => {
+      const rect = rects[f];
+      const left = size * rect.u0;
+      const right = size * rect.u1;
+      const top = size * (1 - rect.v1);
+      const bottom = size * (1 - rect.v0);
+      const cellW = right - left;
+      const cellH = bottom - top;
+      for (let k = 0; k < PIP_COUNT[face.value]; k += 1) {
+        const pip = ellipses[index];
+        index += 1;
+        expect(pip.rx).toBeCloseTo((PIP_RADIUS_FRACTION * cellW) / 2, 6);
+        expect(pip.ry).toBeCloseTo((PIP_RADIUS_FRACTION * cellH) / 2, 6);
+        expect(pip.x - pip.rx).toBeGreaterThanOrEqual(left - EPS);
+        expect(pip.x + pip.rx).toBeLessThanOrEqual(right + EPS);
+        expect(pip.y - pip.ry).toBeGreaterThanOrEqual(top - EPS);
+        expect(pip.y + pip.ry).toBeLessThanOrEqual(bottom + EPS);
+      }
+    });
+  });
+
+  it('places pips at the classic offsets around the cell center', () => {
+    const shape = createShape('d6', RADIUS);
+    const { atlas, ellipses } = recordAtlas(shape, D6_COLOR);
+    const { size, rects } = atlas;
+    const withCenter = new Set([1, 3, 5]);
+    const offset = PIP_OFFSET_FRACTION / 2;
+    let index = 0;
+    shape.faces.forEach((face, f) => {
+      const rect = rects[f];
+      const centerX = (size * (rect.u0 + rect.u1)) / 2;
+      const centerY = size * (1 - (rect.v0 + rect.v1) / 2);
+      const cellW = size * (rect.u1 - rect.u0);
+      const cellH = size * (rect.v1 - rect.v0);
+      for (let k = 0; k < PIP_COUNT[face.value]; k += 1) {
+        const pip = ellipses[index];
+        index += 1;
+        const gx = Math.round((pip.x - centerX) / (offset * cellW));
+        const gy = Math.round((centerY - pip.y) / (offset * cellH));
+        expect(pip.x - centerX).toBeCloseTo(gx * offset * cellW, 6);
+        expect(centerY - pip.y).toBeCloseTo(gy * offset * cellH, 6);
+      }
+      if (!withCenter.has(face.value)) return;
+      const center = ellipses
+        .slice(index - PIP_COUNT[face.value], index)
+        .find((pip) => Math.abs(pip.x - centerX) < 1e-6 && Math.abs(pip.y - centerY) < 1e-6);
+      expect(center).toBeDefined();
+    });
+    const four = ellipses.slice(0, 4);
+    expect(new Set(four.map((pip) => Math.round(pip.x))).size).toBe(2);
   });
 });

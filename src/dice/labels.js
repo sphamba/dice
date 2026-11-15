@@ -131,7 +131,7 @@ function drawFaceLabel(ctx, shape, face, rect, ink, size) {
   const inradius = faceInradius2D(shape, face, frame);
 
   if (shape.type === 'd6') {
-    drawPips(ctx, face.value, { px, py, sx, sy }, ink);
+    drawPips(ctx, face.value, { px, py, sx, sy, radius: frame.radius }, ink);
     return;
   }
   if (shape.type === 'd4') {
@@ -158,11 +158,14 @@ function drawFaceLabel(ctx, shape, face, rect, ink, size) {
   });
 }
 
-function drawPips(ctx, value, { px, py, sx, sy }, ink) {
+function drawPips(ctx, value, { px, py, sx, sy, radius }, ink) {
+  const offset = PIP_OFFSET * radius;
+  const rx = PIP_RADIUS * radius * sx;
+  const ry = PIP_RADIUS * radius * sy;
   ctx.fillStyle = ink;
   for (const [gx, gy] of PIP_LAYOUTS[value]) {
     ctx.beginPath();
-    ctx.ellipse(px(gx * PIP_OFFSET), py(gy * PIP_OFFSET), PIP_RADIUS * sx, PIP_RADIUS * sy, 0, 0, Math.PI * 2);
+    ctx.ellipse(px(gx * offset), py(gy * offset), rx, ry, 0, 0, Math.PI * 2);
     ctx.fill();
   }
 }
