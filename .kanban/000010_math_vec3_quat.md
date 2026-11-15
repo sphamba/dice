@@ -1,7 +1,7 @@
 ---
 name: "feat: 3D math vec3 and quaternion"
 priority: "high"
-state: "doing"
+state: "to-review"
 worktree: "feat/10-math-vec3-quat"
 issuer: "#2"
 complexity: "simple"
@@ -32,3 +32,10 @@ Implement src/math/vec3.js and src/math/quat.js (gl-matrix style, no dependencie
 - `npm run build` exits 0.
 
 # Notes
+- Done: `src/math/vec3.js` and `src/math/quat.js` (plain ESM, gl-matrix style, out first, no deps, no imports between math modules), plus `vec3.test.js` and `quat.test.js` (20 tests).
+- vec3 covers create, fromValues, copy, set, add, sub, scale, scaleAndAdd, dot, cross, length, lengthSq, normalize, negate, distance, lerp, transformMat3, transformMat4, transformQuat. Zero vector normalizes to zero.
+- quat covers create, identity, setAxisAngle, multiply, normalize, conjugate, invert, rotateVec3, fromMat3, random(out, rng), integrate(out, q, omega, dt). Layout is [x, y, z, w].
+- Conventions assumed: column-major mat3/mat4; `multiply(out, a, b)` means apply b first then a (`R = R(a)·R(b)`); `integrate` uses the world-frame form q' = normalize(q + dt/2 · (omega,0) ⊗ q); Shoemake random rotation.
+- `rotateVec3` was added to quat.js instead of importing vec3.transformQuat, to keep the math modules file-disjoint.
+- Verified: `npx vitest run src/math/*.test.js` 20/20 pass, `npm run build` exits 0 with relative asset paths, and a clean-room copy (`git archive` + `npm ci && npx vitest run && npm run build`) passes 26/26 with the full suite.
+- Commit: 795f12e feat(math): add vec3 and quaternion modules with unit tests.

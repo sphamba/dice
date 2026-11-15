@@ -33,3 +33,9 @@ Implement src/math/mat3.js and src/math/mat4.js (gl-matrix style, no dependencie
 - `npm run build` exits 0.
 
 # Notes
+- Added src/math/mat3.js (create, identity, fromQuat, transpose, multiply, invert, fromDiagonal, transformVec3) and src/math/mat4.js (create, identity, multiply, invert, transpose, fromRotationTranslation, fromRotationTranslationScale, ortho, lookAt, normalFromMat4), column-major, out-first, no imports.
+- Added src/math/mat3.test.js and src/math/mat4.test.js, 16 tests pass with npx vitest run on both files; npm run build passes.
+- Assumption: fromDiagonal takes separate x, y, z numbers, not a vector.
+- Assumption: invert and normalFromMat4 return null for a singular matrix, matching gl-matrix.
+- Assumption: fromRotationTranslationScale applies scale before rotation, as in gl-matrix.
+- Committed as 249883b.
