@@ -14,7 +14,7 @@ Drive the world gravity from the real device acceleration (tilt and shake), ask 
 
 # Specs
 ## Context
-World API from task #4 (`src/physics/world.js`): `world.setGravity(vec3)`, `world.bodies`, `world.box {W,H,D}`, body fields `position, linearVelocity, angularVelocity, radius`, `FIXED_DT`. Axes: x right, y up on screen, z out of the screen. Box floor `z = 0`, lid `z = D`. The view is orthographic top-down: CSS pixel `(px, py)` maps to world `x = (px - cssW/2) · metersPerPixel`, `y = (cssH/2 - py) · metersPerPixel`.
+World API from task #4 (`src/physics/world.js`): `world.setGravity(vec3)`, `world.bodies`, `world.box {W,H,D}`, body fields `position, linearVelocity, angularVelocity, radius`, `FIXED_DT`. Axes: x right, y up on screen, z out of the screen. Box floor `z = 0`, lid `z = D`. The box has the real physical size of the screen (about 6.8 × 14.8 cm on a phone, `metersPerPixel = devicePixelRatio · METERS_PER_DEVICE_PIXEL`), dice have a real 16 mm size. The view is orthographic top-down: CSS pixel `(px, py)` maps to world `x = (px - cssW/2) · metersPerPixel`, `y = (cssH/2 - py) · metersPerPixel`, with `metersPerPixel` from `boxFromViewport`.
 These modules only export functions. The wiring in `src/main.js` is done by the integration task.
 
 ## `src/input/motion.js`
@@ -30,8 +30,9 @@ These modules only export functions. The wiring in `src/main.js` is done by the 
 ## `src/input/pointer.js`
 - `createPointer(canvas, { world, toWorld(px, py) })` with Pointer Events (`touch-action: none` is already on the canvas). Multi-touch: each pointer holds at most one die.
 - `pointerdown`: pick the die whose projected circle (`radius`) contains the point; with several, the highest `z`. `setPointerCapture`.
-- Drag: the held die follows the pointer at hold height `z = D - 2·radius`. Drive it with velocity (`v = (target - position) / FIXED_DT`, clamped to `MAX_DRAG_SPEED = 6 m/s`) so collisions with other dice and walls stay physical; do not teleport. Keep its spin.
-- `pointerup`/`pointercancel`: release with linear velocity = pointer velocity in world units from the samples of the last 80 ms, clamped to `MAX_FLING_SPEED = 8 m/s`, plus a random angular velocity proportional to the fling speed (up to 40 rad/s).
+- Drag: the held die follows the pointer at hold height `z = D - 2·radius`. Drive it with velocity (`v = (target - position) / FIXED_DT`, clamped to `MAX_DRAG_SPEED = 2 m/s`) so collisions with other dice and walls stay physical; do not teleport. Keep its spin.
+- `pointerup`/`pointercancel`: release with linear velocity = pointer velocity in world units from the samples of the last 80 ms, clamped to `MAX_FLING_SPEED = 3 m/s`, plus a random angular velocity proportional to the fling speed (up to 60 rad/s at max speed).
+
 - Export `heldBodies()` so other code knows which dice are held.
 
 ## Tests
