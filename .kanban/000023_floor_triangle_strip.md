@@ -27,3 +27,9 @@ Reorder the strip to `[-1, -1, 1, -1, -1, 1, 1, 1]` (both triangles then front-f
 - A floor sample in the d12's shadow band on the upper-left side (e.g. world (-0.0134, -0.0018) in the stack scene) renders shadowed floor [14,13,12], not the clear color.
 
 # Notes
+- Fix: `src/render/renderer.js` floor strip reordered from `[-1,-1, 1,-1, 1,1, -1,1]` to `[-1,-1, 1,-1, -1,1, 1,1]`; the 8 floats now live in an exported `FLOOR_VERTICES` constant that `buildFloorMesh` reuses, so the winding is testable without a GL context. Committed as a16480a.
+- Test: `src/render/renderer.test.js` re-derives the two strip triangles the way GL does, `(v0,v1,v2)` and `(v2,v1,v3)`, and asserts a positive signed area for both, plus full -1..1 quad coverage. Red with the old order, green with the new one.
+- Assumption: CCW in NDC is the front face (GL default `FRONT_FACE` is CCW), so positive signed area = front-facing under the existing `cullFace(BACK)`.
+- Assumption: no other triangle strip exists in the codebase (`drawArrays` appears once, in the floor pass), so no second site needs the same reordering.
+- Verification: scoped run of `renderer.test.js` + `camera.test.js` 8/8 green, `npm run build` green. Clean-room copy of HEAD: 177/177 tests green, build green, relative asset paths in `dist/index.html`.
+- Browser check (headless Chromium, SwiftShader, 1000x750, box 0.0667x0.05x0.05): floor-only `draw([], {direction})` readback of 750000 pixels has 0 clear-color [20,21,26] pixels and 0 clear-like pixels, all four quadrants lit floor (range [47,44,40]-[93,90,85]); upper-left sample [53,50,46] instead of the previous clear color. No console errors.
