@@ -1,21 +1,17 @@
 # merger: durable guidance for future merger runs
 
-The run prompt owns the step order (read task, abort a stale rebase, clear context paths, rebase, resolve, test, report). This file only removes waste from that path. The clean path is three model turns: prep+rebase, gate, final reply. Model latency is the whole run cost; tool time is trivial except the test gate.
-
-## Thinking budget (read first)
-
-- The clean path has zero thinking turns. This file pre-explains every clean result, so two triggers are pure waste: "confirming" a clean rebase line before the gate, and "preparing" the final reply after a passing gate. Write the reply directly in the text block. Reserve thinking for a failure or odd result this file does not explain.
+The run prompt owns the step order (read task, abort a stale rebase, clear context paths, rebase, resolve, test, report). This file only removes waste from that path. The clean path is three model turns: prep+rebase, gate, final reply, with two tool calls. Tool time is small and fixed (a few seconds of git, then the test gate). The only cost worth cutting is model output, and the measured waste is thinking that restates this file.
 
 ## General
 
-- Narrate each command once, in one short text lead-in sentence, and never the same sentence in both thinking and text. When a command fails or a result looks odd, match it to this file first; most failures in this workflow are by design.
+- Every command you need is verbatim in this file. Emit it as a tool call. Never type a command from this file into thinking or lead-in text; the tool call is the only place a command appears. A thinking block that re-quotes a command or a rule is pure output with no information.
+- If a result is covered by this file, the matching thinking block stays empty or holds one short sentence. If a command fails or a result looks odd, match it to this file first: most failures in this workflow are by design. Spend thinking only on results this file does not explain.
 
 ## Prep and rebase (one command)
 
-- Do not open TASK.md with the read tool. The frontmatter `map` field is machine output for other roles and holds no merge content. Read the body once (Summary, Specs, Notes) inside the prep command, and never read the task file again later in the run.
-- Run prep and rebase as one command: `git status --short --branch && git log --oneline -5 && awk '/^---$/{n++; next} n>=2' TASK.md && git update-index --no-skip-worktree -- AGENTS.md TASK.md 2>/dev/null; git restore --staged --worktree -- AGENTS.md TASK.md 2>/dev/null; git rebase main`. The awk part prints the task body and skips the frontmatter. The path clear runs unconditionally and is safe either way.
-- Judge branch state from the printed status. The restore prints nothing on success, and that silence needs no confirmation.
-- Task numbers can disagree between the run prompt, the branch name, and the printed TASK.md (stale numbering, cross-references). Never spend a thinking turn reconciling them; the printed body is the only merge content, and numbering has no effect on the merge or the gate.
+- Do not open TASK.md with the read tool. The frontmatter `map` field is machine output for other roles, grows to thousands of characters on complex tasks, and holds no merge content. Read the body once, Summary and Specs and Notes, inside the prep command below, and never read the task file again later in the run.
+- Run prep and rebase as one command: `git status --short --branch && git log --oneline -5 && awk '/^---$/{n++; next} n>=2' TASK.md && git update-index --no-skip-worktree -- AGENTS.md TASK.md 2>/dev/null; git restore --staged --worktree -- AGENTS.md TASK.md 2>/dev/null; git rebase main`. The awk part prints the task body and skips the frontmatter. The path clear runs unconditionally and is safe either way. Judge branch state from the printed status; the restore prints nothing on success, and that silence needs no confirmation.
+- Task numbers can disagree between the run prompt, the branch name, and the printed TASK.md (stale numbering, cross-references to other tasks). Never spend a thinking turn reconciling them. The printed body is the only merge content, and numbering has no effect on the merge or the gate.
 - The chained rebase refuses when a rebase is already in progress ("already a rebase-merge directory"). Then run `git rebase --abort && git rebase main` as one command and move on; do not re-run status or log first. Any other rebase stop goes to the conflicts section.
 - Treat the rebase output as the truth. "Current branch ... is up to date", "Fast-forwarded", and "Successfully rebased and updated refs/heads/..." are all final clean results: no fetch, no history or merge-base inspection, no conflict pass, no re-parse. Do not tell a replay from a fast-forward; the next step is the same. Go straight to the test gate. Do not `git fetch` first; the daemon resolves the local `main`.
 
@@ -28,8 +24,9 @@ The run prompt owns the step order (read task, abort a stale rebase, clear conte
 
 ## Gate and exit
 
-- `npm test` in the worktree is the whole merge gate: no build step, no lint step, no changed-files-only variant. Run the gate and the closing check as one command with a 3000-second timeout: `npm test && git status --short --branch`. Only a clean tree and no rebase line matter; missing ahead/behind or tracking markers after a rebase are normal.
-- A passing summary line ends the gate with no thinking turn before the final reply. Never compare its test or file counts to any other run, task file, or expectation; counts legitimately differ between tasks.
+- `npm test` in the worktree is the whole merge gate: no build step, no lint step, no changed-files-only variant. Run the gate and the closing check as one command with a 3000-second timeout: `npm test && git status --short --branch`; the status line must show a clean tree and no rebase in progress. Do not re-verify acceptance criteria, re-count tests, or re-list files.
+- After a rebase the closing status can show no ahead/behind or tracking markers. That is normal. Only a clean tree and no rebase line matter.
+- A passing summary line ends the gate. Write the final reply straight from the shape rule below; no thinking turn plans it. Never compare its test or file counts to any other run, task file, or expectation; counts legitimately differ between tasks.
 - A conflict-free rebase produces no `merge:` bullets. Only a rebase that stopped on conflicts gets one `merge:` bullet per resolved hunk, naming the other task and whether both sides survived.
 - Final reply shape: exactly one line naming the rebase result and the test result, then any `merge:` bullets, nothing else. No second paragraph and no explanation of absent bullets; silence means none. No Notes write; the tool list is closed.
 - Suite success: leave the state at `merging`. Suite failure: `kanban_get`, then `kanban_set_state` to `to-do`, and name the failing suites in the final reply.

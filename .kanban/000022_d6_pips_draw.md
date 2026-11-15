@@ -1,11 +1,13 @@
 ---
 name: "fix: d6 pips draw at wrong scale and flood the label atlas with ink"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/22-d6-pips-draw"
 issuer: "#6"
 complexity: "simple"
 map: "{\"files\":[{\"path\":\"src/dice/labels.js\",\"symbols\":[{\"name\":\"drawFaceLabel\",\"kind\":\"fn\",\"ins\":1,\"del\":1,\"isNew\":false},{\"name\":\"drawPips\",\"kind\":\"fn\",\"ins\":5,\"del\":2,\"isNew\":false}]},{\"path\":\"src/dice/labels.test.js\",\"symbols\":[{\"name\":\"RecordingContext\",\"kind\":\"class\",\"ins\":18,\"del\":0,\"isNew\":true},{\"name\":\"recordAtlas\",\"kind\":\"fn\",\"ins\":23,\"del\":0,\"isNew\":true},{\"name\":\"draws every pip inside its own cell at the face-radius scale\",\"kind\":\"fn\",\"ins\":28,\"del\":0,\"isNew\":true},{\"name\":\"places pips at the classic offsets around the cell center\",\"kind\":\"fn\",\"ins\":30,\"del\":0,\"isNew\":true}]}],\"flows\":[],\"role\":\"developer\",\"run\":0,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-15T19:49:30.190Z\",\"head\":\"f7c07d2\"}"
+changes: "{\"base\":\"main\",\"ins\":116,\"del\":4,\"files\":2}"
+commits: "[{\"hash\":\"8dbb83f\",\"subject\":\"fix(dice): scale d6 pip layout and radius by the face radius\",\"when\":\"2026-11-15T20:44:17+01:00\"}]"
 ---
 
 # Summary
