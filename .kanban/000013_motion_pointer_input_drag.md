@@ -1,11 +1,14 @@
 ---
 name: "feat: pointer drag and fling of dice"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "feat/13-motion-pointer-input-drag"
 issuer: "#7"
 complexity: "simple"
 shortName: "motion-pointer-input-drag"
+map: "{\"files\":[{\"path\":\"src/input/pointer.js\",\"symbols\":[{\"name\":\"clampSpeed\",\"kind\":\"fn\",\"ins\":9,\"del\":0,\"isNew\":true},{\"name\":\"flingVelocity\",\"kind\":\"fn\",\"ins\":18,\"del\":0,\"isNew\":true},{\"name\":\"randomSpin\",\"kind\":\"fn\",\"ins\":8,\"del\":0,\"isNew\":true},{\"name\":\"createPointer\",\"kind\":\"fn\",\"ins\":99,\"del\":0,\"isNew\":true},{\"name\":\"worldXY\",\"kind\":\"fn\",\"ins\":4,\"del\":0,\"isNew\":true},{\"name\":\"pickBody\",\"kind\":\"fn\",\"ins\":10,\"del\":0,\"isNew\":true},{\"name\":\"drive\",\"kind\":\"fn\",\"ins\":7,\"del\":0,\"isNew\":true},{\"name\":\"pump\",\"kind\":\"fn\",\"ins\":9,\"del\":0,\"isNew\":true},{\"name\":\"addSample\",\"kind\":\"fn\",\"ins\":6,\"del\":0,\"isNew\":true},{\"name\":\"onDown\",\"kind\":\"fn\",\"ins\":10,\"del\":0,\"isNew\":true},{\"name\":\"onMove\",\"kind\":\"fn\",\"ins\":9,\"del\":0,\"isNew\":true},{\"name\":\"onRelease\",\"kind\":\"fn\",\"ins\":16,\"del\":0,\"isNew\":true},{\"name\":\"destroy\",\"kind\":\"fn\",\"ins\":10,\"del\":0,\"isNew\":true},{\"name\":\"heldBodies\",\"kind\":\"fn\",\"ins\":1,\"del\":0,\"isNew\":true}]},{\"path\":\"src/input/pointer.test.js\",\"symbols\":[{\"name\":\"near\",\"kind\":\"fn\",\"ins\":1,\"del\":0,\"isNew\":true},{\"name\":\"flingVelocity\",\"kind\":\"case\",\"ins\":36,\"del\":0,\"isNew\":true},{\"name\":\"fakeCanvas\",\"kind\":\"fn\",\"ins\":10,\"del\":0,\"isNew\":true},{\"name\":\"fakeBody\",\"kind\":\"fn\",\"ins\":8,\"del\":0,\"isNew\":true},{\"name\":\"createPointer\",\"kind\":\"case\",\"ins\":55,\"del\":0,\"isNew\":true}]}],\"flows\":[],\"role\":\"developer\",\"run\":0,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-15T18:07:37.587Z\",\"head\":\"db548ef\"}"
+changes: "{\"base\":\"main\",\"ins\":270,\"del\":0,\"files\":2}"
+commits: "[{\"hash\":\"8725309\",\"subject\":\"feat(input): drag and fling dice with pointer events\",\"when\":\"2026-11-15T19:05:50+01:00\"}]"
 ---
 
 # Summary
