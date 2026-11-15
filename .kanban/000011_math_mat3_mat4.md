@@ -1,7 +1,7 @@
 ---
 name: "feat: 3D math mat3 and mat4"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "#2"
 complexity: "simple"
