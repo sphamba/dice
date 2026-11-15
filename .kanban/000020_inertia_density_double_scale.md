@@ -1,7 +1,7 @@
 ---
 name: "fix: body.js scales per-unit-density shape inertia by mass a second time"
 priority: "critical"
-state: "live-testing"
+state: "done"
 worktree: "fix/20-inertia-density-double-scale"
 issuer: "#14"
 complexity: "simple"
