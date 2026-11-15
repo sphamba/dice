@@ -1,13 +1,15 @@
 ---
 name: "feat: physics core, rigid bodies, symplectic Euler, box world with device gravity"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "feat/4-physics-core-integrator"
 issuer: "user"
 complexity: "moderate"
 shortName: "physics-core-integrator"
 blockedBy: ""
 splitter: "done"
+changes: "{\"base\":\"main\",\"ins\":507,\"del\":0,\"files\":9}"
+commits: "[{\"hash\":\"5ce4524\",\"subject\":\"feat(physics): add rigid bodies, symplectic Euler integrator and fixed-step box world\",\"when\":\"2026-11-15T18:53:08+01:00\"}]"
 ---
 
 # Summary
