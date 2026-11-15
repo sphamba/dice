@@ -1,7 +1,7 @@
 ---
 name: "feat: 3D math vec3 and quaternion"
 priority: "high"
-state: "to-live-test"
+state: "live-testing"
 worktree: "feat/10-math-vec3-quat"
 issuer: "#2"
 complexity: "simple"
