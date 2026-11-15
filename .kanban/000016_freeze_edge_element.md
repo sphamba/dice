@@ -1,7 +1,7 @@
 ---
 name: "fix: freeze edge element arrays in cached dice shapes"
 priority: "low"
-state: "to-review"
+state: "to-merge"
 worktree: "fix/16-freeze-edge-element"
 issuer: "#3"
 complexity: "trivial"
