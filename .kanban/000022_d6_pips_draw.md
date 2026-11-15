@@ -1,8 +1,8 @@
 ---
 name: "fix: d6 pips draw at wrong scale and flood the label atlas with ink"
 priority: "high"
-state: "to-do"
-worktree: ""
+state: "doing"
+worktree: "fix/22-d6-pips-draw"
 issuer: "#6"
 complexity: "simple"
 ---
