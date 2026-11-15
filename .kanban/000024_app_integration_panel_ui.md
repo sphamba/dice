@@ -1,7 +1,7 @@
 ---
 name: "feat: dice set panel UI, storage, roll button and Space key"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "#8"
 complexity: "moderate"
