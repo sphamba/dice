@@ -1,11 +1,14 @@
 ---
 name: "feat: project scaffold, Vite + Vitest, GitHub Pages deploy"
 priority: "critical"
-state: "merging"
+state: "to-live-test"
 worktree: "feat/1-project-scaffold"
 issuer: "user"
 complexity: "moderate"
 shortName: "project-scaffold"
+map: "{\"files\":[{\"path\":\".github/workflows/pages.yml\",\"symbols\":[{\"name\":\"build\",\"kind\":\"fn\",\"ins\":20,\"del\":0,\"isNew\":true},{\"name\":\"deploy\",\"kind\":\"fn\",\"ins\":10,\"del\":0,\"isNew\":true}]},{\"path\":\".gitignore\",\"symbols\":[]},{\"path\":\"README.md\",\"symbols\":[]},{\"path\":\"index.html\",\"symbols\":[]},{\"path\":\"package-lock.json\",\"symbols\":[]},{\"path\":\"package.json\",\"symbols\":[]},{\"path\":\"src/audio/.gitkeep\",\"symbols\":[]},{\"path\":\"src/dice/.gitkeep\",\"symbols\":[]},{\"path\":\"src/input/.gitkeep\",\"symbols\":[]},{\"path\":\"src/main.js\",\"symbols\":[{\"name\":\"resize\",\"kind\":\"fn\",\"ins\":11,\"del\":0,\"isNew\":true}]},{\"path\":\"src/math/.gitkeep\",\"symbols\":[]},{\"path\":\"src/physics/.gitkeep\",\"symbols\":[]},{\"path\":\"src/render/canvas-size.js\",\"symbols\":[{\"name\":\"backingSize\",\"kind\":\"fn\",\"ins\":7,\"del\":0,\"isNew\":true}]},{\"path\":\"src/render/canvas-size.test.js\",\"symbols\":[{\"name\":\"keeps the CSS size at device pixel ratio 1\",\"kind\":\"case\",\"ins\":3,\"del\":0,\"isNew\":true},{\"name\":\"scales the backing store by the device pixel ratio\",\"kind\":\"case\",\"ins\":3,\"del\":0,\"isNew\":true},{\"name\":\"caps the ratio at 2\",\"kind\":\"case\",\"ins\":3,\"del\":0,\"isNew\":true},{\"name\":\"falls back to ratio 1 for a missing or invalid ratio\",\"kind\":\"case\",\"ins\":4,\"del\":0,\"isNew\":true},{\"name\":\"never returns a zero dimension\",\"kind\":\"case\",\"ins\":3,\"del\":0,\"isNew\":true},{\"name\":\"rounds fractional sizes\",\"kind\":\"case\",\"ins\":3,\"del\":0,\"isNew\":true}]},{\"path\":\"src/style.css\",\"symbols\":[]},{\"path\":\"src/ui/.gitkeep\",\"symbols\":[]},{\"path\":\"vite.config.js\",\"symbols\":[]}],\"flows\":[],\"role\":\"developer\",\"run\":0,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-15T17:22:32.236Z\",\"head\":\"49b0306\"}"
+changes: "{\"base\":\"main\",\"ins\":1321,\"del\":0,\"files\":17}"
+commits: "[{\"hash\":\"49b0306\",\"subject\":\"ci: deploy to GitHub Pages on push to main\",\"when\":\"2026-11-15T18:19:36+01:00\"},{\"hash\":\"f8cd418\",\"subject\":\"feat: add Vite scaffold with WebGL2 canvas and Vitest setup\",\"when\":\"2026-11-15T18:18:35+01:00\"}]"
 ---
 
 # Summary
