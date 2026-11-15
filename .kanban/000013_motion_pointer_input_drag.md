@@ -2,7 +2,7 @@
 name: "feat: pointer drag and fling of dice"
 priority: "high"
 state: "to-do"
-worktree: ""
+worktree: "feat/13-motion-pointer-input-drag"
 issuer: "#7"
 complexity: "simple"
 shortName: "motion-pointer-input-drag"
