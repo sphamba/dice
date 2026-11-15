@@ -1,7 +1,7 @@
 ---
 name: "fix: d4/d10 and d6/d12 die voices are identical (4 distinct sounds for 6 types)"
 priority: "low"
-state: "doing"
+state: "to-review"
 worktree: "fix/29-die-types-share-voices"
 issuer: "#27"
 complexity: "simple"
@@ -36,8 +36,7 @@ Derive per-type variation from more hash entropy, e.g. a per-mode frequency offs
 - `src/audio/modes.test.js`: replaced the single d4 vs d20 check with a pairwise distinctness test over all six types at both `DIE_REFERENCE_RADIUS` and the app radius `0.016*sqrt(3)/2`.
 
 ## Verification
-- `npx vitest run src/audio/modes.test.js`: 11 passed. Test failed before the fix (4 distinct voices) and passes after (6 distinct).
-- `npm run build`: green.
+- HEAD 4101720 unchanged, clean tree: `npx vitest run src/audio/modes.test.js` 11 passed, `npm run build` green, `dist/index.html` references `./assets/index-BZsgA1fW.js` and `./assets/index-DasNQWd4.css`.
 
 ## Assumptions
 - "Distinct voice" means a pairwise different frequency set, not a perceptual threshold. A 1.5% detune is the accepted separation.
@@ -46,4 +45,3 @@ Derive per-type variation from more hash entropy, e.g. a per-mode frequency offs
 
 ## Blockers
 - None.
-
