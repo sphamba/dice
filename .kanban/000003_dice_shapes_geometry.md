@@ -1,7 +1,7 @@
 ---
 name: "feat: dice polyhedra geometry d4 to d20 with face values and mass properties"
 priority: "high"
-state: "live-testing"
+state: "done"
 worktree: "feat/3-dice-shapes-geometry"
 issuer: "user"
 complexity: "moderate"
@@ -53,13 +53,18 @@ Define the convex polyhedra for d4, d6, d8, d10 (pentagonal trapezohedron), d12 
 - `npm run build` exits 0.
 
 # Notes
-- Done: `src/dice/shapes.js` exports `DICE_TYPES` and `createShape(type, radius)`; `src/dice/shapes.test.js` holds the spec test set (48 tests, all pass).
-- Faces are discovered generically by enumerating vertex triples whose plane leaves all other vertices behind (origin inside), then ordering each polygon counter-clockwise around the outward normal, so no face index tables are hard-coded.
-- Vertices come from symmetric orbits (d6/d8/d12/d20) plus the die-shaped pentagonal trapezohedron (d10); volume, center of mass and inertia come from a signed tetrahedron decomposition, then re-centered and scaled so circumradius = `radius`.
-- Face values are assigned by pairing each face with its most anti-parallel normal; pairs get `(first + i, first + n - 1 - i)` with `first = 0` for d10 and 1 otherwise, so opposite sums are 7/9/9/13/21. d4 exposes `vertexValues` 1..4 and each face takes the value of its missing vertex.
-- Assumption: d10 uses the right-kite trapezohedron from published die geometry (all 12 vertices on the circumsphere, height/width 1.0056, kite angles 128.17/90/90/51.83; `r = sqrt(44+20*sqrt5)`, `z2 = 5+2*sqrt5`, `z1 = 1`). The polar dual of the uniform antiprism was rejected: height/width 1.81, too pointy for a real die.
-- Assumption: d12 is the regular dodecahedron (12 pentagons) and d20 the regular icosahedron (20 triangles), following die naming rather than face count of the solid class.
-- Assumption: vertices, normals and the 9-number inertia tensor are plain number arrays, not `Float32Array`, because the 1e-9 tolerances need doubles and typed arrays cannot be frozen; the tensor is symmetric so row-major and column-major layouts agree.
-- Assumption: within an opposite pair the two values are assigned in normal-sorted order; the specs fix only the sum rule, so the exact face-to-value map is arbitrary.
-- Assumption: `createShape` throws on unknown type and on non-finite or non-positive radius (trust boundary), and caches per `(type, radius)`.
-- Verification: `npx vitest run src/dice/shapes.test.js` 48/48 pass; clean-room `git archive` copy with `npm ci && npm test` (93 tests) and `npm run build` passes, `dist/index.html` references `./assets/...`.
+Live test done (worktree commit b6f651c). The module is not imported by any app code yet, so I tested it through its real interface: a consumer imports createShape and uses the data the way physics (inertia, volume, edgeDirs, edges) and rendering (vertices, faces, winding, normals) will. I ran a consumer script in Node (242 checks) and a browser ESM smoke test in headless Chromium served over HTTP (8 checks).
+
+Test design assumptions:
+- Expectations come from an independent reference, not from the module: published polyhedron coordinates, my own face discovery, my own signed tetrahedron decomposition. I cross validated the reference against closed forms before use: d4 V = a^3/(6 sqrt2) and I = V a^2/20, d6 V = a^3 and I = a^5/6, d8 V = 4/3 and I = 4/15 (unit circumradius), d12 and d20 volume formulas. Agreement 1e-12 or better.
+- All six dice are regular or centrally symmetric, so I checked that every vertex lies on the circumsphere (stronger than the spec max check) and that d10 opposite face normals are exactly anti parallel (central symmetry).
+- d10 shape properties (right kite angles 128.17/90/90/51.83, height/width 1.0056) follow the task's stated published die assumption and were checked as geometry properties.
+- Strict mode (ESM) so frozen mutation attempts must throw.
+- Cache identity, trust boundary throws, plain number arrays, and scaling (radius 2.5 and 0.37, volume r^3, inertia r^5) tested through the public API.
+
+Results: 241 of 242 checks pass, 8 of 8 browser checks pass, no console errors. Detail per type: face, vertex and edge counts and Euler match. Vertex sets match published coordinates within 1e-9. All vertices on the circumsphere at exactly radius. Faces planar (max deviation 6e-17), normals unit and outward, winding CCW, meshes convex. Volume and inertia match the independent reference within about 1e-13 relative. Inertia symmetric and positive definite for all types. d10 inertia is isotropic in x and y with Izz larger, as D5d symmetry requires. Opposite faces sum to 7/9/9/13/21 with an exact anti parallel partner for each face. d4 vertexValues are 1 to 4 and each face carries the value of its missing vertex. d10 kites measure 51.83/90/90/128.17 degrees and height/width 1.00562. EdgeDirs are unit, parallel unique, and cover all edge directions. Cache returns identical objects per (type, radius). Unknown types and bad radii (0, negative, NaN, Infinity, null, undefined, string) throw in Node and in the browser. Scaling follows r^3 and r^5.
+
+Findings:
+- #16 (low): createShape deep freezes every nested array except the edge pair arrays. Object.isFrozen(shape.edges[0]) is false, so a consumer can silently corrupt the globally cached shape. Everything else (vertices, face indices, normals, edgeDirs, inertia, vertexValues) is frozen.
+
+Environment notes: a stale python http.server from an earlier session held port 8641 and served a foreign directory, I killed it by port before testing. Browser test used playwright Chromium from another repo's node_modules with python http.server 8642, stopped and verified after. The repo test suite and build were not run (acceptance criteria are the doer's verification). Reference and live test scripts are in /tmp/dice_ref.mjs, /tmp/dice_live.mjs, /tmp/dice_browser.cjs with expectations in /tmp/dice_expectations.json.
