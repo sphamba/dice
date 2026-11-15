@@ -1,12 +1,14 @@
 ---
 name: "feat: main loop wiring, resize and DPR handling, die spawn and roll"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "feat/25-app-integration-panel-main"
 issuer: "#8"
 complexity: "moderate"
 shortName: "app-integration-panel-main"
 splitter: "done"
+changes: "{\"base\":\"main\",\"ins\":162,\"del\":16,\"files\":1}"
+commits: "[{\"hash\":\"4af8263\",\"subject\":\"feat: wire world, renderer, input and panel into the main loop\",\"when\":\"2026-11-15T21:01:40+01:00\"}]"
 ---
 
 # Summary
