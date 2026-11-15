@@ -2,7 +2,7 @@
 name: "feat: modal sound haptics plate modes module"
 priority: "medium"
 state: "done"
-worktree: "feat/27-modal-sound-haptics-modes"
+worktree: ""
 issuer: "#9"
 complexity: "simple"
 shortName: "modal-sound-haptics-modes"
