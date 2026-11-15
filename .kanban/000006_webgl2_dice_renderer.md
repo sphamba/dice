@@ -1,7 +1,7 @@
 ---
 name: "feat: WebGL2 renderer with orthographic top-down view, face labels and shadows"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "user"
 complexity: "complex"
