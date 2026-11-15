@@ -1,7 +1,7 @@
 ---
 name: "feat: 3D math vec3 and quaternion"
 priority: "high"
-state: "to-review"
+state: "to-merge"
 worktree: "feat/10-math-vec3-quat"
 issuer: "#2"
 complexity: "simple"
