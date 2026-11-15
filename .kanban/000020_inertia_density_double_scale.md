@@ -6,6 +6,7 @@ worktree: "fix/20-inertia-density-double-scale"
 issuer: "#14"
 complexity: "simple"
 shortName: "inertia-density-double-scale"
+map: "{\"files\":[{\"path\":\"src/physics/body.js\",\"symbols\":[{\"name\":\"scaleTensor\",\"kind\":\"fn\",\"ins\":2,\"del\":2,\"isNew\":false},{\"name\":\"createBody\",\"kind\":\"fn\",\"ins\":1,\"del\":1,\"isNew\":false}]},{\"path\":\"src/physics/body.test.js\",\"symbols\":[{\"name\":\"inverts the unit density inertia tensor and scales it by the density\",\"kind\":\"fn\",\"ins\":6,\"del\":5,\"isNew\":false},{\"name\":\"uses the absolute tensor of a real dice shape\",\"kind\":\"fn\",\"ins\":13,\"del\":0,\"isNew\":true},{\"name\":\"rotates the inertia tensor into the world frame\",\"kind\":\"fn\",\"ins\":3,\"del\":4,\"isNew\":false},{\"name\":\"spins the body with the world frame lever arm cross impulse\",\"kind\":\"fn\",\"ins\":1,\"del\":1,\"isNew\":false}]},{\"path\":\"src/physics/world.test.js\",\"symbols\":[{\"name\":\"rests a dropped die on the floor of the box\",\"kind\":\"fn\",\"ins\":12,\"del\":0,\"isNew\":true}]}],\"flows\":[],\"role\":\"developer\",\"run\":0,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-15T19:32:24.656Z\",\"head\":\"ef08eee\"}"
 ---
 
 # Summary
