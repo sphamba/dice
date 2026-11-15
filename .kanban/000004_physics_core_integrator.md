@@ -1,7 +1,7 @@
 ---
 name: "feat: physics core, rigid bodies, symplectic Euler, box world with device gravity"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "user"
 complexity: "moderate"
