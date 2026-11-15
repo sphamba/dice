@@ -1,7 +1,7 @@
 ---
 name: "feat: 3D math vec3 and quaternion"
 priority: "high"
-state: "live-testing"
+state: "done"
 worktree: "feat/10-math-vec3-quat"
 issuer: "#2"
 complexity: "simple"
@@ -35,10 +35,20 @@ Implement src/math/vec3.js and src/math/quat.js (gl-matrix style, no dependencie
 - `npm run build` exits 0.
 
 # Notes
-- Done: `src/math/vec3.js` and `src/math/quat.js` (plain ESM, gl-matrix style, out first, no deps, no imports between math modules), plus `vec3.test.js` and `quat.test.js` (20 tests).
-- vec3 covers create, fromValues, copy, set, add, sub, scale, scaleAndAdd, dot, cross, length, lengthSq, normalize, negate, distance, lerp, transformMat3, transformMat4, transformQuat. Zero vector normalizes to zero.
-- quat covers create, identity, setAxisAngle, multiply, normalize, conjugate, invert, rotateVec3, fromMat3, random(out, rng), integrate(out, q, omega, dt). Layout is [x, y, z, w].
-- Conventions assumed: column-major mat3/mat4; `multiply(out, a, b)` means apply b first then a (`R = R(a)·R(b)`); `integrate` uses the world-frame form q' = normalize(q + dt/2 · (omega,0) ⊗ q); Shoemake random rotation.
-- `rotateVec3` was added to quat.js instead of importing vec3.transformQuat, to keep the math modules file-disjoint.
-- Verified: `npx vitest run src/math/*.test.js` 20/20 pass, `npm run build` exits 0 with relative asset paths, and a clean-room copy (`git archive` + `npm ci && npx vitest run && npm run build`) passes 26/26 with the full suite.
-- Commit: 795f12e feat(math): add vec3 and quaternion modules with unit tests.
+Live test (usage, browser): PASS. 67/67 checks in Chromium, desktop 1280x800 plus iPhone 13 emulation. The two modules were copied verbatim from the worktree (diff verified), served as ES modules over HTTP, and imported by consumer-style page code the way the Vite app will import them. No repo code or test suite was run.
+
+Coverage, per spec:
+- vec3 full API: create, fromValues, copy, set, add, sub, scale, scaleAndAdd, dot, cross, length, lengthSq, normalize, negate, distance, lerp, transformMat3, transformMat4, transformQuat. Cross is right-handed (x×y=z, y×z=x, z×x=y, anti-commutative). Zero vector normalizes to zero, no NaN. transformMat3 proven column-major (x̂ maps to column 0 with a non-symmetric matrix). transformMat4 treats the input as a point, w=1 (rotation plus translation verified both directions).
+- quat full API: create, identity, setAxisAngle, multiply, normalize, conjugate, invert, rotateVec3, fromMat3, random, integrate. Layout [x,y,z,w] confirmed via setAxisAngle and fromMat3 (rotZ90 and rotX90 give exact [x,y,z,sin45,cos45] forms). multiply(out,a,b) applies b first, proven with a discriminating case (x̂ -> ẑ, not ŷ). fromMat3 round-trips a random quat back to the same basis rotation. invert of a non-unit quat correct; q⊗q⁻¹ = identity.
+- Spec test scenarios reproduced as usage: x rotated 90° about z gives y; integrate with omega=(0,0,π/2), dt=1e-3, 1000 steps matches setAxisAngle(|omega|·t) within 1e-3 (measured max diff 6.0e-8 in Float32Array, 1.3e-7 in Float64Array); unit length kept after 10000 steps (error 9.5e-9); random returns unit quaternions (20000 draws, all within 1e-6 of unit).
+- Extra usage checks beyond the minimum: integrate omega is world frame (discriminated from body frame with a non-identity start); integrate with omega=0 is a no-op; in-place aliasing works (out===a for normalize, transformQuat, integrate) and every out-first function returns its out; dot/length/distance return numbers.
+- Constraints verified: functions accept Float32Array, plain arrays, and Float64Array for inputs and outputs, including mixed types in one call (physics can use Float64Array). No imports between math modules: both files load standalone in the browser with no page or console errors.
+- random: Shoemake uniformity spot-checked with an injected LCG rng: mean of each component squared over 20000 draws is 0.2484 to 0.2517 (expected 0.25). Same seed gives the same quat, different seed differs, so the rng parameter is honored and results are reproducible.
+
+Assumptions made for this test:
+- The math modules have no UI surface yet, so the real interface is the ES module API itself, exercised in a real browser. Phone emulation was run as an environment sanity check only; the functions are viewport independent.
+- setAxisAngle expects a unit axis (gl-matrix convention). A non-unit axis scales the xyz components without renormalizing (observed, same as gl-matrix). Callers must pass a unit axis.
+- quat.normalize of a zero quat falls back to identity (finite, no NaN). Not spec'd, observed behavior, looks safe.
+- Tolerances: 1e-5 for Float32Array, 1e-6 for Float64Array, except where the spec fixed 1e-3.
+
+Technical difficulties during testing (harness, not product): the first run showed 6 false failures, all caused by bad harness inputs: non-unit axes to setAxisAngle, a non-rotation matrix to fromMat3, a wrong expected value for rotZ180, a single-step vs 1000-step mix-up, and a zero quaternion as integrate start state (normalize of zero falls back to identity, which consumes one step). Each was confirmed as a harness bug by direct numeric inspection and fixed. No product defects found; no defect tasks filed.

@@ -2,11 +2,12 @@
 name: "feat: dice polyhedra geometry d4 to d20 with face values and mass properties"
 priority: "high"
 state: "to-do"
-worktree: ""
+worktree: "feat/3-dice-shapes-geometry"
 issuer: "user"
 complexity: "moderate"
 shortName: "dice-shapes-geometry"
 blockedBy: ""
+splitter: "done"
 ---
 
 # Summary
