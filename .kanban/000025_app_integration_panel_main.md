@@ -2,7 +2,7 @@
 name: "feat: main loop wiring, resize and DPR handling, die spawn and roll"
 priority: "high"
 state: "done"
-worktree: "feat/25-app-integration-panel-main"
+worktree: ""
 issuer: "#8"
 complexity: "moderate"
 shortName: "app-integration-panel-main"
