@@ -1,12 +1,14 @@
 ---
 name: "feat: device motion gravity, iOS permission and portrait lock"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "feat/12-motion-pointer-input-gravity"
 issuer: "#7"
 complexity: "simple"
 shortName: "motion-pointer-input-gravity"
 map: "{\"files\":[{\"path\":\"src/input/motion.js\",\"symbols\":[{\"name\":\"MAX_GRAVITY\",\"kind\":\"class\",\"ins\":2,\"del\":0,\"isNew\":true},{\"name\":\"DEFAULT_GRAVITY\",\"kind\":\"class\",\"ins\":2,\"del\":0,\"isNew\":true},{\"name\":\"IOS\",\"kind\":\"class\",\"ins\":3,\"del\":0,\"isNew\":true},{\"name\":\"clampMagnitude\",\"kind\":\"fn\",\"ins\":7,\"del\":0,\"isNew\":true},{\"name\":\"deviceToWorldGravity\",\"kind\":\"fn\",\"ins\":20,\"del\":0,\"isNew\":true},{\"name\":\"screenAngle\",\"kind\":\"fn\",\"ins\":5,\"del\":0,\"isNew\":true},{\"name\":\"createMotion\",\"kind\":\"fn\",\"ins\":11,\"del\":0,\"isNew\":true},{\"name\":\"firstGestureCallbacks\",\"kind\":\"class\",\"ins\":3,\"del\":0,\"isNew\":true},{\"name\":\"onFirstGesture\",\"kind\":\"fn\",\"ins\":8,\"del\":0,\"isNew\":true},{\"name\":\"requestMotionPermission\",\"kind\":\"fn\",\"ins\":10,\"del\":0,\"isNew\":true},{\"name\":\"lockPortrait\",\"kind\":\"fn\",\"ins\":10,\"del\":0,\"isNew\":true},{\"name\":\"unlockOnFirstGesture\",\"kind\":\"fn\",\"ins\":14,\"del\":0,\"isNew\":true}]},{\"path\":\"src/input/motion.test.js\",\"symbols\":[{\"name\":\"G\",\"kind\":\"class\",\"ins\":5,\"del\":0,\"isNew\":true},{\"name\":\"expectVec\",\"kind\":\"fn\",\"ins\":5,\"del\":0,\"isNew\":true},{\"name\":\"flat phone gives downward gravity for every screen angle\",\"kind\":\"case\",\"ins\":7,\"del\":0,\"isNew\":true},{\"name\":\"upright portrait phone gives gravity along -y\",\"kind\":\"case\",\"ins\":4,\"del\":0,\"isNew\":true},{\"name\":\"tilt in the screen plane rotates with the screen angle\",\"kind\":\"case\",\"ins\":7,\"del\":0,\"isNew\":true},{\"name\":\"negative angle maps to its positive equivalent\",\"kind\":\"case\",\"ins\":6,\"del\":0,\"isNew\":true},{\"name\":\"sideways shake moves the dice against the acceleration\",\"kind\":\"case\",\"ins\":4,\"del\":0,\"isNew\":true},{\"name\":\"inverted iOS sign restores the spec convention\",\"kind\":\"case\",\"ins\":5,\"del\":0,\"isNew\":true},{\"name\":\"magnitude clamped to MAX_GRAVITY without changing direction\",\"kind\":\"case\",\"ins\":8,\"del\":0,\"isNew\":true},{\"name\":\"device at rest in free fall gives zero gravity\",\"kind\":\"case\",\"ins\":2,\"del\":0,\"isNew\":true}]}],\"flows\":[],\"role\":\"developer\",\"run\":0,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-15T18:02:43.359Z\",\"head\":\"c51919e\"}"
+changes: "{\"base\":\"main\",\"ins\":148,\"del\":0,\"files\":2}"
+commits: "[{\"hash\":\"c51919e\",\"subject\":\"feat(input): map device motion to world gravity with iOS permission and portrait lock\",\"when\":\"2026-11-15T19:00:36+01:00\"}]"
 ---
 
 # Summary
