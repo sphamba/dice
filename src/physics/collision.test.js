@@ -55,6 +55,14 @@ describe('die vs die SAT', () => {
     }
   });
 
+  it('keeps four clipped points for two flush cubes with a micro twist', () => {
+    const a = createBody(cube(), { position: [0, 0, BASE_Z] });
+    const twist = quat.setAxisAngle(new Float64Array(4), new Float64Array([0, 0, 1]), 1e-4);
+    const b = createBody(cube(), { position: [0, 0, BASE_Z + 2 * H - 1e-5], orientation: twist });
+    const contacts = detect([a, b]).filter(die);
+    expect(contacts).toHaveLength(4);
+  });
+
   // Two generically oriented equal cubes posed so that one edge of each cube is the
   // closest feature pair. The position is the analytic edge edge pose for the rotation below.
   it('gives one edge contact for two crossing cubes', () => {

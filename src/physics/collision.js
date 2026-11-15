@@ -11,6 +11,10 @@ export const BROADPHASE_MARGIN = SLOP;
 
 const EPS = 1e-12;
 
+// Plane distances below this are treated as zero, so a micro-tilted edge that grazes a
+// clip plane yields no crossing point instead of a spurious vertex far from the corner.
+const CLIP_WELD = 1e-5;
+
 const vec = () => new Float64Array(3);
 
 const clamp = (value, lo, hi) => Math.min(Math.max(value, lo), hi);
@@ -157,6 +161,8 @@ function sidePlanes(faceVertices, normal) {
   return planes;
 }
 
+const snapWeld = (distance) => (Math.abs(distance) <= CLIP_WELD ? 0 : distance);
+
 function clipPolygon(polygon, planes) {
   let poly = polygon;
   for (const plane of planes) {
@@ -164,8 +170,8 @@ function clipPolygon(polygon, planes) {
     for (let i = 0; i < poly.length; i += 1) {
       const current = poly[i];
       const next = poly[(i + 1) % poly.length];
-      const dc = vec3.dot(plane.normal, current) - plane.offset;
-      const dn = vec3.dot(plane.normal, next) - plane.offset;
+      const dc = snapWeld(vec3.dot(plane.normal, current) - plane.offset);
+      const dn = snapWeld(vec3.dot(plane.normal, next) - plane.offset);
       if (dc <= 0) out.push(current);
       if ((dc < 0 && dn > 0) || (dc > 0 && dn < 0)) {
         const t = dc / (dc - dn);
