@@ -1,7 +1,7 @@
 ---
 name: "feat: modal sound haptics playback and wiring"
 priority: "medium"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "#9"
 complexity: "moderate"
