@@ -2,7 +2,7 @@
 name: "fix: floor triangle strip loses its second triangle to back-face culling"
 priority: "high"
 state: "done"
-worktree: "fix/23-floor-triangle-strip"
+worktree: ""
 issuer: "#6"
 complexity: "simple"
 map: "{\"files\":[{\"path\":\"src/render/renderer.js\",\"symbols\":[{\"name\":\"buildFloorMesh\",\"kind\":\"fn\",\"ins\":2,\"del\":3,\"isNew\":false},{\"name\":\"FLOOR_VERTICES\",\"kind\":\"fn\",\"ins\":2,\"del\":0,\"isNew\":true}]},{\"path\":\"src/render/renderer.test.js\",\"symbols\":[{\"name\":\"signedArea\",\"kind\":\"fn\",\"ins\":3,\"del\":0,\"isNew\":true},{\"name\":\"floor mesh winding\",\"kind\":\"case\",\"ins\":26,\"del\":0,\"isNew\":true}]}],\"flows\":[],\"role\":\"developer\",\"run\":0,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-15T19:47:27.946Z\",\"head\":\"a16480a\"}"
