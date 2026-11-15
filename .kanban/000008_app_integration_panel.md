@@ -7,6 +7,7 @@ issuer: "user"
 complexity: "simple"
 shortName: "app-integration-panel"
 blockedBy: "#24, #25"
+splitter: "done"
 ---
 
 # Summary

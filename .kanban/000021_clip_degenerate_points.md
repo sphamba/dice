@@ -1,12 +1,14 @@
 ---
 name: "fix: face clipping emits up to 6 degenerate contact points under near-flush alignment"
 priority: "low"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/21-clip-degenerate-points"
 issuer: "#14"
 complexity: "simple"
 shortName: "clip-degenerate-points"
 map: "{\"files\":[{\"path\":\"src/physics/collision.js\",\"symbols\":[{\"name\":\"CLIP_WELD\",\"kind\":\"class\",\"ins\":3,\"del\":0,\"isNew\":true},{\"name\":\"snapWeld\",\"kind\":\"fn\",\"ins\":1,\"del\":0,\"isNew\":true},{\"name\":\"clipPolygon\",\"kind\":\"fn\",\"ins\":4,\"del\":2,\"isNew\":false}]},{\"path\":\"src/physics/collision.test.js\",\"symbols\":[{\"name\":\"keeps four clipped points for two flush cubes with a micro twist\",\"kind\":\"case\",\"ins\":8,\"del\":0,\"isNew\":true}]}],\"flows\":[],\"role\":\"developer\",\"run\":0,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-15T19:43:28.187Z\",\"head\":\"d3e0c9d\"}"
+changes: "{\"base\":\"main\",\"ins\":16,\"del\":2,\"files\":2}"
+commits: "[{\"hash\":\"83422b1\",\"subject\":\"fix: weld near-zero clip plane distances to stop degenerate contact points\",\"when\":\"2026-11-15T20:42:06+01:00\"}]"
 ---
 
 # Summary

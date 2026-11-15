@@ -26,3 +26,9 @@ Scale the pip layout and radius by `frame.radius` before the px/py mapping, e.g.
 - Rendered d6 top face (value 4): die color at the centroid, pips visible near the corners; other faces show correct pip counts 1-6.
 
 # Notes
+- Fixed in `src/dice/labels.js`: `drawPips` now multiplies `PIP_OFFSET` and `PIP_RADIUS` by the face radius before the meters-to-pixel mapping, so pips land in-cell (rx ≈ 22 px, ry ≈ 34 px in a 341×512 px cell).
+- Regression tests added in `src/dice/labels.test.js` using an OffscreenCanvas recording shim: pip counts, ellipses fully inside their cell, radii at the face-radius scale, classic ±offset layout, center pip for 1/3/5. Red before the fix (2 failures), green after: `npx vitest run src/dice/labels.test.js` 6/6, shapes suite 53/53, `npm run build` green.
+- Browser check (headless Chromium + SwiftShader, dev server on port 5199, killed afterwards): d6 atlas alpha fraction 4.82% (was 100%), per-cell opaque pixels 2,401/4,823/7,212/9,626/12,044/14,426 for values 1-6, value-1 cell center opaque, all four corners alpha 0, ink color [245,242,237]. Renderer driven directly: top face (value 4) reads red [237,76,64] with near-white pips; no console or GL errors.
+- Assumed pip geometry: `PIP_OFFSET`/`PIP_RADIUS` are fractions of the face corner radius (unchanged), only the unit conversion was wrong. `frame.radius` (corner distance) stays the single scale reference.
+- Committed as f7c07d2; clean-room acceptance not run separately (scoped tests plus build green).
+- `src/main.js` only clears the canvas, so no game scene is wired yet; that is out of scope for this fix.
