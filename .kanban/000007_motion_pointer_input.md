@@ -6,7 +6,7 @@ worktree: ""
 issuer: "user"
 complexity: "simple"
 shortName: "motion-pointer-input"
-blockedBy: "#12, #13"
+blockedBy: "#13"
 splitter: "done"
 ---
 
