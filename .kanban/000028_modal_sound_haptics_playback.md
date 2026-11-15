@@ -1,7 +1,7 @@
 ---
 name: "feat: modal sound haptics playback and wiring"
 priority: "medium"
-state: "to-live-test"
+state: "live-testing"
 worktree: "feat/28-modal-sound-haptics-playback"
 issuer: "#9"
 complexity: "moderate"
