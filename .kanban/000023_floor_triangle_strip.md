@@ -1,7 +1,7 @@
 ---
 name: "fix: floor triangle strip loses its second triangle to back-face culling"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "#6"
 complexity: "simple"
