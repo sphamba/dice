@@ -1,7 +1,7 @@
 ---
 name: "feat: modal sound haptics playback and wiring"
 priority: "medium"
-state: "doing"
+state: "to-review"
 worktree: "feat/28-modal-sound-haptics-playback"
 issuer: "#9"
 complexity: "moderate"
@@ -39,12 +39,13 @@ Web Audio playback src/audio/sound.js, vibration src/audio/haptics.js, and main.
 - Audible sound and Android vibration manual checks happen at the parent verification task (#9), not here.
 
 # Notes
-- Deliverable is commit 4efc79b: `src/audio/sound.js` (lazy AudioContext on resume, DynamicsCompressor master, one rendered damped-sinusoid AudioBuffer per impact ≤ 0.6 s, voice cap 12 dropping the quietest, one voice per body pair per 40 ms, speed gate 0.15 m/s), `src/audio/haptics.js` (navigator.vibrate 5-20 ms scaled by speed, strongest event with speed > 0.8 m/s, once per 60 ms, no-op without the API), both suites, and `src/main.js` wiring (`createSound`/`createHaptics` lines 50-51, `onFirstGesture(() => sound.resume())` line 53, `sound.play(world.events, world.box)` and `haptics.play(world.events)` lines 173-174 after `world.update`).
-- Verified on 4efc79b with `src/audio/modes.js` staged from `feat/27-modal-sound-haptics-modes` and removed after: `npx vitest run src/audio` = 2 files, 15 tests passed; `npm run build` exits 0; `dist/index.html` uses relative `./assets/index-ClRzhDJ5.js`; tree clean afterwards.
+- Deliverable is commit 4efc79b, unchanged: `src/audio/sound.js` (lazy AudioContext on resume, DynamicsCompressor master, one rendered damped-sinusoid AudioBuffer per impact <= 0.6 s, voice cap 12 dropping the quietest, one voice per body pair per 40 ms, speed gate 0.15 m/s), `src/audio/haptics.js` (`navigator.vibrate` 5-20 ms scaled by speed, strongest event with speed > 0.8 m/s, once per 60 ms, no-op without the API), both suites, and `src/main.js` wiring.
+- Wiring confirmed in `src/main.js`: imports at 11-12, `createSound()`/`createHaptics()` at 50-51, `onFirstGesture(() => sound.resume())` at 53, `sound.play(world.events, world.box)` and `haptics.play(world.events)` at 173-174 after `world.update`.
+- Re-verified on 4efc79b with `src/audio/modes.js` staged from `feat/27-modal-sound-haptics-modes` and removed after the run: `npx vitest run src/audio` = 2 files, 15 tests passed; `npm run build` exits 0; `dist/index.html` uses relative `./assets/index-ClRzhDJ5.js`; tree clean afterwards.
 - Assumption: sound.js imports exactly `BOX`, `GLASS`, `plateModes`, `dieModes` from `./modes.js`, which matches the sibling exports.
 - Assumption: impulse gain is a log ramp from 1e-4 to 1e-1 N s, and high-mode brightness reaches full at 2 m/s.
 - Assumption: haptic duration ramps linearly from 0.8 to 3 m/s, and synthesis duration is `min(0.6 s, 5 tau)` over the loudest mode's tau.
 - Assumption: wall plates follow the spec literally (x wall W x D, y wall H x D, u along the wide axis, v = contact z), the wall side chosen by the larger contact coordinate against its half extent.
 - Assumption: `die` surface events sum `dieModes(type, radius)` for both bodies from `body.shape`, with no plate mode added.
 - Blocker: `main` (4af8263) still has no `src/audio/modes.js`, so this branch alone cannot resolve `./modes.js`; it goes green after sibling #27 lands on `main` plus one `git merge --ff-only main`. The branch stays free of the sibling file.
-- Audible sound and Android vibration manual checks stay with parent verification task #9.
+- Manual audible sound and Android vibration checks stay with parent verification task #9.
