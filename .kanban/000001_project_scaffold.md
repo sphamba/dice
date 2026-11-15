@@ -2,7 +2,7 @@
 name: "feat: project scaffold, Vite + Vitest, GitHub Pages deploy"
 priority: "critical"
 state: "done"
-worktree: "feat/1-project-scaffold"
+worktree: ""
 issuer: "user"
 complexity: "moderate"
 shortName: "project-scaffold"
