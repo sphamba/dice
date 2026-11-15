@@ -1,12 +1,12 @@
 ---
 name: "feat: modal sound haptics plate modes module"
 priority: "medium"
-state: "merging"
+state: "to-do"
 worktree: "feat/27-modal-sound-haptics-modes"
 issuer: "#9"
 complexity: "simple"
 shortName: "modal-sound-haptics-modes"
-map: "{\"files\":[{\"path\":\"src/audio/modes.js\",\"symbols\":[{\"name\":\"hashType\",\"kind\":\"fn\",\"ins\":7,\"del\":0,\"isNew\":true},{\"name\":\"clamp\",\"kind\":\"fn\",\"ins\":3,\"del\":0,\"isNew\":true},{\"name\":\"plateModes\",\"kind\":\"fn\",\"ins\":23,\"del\":0,\"isNew\":true},{\"name\":\"dieModes\",\"kind\":\"fn\",\"ins\":17,\"del\":0,\"isNew\":true}]},{\"path\":\"src/audio/modes.test.js\",\"symbols\":[{\"name\":\"norm\",\"kind\":\"fn\",\"ins\":1,\"del\":0,\"isNew\":true},{\"name\":\"gridFrequency\",\"kind\":\"fn\",\"ins\":2,\"del\":0,\"isNew\":true},{\"name\":\"oddOddFrequencies\",\"kind\":\"fn\",\"ins\":12,\"del\":0,\"isNew\":true},{\"name\":\"near\",\"kind\":\"fn\",\"ins\":2,\"del\":0,\"isNew\":true},{\"name\":\"materials\",\"kind\":\"fn\",\"ins\":10,\"del\":0,\"isNew\":true},{\"name\":\"plateModes\",\"kind\":\"fn\",\"ins\":62,\"del\":0,\"isNew\":true},{\"name\":\"dieModes\",\"kind\":\"fn\",\"ins\":30,\"del\":0,\"isNew\":true}]}],\"flows\":[],\"role\":\"developer\",\"run\":13,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-15T21:33:33.198Z\",\"head\":\"3920873\"}"
+map: "{\"files\":[{\"path\":\"src/audio/modes.js\",\"symbols\":[{\"name\":\"module constants (materials, limits, die tuning)\",\"kind\":\"class\",\"ins\":9,\"del\":0,\"isNew\":true},{\"name\":\"hashType\",\"kind\":\"fn\",\"ins\":7,\"del\":0,\"isNew\":true},{\"name\":\"clamp\",\"kind\":\"fn\",\"ins\":3,\"del\":0,\"isNew\":true},{\"name\":\"plateModes\",\"kind\":\"fn\",\"ins\":23,\"del\":0,\"isNew\":true},{\"name\":\"dieModes\",\"kind\":\"fn\",\"ins\":17,\"del\":0,\"isNew\":true}]},{\"path\":\"src/audio/modes.test.js\",\"symbols\":[{\"name\":\"MAX_F\",\"kind\":\"class\",\"ins\":1,\"del\":0,\"isNew\":true},{\"name\":\"A\",\"kind\":\"class\",\"ins\":1,\"del\":0,\"isNew\":true},{\"name\":\"B\",\"kind\":\"class\",\"ins\":1,\"del\":0,\"isNew\":true},{\"name\":\"norm\",\"kind\":\"fn\",\"ins\":1,\"del\":0,\"isNew\":true},{\"name\":\"gridFrequency\",\"kind\":\"fn\",\"ins\":2,\"del\":0,\"isNew\":true},{\"name\":\"oddOddFrequencies\",\"kind\":\"fn\",\"ins\":12,\"del\":0,\"isNew\":true},{\"name\":\"near\",\"kind\":\"fn\",\"ins\":2,\"del\":0,\"isNew\":true},{\"name\":\"materials\",\"kind\":\"class\",\"ins\":10,\"del\":0,\"isNew\":true},{\"name\":\"plateModes\",\"kind\":\"class\",\"ins\":71,\"del\":0,\"isNew\":true},{\"name\":\"dieModes\",\"kind\":\"class\",\"ins\":31,\"del\":0,\"isNew\":true}]}],\"flows\":[],\"role\":\"developer\",\"run\":14,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-15T21:36:20.660Z\",\"head\":\"3920873\"}"
 ---
 
 # Summary
