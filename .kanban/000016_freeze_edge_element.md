@@ -2,7 +2,7 @@
 name: "fix: freeze edge element arrays in cached dice shapes"
 priority: "low"
 state: "done"
-worktree: "fix/16-freeze-edge-element"
+worktree: ""
 issuer: "#3"
 complexity: "trivial"
 map: "{\"files\":[{\"path\":\"src/dice/shapes.js\",\"symbols\":[{\"name\":\"freezeShape\",\"kind\":\"fn\",\"ins\":1,\"del\":0,\"isNew\":false}]}],\"flows\":[],\"role\":\"developer\",\"run\":0,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-15T19:28:27.996Z\",\"head\":\"75b3276\"}"
