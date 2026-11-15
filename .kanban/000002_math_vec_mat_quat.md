@@ -1,7 +1,7 @@
 ---
 name: "feat: 3D math library (vec3, mat4, quaternion)"
 priority: "high"
-state: "to-merge"
+state: "merging"
 worktree: "feat/2-math-vec-mat-quat"
 issuer: "user"
 complexity: "simple"
