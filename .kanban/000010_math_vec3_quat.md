@@ -1,11 +1,13 @@
 ---
 name: "feat: 3D math vec3 and quaternion"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "feat/10-math-vec3-quat"
 issuer: "#2"
 complexity: "simple"
 shortName: "math-vec3-quat"
+changes: "{\"base\":\"main\",\"ins\":488,\"del\":0,\"files\":4}"
+commits: "[{\"hash\":\"795f12e\",\"subject\":\"feat(math): add vec3 and quaternion modules with unit tests\",\"when\":\"2026-11-15T18:28:31+01:00\"}]"
 ---
 
 # Summary
