@@ -1,7 +1,7 @@
 ---
 name: "feat: main loop wiring, resize and DPR handling, die spawn and roll"
 priority: "high"
-state: "live-testing"
+state: "done"
 worktree: "feat/25-app-integration-panel-main"
 issuer: "#8"
 complexity: "moderate"
@@ -49,3 +49,6 @@ const panel = createPanel(ui, { onAdd, onRemove, onRoll }); // → { getSet() }
 - Panel wired as `createPanel(ui, { onAdd: spawnDie, onRemove: removeDie, onRoll: rollDice })`, then the initial set is spawned from `panel.getSet()`.
 - Assumptions: "upper half of the box depth" means z in [D/2, D - DIE_RADIUS]; `toWorld` maps CSS px with the live box (`x` right, `y` up, scale `box.W / innerWidth`) so pointer picking matches the ortho camera; held bodies keep all their velocities on roll.
 - Verification: `npm test` 200/200 passed and `npm run build` is green in this worktree (main merged #24, so `src/ui/panel.js` exists); clean-room `git archive HEAD` + `npm ci` + test + build passes with relative asset paths in `dist/index.html`; a headless Chromium (SwiftShader) smoke run on the built app showed 0 console errors, the panel with its Roll button, rendered dice, and no errors after a Roll click and a Space press.
+- Live test (user-level, built app): 53/53 checks PASS in two consecutive full runs. Harness: Playwright + headless Chromium (SwiftShader) on the real `dist` served over HTTP; contexts at DPR 3 (mobile 393x851) and DPR 1; canvas pixels read back in-page right after a drawn frame (WebGL2 `readPixels`, no screenshot); scene decoded by color connected components (red d6, white pips); settle detector = comp stability over 3 grabs. Expected values computed by an independent Node reference script (formulas ported from `physics/box.js`, `render/camera.js`, `dice/shapes.js`).
+- Live test coverage: panel add/remove/roll wiring; pixel-perfect d6 render at DPR 3 (backing 786x1702, pips in expected rings); resize + orientation + DPR change (box and canvas remap correctly); synthetic `devicemotion` tilts gravity and dice slide toward screen bottom; hold: pointer-down picks (held=1, die rises to the lid), Space roll skips the held d6 while the free d4 churns, drag follows the pointer. Pick/hold/Space-skip verified on an instrumented copy of the served bundle (separate port, real `dist` untouched): pick at a settled die's rendered center returns the body, `held` keeps it, roll leaves position and velocity untouched.
+- Test limits: SwiftShader software GL (GPU-only paths untested); canvas render DPR is capped at 2 by design, so backing px = css px x min(dpr,2), not x devicePixelRatio; pointercancel not exercised (no reliable synthetic cancel); settle tolerance 0.6 %/frame, so a die may creep slightly at the threshold; one check (Space-skip) asserts d6-comp stability instead of raw crop pixels because the tumbling free d4's shadow can sweep across the crop.
