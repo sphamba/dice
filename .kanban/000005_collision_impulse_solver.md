@@ -1,7 +1,7 @@
 ---
 name: "feat: convex collision detection and impulse-based contact resolution"
 priority: "high"
-state: "merging"
+state: "to-do"
 worktree: "feat/5-collision-impulse-solver"
 issuer: "user"
 complexity: "simple"
