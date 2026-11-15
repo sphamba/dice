@@ -1,7 +1,7 @@
 ---
 name: "feat: WebGL2 renderer with orthographic top-down view, face labels and shadows"
 priority: "high"
-state: "doing"
+state: "to-review"
 worktree: "feat/6-webgl2-dice-renderer"
 issuer: "user"
 complexity: "complex"
@@ -49,3 +49,11 @@ Render the dice and the box floor with vanilla WebGL2: orthographic camera looki
 - Manual: a temporary dev scene is NOT required. The live test is done after the integration task.
 
 # Notes
+- Implemented src/render/{camera,gl,shaders,renderer}.js and src/dice/labels.js plus camera.test.js (6) and labels.test.js (4); npx vitest run src/render src/dice = 64 passed, npm run build exits 0, committed b52bbed.
+- Camera: eye at z = D + 0.05 (CAMERA_MARGIN), ortho footprint = clip square, near = margin/2, far = D + 2·margin; verified corners at z = 0 and z = D map to NDC ±1 and higher z gives smaller depth.
+- Light: fixed default direction (-0.4, -0.3, -0.866) = exactly 30 deg from -z; frustum fitted to box corners with 0.01 pad; draw() accepts lightOptions {direction, ambient, intensity} and refits only when direction changes.
+- Labels: one grid-cell atlas per dice type (1024², OffscreenCanvas with <canvas> fallback); d4 = 3 corner numbers rotated toward their corner (upright when that corner is apex), d6 = classic pip layouts, others centered numbers; underline only on labels "6"/"9" per spec (multi-digit values like 16/19 not underlined).
+- Label ink chosen by luminance of the die color (dark ink on pale d4/d20, white on the rest); atlas uploaded with UNPACK_FLIP_Y_WEBGL so canvas-up = v-up; UVs and drawing share the same per-face 2D frame (right = first face edge, up = normal × right, origin = vertex centroid).
+- Shadow: DEPTH_COMPONENT24 texture, 2048² with 1024 fallback on MAX_TEXTURE_SIZE, front-face rendering, slope-scaled bias max(0.0025·(1-ndotl), 0.0006) in [0,1] depth units, 3×3 PCF, out-of-frustum fragments treated as lit; floor is a unit strip scaled by uHalfExtents, walls/lid not drawn.
+- Renderer draw() skips bodies whose shape.type has no mesh and no-ops before the first resize or while the context is lost; context-restored rebuilds all GPU resources; dispose removes listeners and deletes all GL objects.
+- Verified renderer call flow with a throwaway mock-GL probe in /tmp (draw counts, viewport args, matrix payloads, disposal); atlas pixel output itself is only checked in the later live test.

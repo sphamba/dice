@@ -23,3 +23,8 @@ Mechanism: src/input/pointer.js drive() sets v = (target - position) / FIXED_DT 
 This violates the task #13 spec: "Drag: the held die follows the pointer at hold height z = D - 2*radius". The Notes claim "a still finger keeps the die up" only holds loosely: the die stays near hold height but wobbles about the die's own diameter (27.7 mm). The unit test checks a single drive step and cannot catch this closed-loop, frame-rate-dependent behavior.
 
 # Notes
+- Fixed: world.step() now calls an optional `world.beforeStep(dt)` hook before integrating; createPointer registers its drag driver there, so the held die gets its velocity recomputed every FIXED_DT instead of once per rAF frame. Removed the pointer's own requestAnimationFrame pump.
+- New tests (src/input/pointer.test.js) are closed-loop against the real world: a still die stays within 1 mm of hold height at 30/60/144 fps, and a 20 mm pointer jump overshoots less than 2 mm and settles within 1 mm at all three rates. world.test.js covers the hook (once per fixed step, receives dt).
+- Assumed: the frame-loop caller runs world.update() every animation frame (main.js does not wire the world yet); the pointer no longer has an independent tick.
+- Assumed: hold height is still z = D - 2*radius and MAX_DRAG_SPEED (2 m/s) stays the follow-speed ceiling; the initial raise from the table is bounded by that speed, so a die takes about 15 ms to reach hold height.
+- Scoped run: 45/45 tests in src/input + src/physics. Clean-room copy: 138/138 tests, build OK, relative asset paths.
