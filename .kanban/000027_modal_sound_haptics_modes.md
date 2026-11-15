@@ -1,7 +1,7 @@
 ---
 name: "feat: modal sound haptics plate modes module"
 priority: "medium"
-state: "doing"
+state: "to-review"
 worktree: "feat/27-modal-sound-haptics-modes"
 issuer: "#9"
 complexity: "simple"
@@ -39,7 +39,7 @@ Pure modal-synthesis module src/audio/modes.js (plate modes, die modes, material
 # Notes
 - Deliverable: HEAD `3920873` on `feat/27-modal-sound-haptics-modes`, tree clean, main already merged (no fast-forward needed). `src/audio/modes.js` exports `BOX`/`GLASS` materials, `plateModes(a, b, u, v, material, maxModes = 24)` and `dieModes(type, radius)`, both returning ascending `{ f, amp, tau }` lists; extra exports `MAX_MODE_FREQUENCY = 8000`, `DEFAULT_MAX_MODES = 24`, `DIE_REFERENCE_RADIUS`.
 - Deliverable: `src/audio/modes.test.js` covers the four spec assertions plus the 8 kHz cap, count cap, corner silence, plate a/b and u/v symmetry, die range 2 to 7 kHz, per-type variation and size scaling (11 tests).
-- Verification: re-verified at HEAD `3920873` with node_modules present (install log clean): `npx vitest run src/audio/modes.test.js` 11 passed in 741 ms, `npm run build` exits 0 with 25 modules, and `dist/index.html` references `./assets/index-BZsgA1fW.js` with a relative path. The export list matches the pinned contract. Verification-only run, no commit.
+- Verification: re-verified at HEAD `3920873` with a fresh install (35 packages, 0 vulnerabilities): `npx vitest run src/audio/modes.test.js` 11 passed in 482 ms, `npm run build` exits 0 with 25 modules, and `dist/index.html` references `./assets/index-BZsgA1fW.js` and `./assets/index-DasNQWd4.css` with relative paths. The export list matches the pinned contract. Verification-only run, no commit.
 - Assumption: `DIE_REFERENCE_RADIUS = 0.0139 m`; die frequencies scale as 1/radius, so smaller dice exceed 7 kHz by design (size scaling wins over the band).
 - Assumption: `amp` is the absolute mode shape clamped to [0, 1], because the contract requires a non-negative amplitude.
 - Assumption: degenerate plates can give equal frequencies for different (m, n), so ordering and decay assertions are non-strict.
