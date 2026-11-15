@@ -1,7 +1,7 @@
 ---
 name: "fix: held die oscillates around the pointer instead of following at hold height"
 priority: "high"
-state: "live-testing"
+state: "done"
 worktree: "fix/17-held-die-oscillates"
 issuer: "#13"
 complexity: "simple"
@@ -26,8 +26,31 @@ Mechanism: src/input/pointer.js drive() sets v = (target - position) / FIXED_DT 
 This violates the task #13 spec: "Drag: the held die follows the pointer at hold height z = D - 2*radius". The Notes claim "a still finger keeps the die up" only holds loosely: the die stays near hold height but wobbles about the die's own diameter (27.7 mm). The unit test checks a single drive step and cannot catch this closed-loop, frame-rate-dependent behavior.
 
 # Notes
-- Fixed: world.step() now calls an optional `world.beforeStep(dt)` hook before integrating; createPointer registers its drag driver there, so the held die gets its velocity recomputed every FIXED_DT instead of once per rAF frame. Removed the pointer's own requestAnimationFrame pump.
-- New tests (src/input/pointer.test.js) are closed-loop against the real world: a still die stays within 1 mm of hold height at 30/60/144 fps, and a 20 mm pointer jump overshoots less than 2 mm and settles within 1 mm at all three rates. world.test.js covers the hook (once per fixed step, receives dt).
-- Assumed: the frame-loop caller runs world.update() every animation frame (main.js does not wire the world yet); the pointer no longer has an independent tick.
-- Assumed: hold height is still z = D - 2*radius and MAX_DRAG_SPEED (2 m/s) stays the follow-speed ceiling; the initial raise from the table is bounded by that speed, so a die takes about 15 ms to reach hold height.
-- Scoped run: 45/45 tests in src/input + src/physics. Clean-room copy: 138/138 tests, build OK, relative asset paths.
+Live test done. 16/16 checks passed, no defects found. The held die follows the pointer at hold height at 60 fps and ~30 fps, with mouse and two-finger touch; the defect's limit cycle is gone.
+
+## How it was tested
+- Same approach as the #13 live test: main.js still does not wire the world (integration is task #8), so an untracked harness page (live-harness/, deleted after the test) wired createPointer to createWorld/createBody with createShape('d6', DIE_RADIUS) using the exact Spec mapping, and ran world.update in a rAF loop. Chromium (Playwright 1.59), real trusted input: mouse on desktop, two CDP touch points on phone.
+- Contexts: desktop 1280x800 dpr 1 (mouse) at 60 fps; same page at ~30 fps (harness ran world.update every 2nd rAF with the full 33 ms dt, measured ~32 updates/s); phone 390x844 dpr 3 hasTouch (multi-touch). rAF frame dt 15.5-16.7 ms in all contexts.
+- Sampled every body at every fixed step (480 Hz) via a world.step wrapper that does not change physics; follow error measured against the pointer target timeline logged from the module's own toWorld. Expected values (mpp, box D, holdZ, px<->world mapping) from an independent Node reference; it reproduces the defect report numbers (desktop holdZ 22.287 mm with the 0.05 m guard, phone 39.828 mm).
+- Environment constraint (not a finding of this task): collision detection is not wired yet, nothing populates world.contacts, so dice have no floor or walls. The harness placed each die at hold height right before grabbing (as in the #13 test). Release checks therefore verify "lets go" as heldBodies empty plus free fall, not a floor landing. Initial probe run showed dice falling through the floor; diagnosed as the missing contact population, not a drive bug.
+
+## Results (all errors in mm, hold z = D - 2*radius)
+| Check | Result |
+| --- | --- |
+| Desktop still hold 2.5 s | settles 33 ms after press, then steady z error 0.043 mm (matches closed form g*FIXED_DT^2), xy error 0.000 mm, zero z-error sign flips, min z 20.63 vs hold 22.29. Defect was +/-31.8 mm wander with dips to -9.5 mm. |
+| Desktop jump 40 mm (single move event) | settled 15 ms, overshoot 0.001 mm, z peak 0.180 mm, then exactly 0. Defect was 26.9 mm xy and 17.3 mm z, sustained for seconds. |
+| Desktop drag 16 mm at 40 mm/s (8 events) | post-step lag 0.000 mm; per-event 2 mm target increments are consumed within one fixed step; z peak 0.043 mm. |
+| Desktop release | heldBodies empty, die falls freely with the fling velocity. |
+| 30 fps hold still / jump | steady z error 0.043 mm, jump settles 33 ms, overshoot 0.001 mm. The defect sim predicted ~65 mm amplitude at 30 fps. |
+| Phone two fingers still 2.5 s | both dice: xy error 0.001 mm, z within 1.53 mm of hold 39.83 in the window (that peak is the raise tail from the press position, monotone, no flips); steady 0.043 mm. Defect was 30.3 mm z error. |
+| Phone two fingers move 6.9 / 5.2 mm | lag peaks 1.150 / 0.868 mm, exactly the per-event target increments. Defect was 23.1 / 24.8 mm. |
+| Phone release both | heldBodies empty, both dice fall. |
+| Pick/multi-touch sanity | one mouse press holds 1 die; two touchStarts hold 2 dice (pointerIds 2 and 3, matched to dice geometrically); 12 trusted pointermove events arrived for 12 dispatched touchMoves. |
+| Page health | no console or page errors in any context. |
+
+## Assumptions
+- Frame-loop caller pattern per the task Notes: world.update runs every animation frame with the rAF dt. The 30 fps variant emulates a 30 Hz caller (update every 2nd rAF). 144 fps was not exercised live (headless display link is not controllable); the unit suite covers it closed-loop.
+- Dice are real d6 shapes at the 16 mm die size (circumscribed radius DIE_RADIUS); gravity stays the default (0, 0, -9.81) since device-motion gravity (#12) is not wired in a harness.
+- Hold height target z = D - 2*radius and MAX_DRAG_SPEED 2 m/s unchanged, per the task Notes.
+- CDP touch point ids are not pointerIds (observed in #13); checks match pointers to dice by geometry, not by id.
+- The measured press-time transients (up to 5.8 mm below hold height on desktop, 1.5 mm on phone) come from the harness placing dice milliseconds before the grab while gravity is unsupported; they converge monotonically and do not indicate oscillation.

@@ -7,12 +7,11 @@ The run prompt owns the step order (read task, abort a stale rebase, clear conte
 - Spend no thinking tokens re-narrating the run prompt or the step list. Tool time is trivial here; model latency is the whole run cost. Pick the next command in one short sentence, then call it.
 - When a command fails or a result looks odd, match it to this file first. Most failures in this workflow are by design. Think only about failures this file does not explain.
 
-## Pre-rebase
+## Pre-rebase (one command)
 
-- Read the task file once, with the read tool, at the start of the run. Do not cat or re-read it in later bash commands.
-- Run all pre-rebase prep as one command: `git status --short --branch && git log --oneline -5 && git update-index --no-skip-worktree -- AGENTS.md TASK.md 2>/dev/null; git restore --staged --worktree -- AGENTS.md TASK.md 2>/dev/null; true`. Judge branch state and a rebase in progress from the printed status; the path clear runs unconditionally and is safe either way. If the status shows a rebase you did not start, abort it as the next command.
-- The restore part prints nothing on success. That silence is success: do not re-run status or log to confirm the clear. Start the rebase in the next command.
-- Do not inspect tracking or skip-worktree state, do not explain suppressed errors, and never deduce path status from `git status`. Go straight to the rebase.
+- Do not open TASK.md with the read tool. The frontmatter `map` field is machine output for other roles, grows to thousands of characters on complex tasks, and holds no merge content. Read the body once, Summary and Specs and Notes, inside the prep command below, and never read the task file again later in the run.
+- Run the whole pre-rebase prep as one command: `git status --short --branch && git log --oneline -5 && awk '/^---$/{n++; next} n>=2' TASK.md && git update-index --no-skip-worktree -- AGENTS.md TASK.md 2>/dev/null; git restore --staged --worktree -- AGENTS.md TASK.md 2>/dev/null; true`. The awk part prints the task body and skips the frontmatter. Judge branch state and a rebase in progress from the printed status; the path clear runs unconditionally and is safe either way. If the status shows a rebase you did not start, abort it as the next command.
+- The restore part prints nothing on success. That silence is success: do not re-run status or log to confirm the clear. Do not inspect tracking or skip-worktree state, and never deduce path status from `git status`. Start the rebase in the next command.
 
 ## Rebase
 
