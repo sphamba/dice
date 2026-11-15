@@ -39,11 +39,44 @@ Pure modal-synthesis module src/audio/modes.js (plate modes, die modes, material
 - `npm run build` exits 0.
 
 # Notes
-- Deliverable: HEAD `3920873` on `feat/27-modal-sound-haptics-modes`, tree clean, main already merged. `src/audio/modes.js` exports `BOX`/`GLASS` materials, `plateModes(a, b, u, v, material, maxModes = 24)` and `dieModes(type, radius)`, both returning ascending `{ f, amp, tau }` lists; extra exports `MAX_MODE_FREQUENCY = 8000`, `DEFAULT_MAX_MODES = 24`, `DIE_REFERENCE_RADIUS`.
-- Deliverable: `src/audio/modes.test.js` covers the four spec assertions plus the 8 kHz cap, count cap, corner silence, plate a/b and u/v symmetry, die range 2 to 7 kHz, per-type variation and size scaling (11 tests).
-- Verification: HEAD `3920873` unchanged. `npx vitest run src/audio/modes.test.js` 11 passed in 474 ms, `npm run build` green (`✓ built in 170ms`), and `dist/index.html` references `./assets/index-BZsgA1fW.js` and `./assets/index-DasNQWd4.css` with relative paths. Export list matches the pinned contract. Verification-only run, no commit.
-- Assumption: `DIE_REFERENCE_RADIUS = 0.0139 m`; die frequencies scale as 1/radius, so smaller dice exceed 7 kHz by design (size scaling wins over the band).
-- Assumption: `amp` is the absolute mode shape clamped to [0, 1], because the contract requires a non-negative amplitude.
-- Assumption: degenerate plates can give equal frequencies for different (m, n), so ordering and decay assertions are non-strict.
-- Blocker: none. The pinned consumer `src/audio/sound.js` is owned by the sibling task and is not in this tree yet, so no import wiring is verifiable here.
-- Manual checks left to other roles: tune material and die constants by ear once `src/audio/sound.js` exists. The unrelated `src/physics/world.e2e.test.js` wall-clock budget test fails on this machine regardless of this change.
+## Live test report (usage test of this task #27)
+
+### How the test ran
+- The change is a pure math module with no browser, DOM, or Web Audio code, and the pinned consumer src/audio/sound.js is not in this tree. The real interface is therefore the module API. A node driver (/tmp/dice-lt27/modes-live.mjs) played the consumer role: impact events in, {f, amp, tau} voice lists out, then each voice rendered as a sum of amp*sin(2*pi*f*t)*exp(-t/tau) to check the audible outcome (peak, ring-down time).
+- Fixtures come from the app itself: boxFromViewport(393, 852, 3) gives a 0.0681 x 0.1476 x 0.0681 m phone box, dice spawn with radius 0.01386 m (DIE_RADIUS), types d4 to d20. The driver ran all 14 checks in about 1 s.
+- No repo test suites were run and no code was edited. The vitest suite and npm run build named in the acceptance criteria stay with the developer role.
+
+### Assumptions made when designing the usage tests
+- The consumer maps surfaces to plates as: floor and lid are W x H, x walls span H x D, y walls span W x D, with (u, v) the contact point moved into [0, a] x [0, b]. The spec pins the plate sizes but not the axis order, so both orientations were exercised (wall plates and the a/b swap check).
+- A user-level "sound" is the mode sum above. Ring time runs from the waveform peak to the last sample at 10% of the peak, sampled at 24 kHz over 2.5 s.
+- The 2 to 7 kHz die band is asserted at the real die radius 0.01386 m (scale 1.0032 against DIE_REFERENCE_RADIUS).
+
+### Results
+| Check | Result |
+| --- | --- |
+| Pinned exports: MAX_MODE_FREQUENCY 8000, DEFAULT_MAX_MODES 24, DIE_REFERENCE_RADIUS 0.0139 | PASS |
+| Realistic 5-event impact frame (floor, x wall, lid, y wall, die-on-die) gives valid contract voices | PASS |
+| Floor BOX hit: lowest mode 200 Hz, <= 24 modes, audible, decays (ring 0.20 s) | PASS |
+| Lid GLASS hit: lowest mode 900 Hz, rings longer (0.90 s vs 0.20 s), tau 0.621 s vs 0.194 s | PASS |
+| Corner contacts on all plates silent (peak < 1e-9) | PASS |
+| Center hit: even modes silent (17), odd/odd full amp (7), list matches the spec formula | PASS |
+| a<->b with u<->v swap gives the same mode set (rect and tie-prone square plate) | PASS |
+| maxModes: 5 keeps the lowest 5, 0 gives none, default caps at 24 (70 modes exist under 8 kHz) | PASS |
+| x and y wall plates: valid voices, f11 = 200 Hz | PASS |
+| Die voices: 3 to 5 modes, 2 to 7 kHz at the real radius, tau <= 0.05 s, amps decreasing | PASS |
+| Die voices differ per type | FAIL, see #29 |
+| Half radius doubles die frequencies exactly, top modes leave the 7 kHz band | PASS |
+| dieModes() default radius equals DIE_REFERENCE_RADIUS | PASS |
+| Contact slightly outside the plate clamps and stays silent, no throw | PASS |
+
+### Finding
+- #29 (filed): d4/d10 and d6/d12 return identical mode sets, so only 4 of 6 die types sound different. This contradicts the spec's "slightly different per type".
+
+### Observations, no defect
+- A floor-center hit sounds only 7 of the 24 modes (even m or n silenced); off-center hits excite more modes. Matches the spec mode shape.
+- Smaller dice leaving the 7 kHz band is by design per the task's size-scaling assumption; observed consistent (half radius: lowest mode 4815 Hz stays in band, top modes reach 11556 Hz).
+- BOX floor ring 0.20 s vs GLASS lid ring 0.90 s. Matches the material intent (wood tray, brighter longer glass ring).
+
+### Limits
+- Material constants (f11, tau, dampHF) and die constants can only be judged by ear once src/audio/sound.js lands. This test checks structure and relative behavior only.
+- Two measurement bugs in the test driver itself (waveform zero crossings read as ring-down, an over-strict band assert) were fixed in the harness before judging results. They were not product issues.
