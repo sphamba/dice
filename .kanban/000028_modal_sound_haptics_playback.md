@@ -1,7 +1,7 @@
 ---
 name: "feat: modal sound haptics playback and wiring"
 priority: "medium"
-state: "doing"
+state: "to-review"
 worktree: "feat/28-modal-sound-haptics-playback"
 issuer: "#9"
 complexity: "moderate"
@@ -39,13 +39,13 @@ Web Audio playback src/audio/sound.js, vibration src/audio/haptics.js, and main.
 - Audible sound and Android vibration manual checks happen at the parent verification task (#9), not here.
 
 # Notes
-- Deliverable: commit 4efc79b, unchanged this run. `src/audio/sound.js` (lazy AudioContext on resume, DynamicsCompressor master, one rendered damped-sinusoid AudioBuffer per impact <= 0.6 s, `MAX_VOICES = 12` dropping the quietest, one voice per body pair per 40 ms, `MIN_EVENT_SPEED = 0.15`), `src/audio/haptics.js` (`navigator.vibrate` 5-20 ms scaled by speed, strongest event with `MIN_SPEED = 0.8`, `GAP_MS = 60`, feature-gated no-op), both suites, and `src/main.js` wiring.
-- Verification: HEAD 4efc79b unchanged, re-run against `main` (4101720) which now carries `src/audio/modes.js` and `modes.test.js`. With that module staged temporarily from `git show main:src/audio/modes.js` (removed afterwards): `npx vitest run src/audio` = 2 files, 15 tests passed. `npm run build` exits 0 (44.04 kB bundle). `dist/index.html` uses relative `./assets/index-BWOSxVib.js` and `./assets/index-DasNQWd4.css` paths. Staged copy removed, `git status` clean.
+- Deliverable: commit a968634 (4efc79b rebased onto `main` 4101720), no source change this run. `src/audio/sound.js` (lazy AudioContext on resume, DynamicsCompressor master, one rendered damped-sinusoid AudioBuffer per impact <= 0.6 s, `MAX_VOICES = 12` dropping the quietest, one voice per body pair per 40 ms, `MIN_EVENT_SPEED = 0.15`), `src/audio/haptics.js` (`navigator.vibrate` 5-20 ms scaled by speed, strongest event with `MIN_SPEED = 0.8`, `GAP_MS = 60`, feature-gated no-op), both suites, and `src/main.js` wiring.
+- Verification: HEAD a968634, `git merge --ff-only main` reports "Already up to date" and `src/audio/modes.js` plus `modes.test.js` are now native to the branch, so no temporary staging was needed. `npx vitest run src/audio` = 3 files, 26 tests passed. `npm run build` exits 0 (44.04 kB bundle, `✓ built in`). `dist/index.html` uses relative `./assets/index-BWOSxVib.js` and `./assets/index-DasNQWd4.css` paths. Tree clean, no commit made.
 - Verification: wiring greps at `src/main.js` lines 11-12 (imports), 50-51 (`createSound`/`createHaptics`), 53 (`onFirstGesture(() => sound.resume())`), 173-174 (`sound.play(world.events, world.box)`, `haptics.play(world.events)`) directly after `world.update`.
 - Assumption: sound.js imports exactly `BOX`, `GLASS`, `plateModes`, `dieModes` from `./modes.js`, matching the landed sibling exports.
 - Assumption: impulse gain is a log ramp from 1e-4 to 1e-1 N s, and high-mode brightness reaches full at 2 m/s.
 - Assumption: haptic duration ramps linearly from 0.8 to 3 m/s, and synthesis duration is `min(0.6 s, 5 tau)` over the loudest mode's tau.
 - Assumption: wall plates follow the spec literally (x wall W x D, y wall H x D, u along the wide axis, v = contact z), the wall side chosen by the larger contact coordinate against its half extent.
 - Assumption: `die` surface events sum `dieModes(type, radius)` for both bodies from `body.shape`, with no plate mode added.
-- Blocker: the earlier missing-`modes.js` blocker is cleared, `main` now holds it (3920873 plus mode-voice fix 4101720). Remaining: this branch diverged from `main`, so `git merge --ff-only main` no longer applies. Unblock at the merge role: a real merge (or rebase) of 4efc79b onto `main`. The branch stays free of the sibling file.
+- Blocker: none. The earlier missing-`modes.js` blocker and the branch-divergence blocker are both cleared: `main` 4101720 is an ancestor of a968634.
 - Manual checks left to other roles: audible sound and Android vibration on parent verification task #9.
