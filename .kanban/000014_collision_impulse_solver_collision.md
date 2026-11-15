@@ -39,10 +39,19 @@ World, bodies and the fixed-timestep loop come from task #4 (`src/physics/`: `bo
 - `npm run build` exits 0.
 
 # Notes
-- `src/physics/collision.js` adds `detectContacts(world, dt)`: box contacts per die vertex on the 6 planes (`floor`/`lid`/`wall`, inward normal, depth = -signed distance) and die-die contacts via sphere broadphase plus SAT over both face normals and edge-dir cross products, then Sutherland-Hodgman face clipping or closest-point edge contact. Exports `SLOP` (1e-4 m), `EDGE_BIAS` (1.05) and `BROADPHASE_MARGIN`.
-- `src/physics/world.js` now has `contacts: []`, clears it and calls `detectContacts` between `integrateVelocities` and `solveContacts`.
-- `src/physics/collision.test.js` covers separated/face/edge SAT, box penetration, speculative gap, fast-approach tunnelling, resting face, die-die normal orientation and world wiring. `npx vitest run src/physics` = 37 passed; `npm run build` = green.
-- Assumption: the box speculative margin is `-v_n * dt + SLOP` only when the vertex moves toward the plane, so trailing vertices of a fast die can also emit contacts in that swept range.
-- Assumption: die-die has no speculative margin (broadphase adds only `SLOP`), and contacts need SAT overlap > 0.
-- Assumption: the crossing-cube test pose is a hardcoded analytic edge-edge construction (rotation z 30 deg, x 30 deg, y 36 deg); its expected normal is derived from the same shape edge dir.
-- Assumption: bodies whose shape lacks `vertices` (the fake shapes in #4 tests) are skipped by detection, and `contacts.js` stays a no-op for the #15 solver half.
+Live test PASSED: 64/64 checks across 7 scenarios (headless Chromium + playwright against python http.server, module imports from /src). Driver: /tmp/livetest14/driver.mjs (+expected.json, run3.log).
+
+Scenarios (all PASS):
+- S1 resting die 3 s: z=0.007998, speed ~0, exactly 4 floor contacts at the 4 low vertices, depth <= 3 um, points on the low face, distinct.
+- S2 drop 5 cm: speculative floor contact at gap 1.24 mm <= margin 1.97 mm; containment worst 4 um; bounce rise 3.3 mm, settles at rest.
+- S3 wall runs 5 m/s (x+/x-/y+): speculative wall contacts at gaps 3.7-5.3 mm <= margin ~10.5 mm, correct wall normals, ends resting inside, worst containment 5 um.
+- S4 lid hit 4 m/s up: speculative lid contact gap 5.3 mm <= margin 8.3 mm, lid normals [0,0,-1], ends resting on floor.
+- S5 head-on die-die 2 m/s: 2 contact steps, normals a->b, min center dist 15.195 mm, max depth 0.81 mm (<= 5 mm tol), fully separated at end, both rest on floor.
+- S6 melee 6 dice 7 s: 753 die-die contact steps, all normals unit (dev 4.4e-16), contact.b non-null on every die contact (0 violations), max depth 1.08 mm, max contact-point excess 0.0, all 6 dice settle to 0 speed, final resting contacts floor+wall, no wedged pairs.
+- S7 direct-step contract probes (zero-g): SLOP boundary, margin on/off for floor/wall/lid, stale contacts cleared, body without vertices skipped safely.
+
+Finding 1 (blocking, NOT this task's code - filed as defect card #17): shapes.js inertia is per unit density (edge^5/6, asserted by shapes.test.js) but body.js multiplies it by mass again, so invInertia is 2.44e5 times too small in 1/I terms and every solver impulse comes out ~1e-11; with the merged tree all dice free-fall through floor/walls/lid. Harness worked around it by rescaling invInertiaBody = invert(inertia * DIE_DENSITY) after createBody. Detection itself (this task) is unaffected and correct without the workaround.
+
+Finding 2 (minor, in this task's clipPolygon - filed as defect card #18): under near-flush face alignment with micro-tilts (~1e-4 rad from solver noise), Sutherland-Hodgman clipping emits up to 6 contact points instead of 4 (lerp crossing points land up to ~2 mm inside an edge because dc/dn are ~1e-6 with opposite signs). Isolated ideal pose gives exactly 4. Transient (one step), same normal/depth, no visible behavioral effect.
+
+Emulation limits: headless Chromium (SwiftShader), no WebGL used; physics is deterministic fixed-dt stepping, no hardware-only paths exercised.
