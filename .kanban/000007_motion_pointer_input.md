@@ -1,12 +1,12 @@
 ---
 name: "feat: input, device motion gravity with shake, portrait lock, pointer drag and fling"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "user"
 complexity: "simple"
 shortName: "motion-pointer-input"
-blockedBy: "#13"
+blockedBy: ""
 splitter: "done"
 ---
 
