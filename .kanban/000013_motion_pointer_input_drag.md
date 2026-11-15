@@ -35,10 +35,31 @@ These modules only export functions. The wiring in `src/main.js` is done by the 
 - `npm run build` exits 0.
 
 # Notes
-- Added `src/input/pointer.js`: `createPointer(canvas, { world, toWorld })` (Pointer Events, per-pointer capture, one die per pointer), `heldBodies()`, `destroy()`, and pure `flingVelocity(samples, maxSpeed)`; constants `MAX_DRAG_SPEED = 2`, `MAX_FLING_SPEED = 3`, `MAX_FLING_SPIN = 60`, `FLING_WINDOW_MS = 80`.
-- Drag drives velocity from the stored target each animation frame (`(target - position) / FIXED_DT`, clamped), so a still finger keeps the die up and the die still collides; the rAF loop runs only while a pointer is held. Hold height `z = D - 2·radius`.
-- ondown keeps the current spin; onup/oncancel set linear velocity to the 80 ms pointer velocity (z zeroed, clamped) and add a random spin up to 60 rad/s scaled by fling speed.
-- Tests in `src/input/pointer.test.js` cover the pure fling function (constant motion, clamp, stale samples, degenerate input) and, with a fake canvas and stub rAF, picking the highest die, the clamped drag drive, and release.
-- Assumption: `toWorld(px, py)` returns a 2- or 3-element array or an `{x, y}` object in world units; the module accepts both.
-- Assumption: fling samples use `event.timeStamp` in milliseconds, newest sample included on pointerup.
-- Verification: `npx vitest run src/input/pointer.test.js` 6 passed, `npx vitest run src/physics` 27 passed, `npm run build` OK; clean-room `npm ci && npm test && npm run build` on the committed tree OK with relative asset paths. Commit `db548ef`.
+Live test done. The module passed all pick, hold, fling, cancel, multi-touch, and clamp checks (74/79 assertions). One defect found and filed: the held die oscillates around the pointer instead of following at hold height (#17). One spec-silent behavior needs a product decision (#18).
+
+## How it was tested
+- main.js does not wire the module yet (integration is task #8), so no drag flow exists in the served app. I tested the module through its real interface: an untracked harness page (live-harness/, deleted after the test) that wires createPointer to createWorld/createBody with the exact mapping from the Specs, and runs world.update in a rAF loop. Chromium via Playwright.
+- Contexts: desktop 1280x800 dpr 1 (mouse), phone 390x844 dpr 3 hasTouch (multi-touch through two CDP touch points), small 100x200 dpr 1 (boxFromViewport guard path, mpp raised to 5e-4, for fling speeds above 3 m/s). rAF frame dt measured 15.9-16.7 ms in all contexts.
+- Expected values came from an independent Node reference (re-implemented metersPerPixel, box guard, px->world mapping, hold height, fling window math) and a closed-loop simulation of world.js + pointer.js; never from the module under test.
+
+## Results
+- Geometry: mpp, box W/H/D, hold z = D - 2*radius, and px->world mapping match the reference to 1e-15 in all three contexts. Guard-boosted small box works.
+- Pick: die under the point is picked; press on empty space holds nothing; press just outside the pick circle holds nothing; with two overlapping dice the highest z wins.
+- Hold: pointer capture taken (mouse and touch) and released on pointerup; heldBodies() correct in all states; spin is kept while held (damped by the world's angular damping only).
+- Drag: drive speed clamped to exactly 2 m/s on a large pointer jump. xy follows exactly (0.0 mm error) when the finger is still. FAILS after pointer motion and in z: see #17.
+- Fling: release velocity equals the reference computed from the recorded 80 ms sample window to 1e-9 (trusted and synthetic pointerup, mouse and touch); z velocity zeroed; slow release gives speed 0.0375 m/s, fast synthetic fling clamped to exactly 3 m/s with direction kept; samples older than 80 ms ignored (release ~1 s after the last move gives velocity 0); still release gives exactly zero velocity and zero spin change.
+- Spin on release: added spin stayed within the 60 rad/s * min(speed/3, 1) bound in all 5 releases (measured 0 to 38.5 rad/s).
+- pointercancel: releases like pointerup for mouse and touch, with the same fling math; a later trusted pointerup is a no-op.
+- Multi-touch: two touch pointers hold two dice (pointerIds 2, 3), each follows its finger, lifting one finger releases only its die with the correct fling. See #18 for two pointers on one die.
+
+## Assumptions
+- The app's world loop, rendering, and toWorld wiring do not exist yet, so the harness stands in for task #8 wiring using the Spec formulas. A different integration (for example world.update run inside the same rAF callback as pump before or after it) does not change the #17 finding; the closed-loop simulation confirms the oscillation is order-independent.
+- Dice modeled as spheres with the die bounding radius (0.016*sqrt(3)/2 m) and density 1200, since src/dice shapes do not exist yet; pick uses body.radius as the Specs say.
+- The drive-vs-gravity sag behavior depends on frame rate; tests measured at ~60 fps headless.
+- solveContacts is still a no-op (collision task pending), so unheld dice fall through the floor and walls. I placed dice at hold height and grabbed them fast; this did not affect any assertion. Not counted as a finding of this task.
+- Precision fling samples were produced with synthetic PointerEvents dispatched on the canvas (event.timeStamp is real) because trusted input timing cannot be controlled; all other flows used trusted Playwright input.
+
+## Environment
+- No global playwright package; ran with NODE_PATH=/home/phamba/repos/tarot/app/node_modules. Page served with python3 http.server on port 8641 (stopped and verified after the test).
+- CDP touch point ids are not pointerIds: touch ids 5, 7, 11, 13 arrived as pointerIds 2, 3, ... The module itself is unaffected (it keys by event.pointerId).
+- Two earlier run crashes were driver bugs of mine (wrong helper signature, page-evaluate closure), not product issues; final run completed clean with no page errors or console errors.
