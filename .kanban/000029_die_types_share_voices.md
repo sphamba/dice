@@ -1,12 +1,14 @@
 ---
 name: "fix: d4/d10 and d6/d12 die voices are identical (4 distinct sounds for 6 types)"
 priority: "low"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/29-die-types-share-voices"
 issuer: "#27"
 complexity: "simple"
 shortName: "die-types-share-voices"
-map: "{\"files\":[{\"path\":\"src/audio/modes.js\",\"symbols\":[{\"name\":\"DIE_DETUNE_STEP\",\"kind\":\"class\",\"ins\":1,\"del\":0,\"isNew\":true},{\"name\":\"dieModes\",\"kind\":\"fn\",\"ins\":2,\"del\":1,\"isNew\":false}]},{\"path\":\"src/audio/modes.test.js\",\"symbols\":[{\"name\":\"gives every die type a distinct voice\",\"kind\":\"fn\",\"ins\":9,\"del\":4,\"isNew\":true}]}],\"flows\":[],\"role\":\"developer\",\"run\":1,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-15T22:02:55.970Z\",\"head\":\"4101720\"}"
+map: "{\"files\":[{\"path\":\"src/audio/modes.js\",\"symbols\":[{\"name\":\"DIE_DETUNE_STEP\",\"kind\":\"class\",\"ins\":1,\"del\":0,\"isNew\":true},{\"name\":\"dieModes\",\"kind\":\"fn\",\"ins\":2,\"del\":1,\"isNew\":false}]},{\"path\":\"src/audio/modes.test.js\",\"symbols\":[{\"name\":\"gives every die type a distinct voice\",\"kind\":\"case\",\"ins\":9,\"del\":4,\"isNew\":true}]}],\"flows\":[],\"role\":\"developer\",\"run\":2,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-15T22:04:37.331Z\",\"head\":\"4101720\"}"
+changes: "{\"base\":\"main\",\"ins\":13,\"del\":5,\"files\":2}"
+commits: "[{\"hash\":\"4101720\",\"subject\":\"fix(audio): give every die type a distinct modal voice\",\"when\":\"2026-11-15T23:00:12+01:00\"}]"
 ---
 
 # Summary
