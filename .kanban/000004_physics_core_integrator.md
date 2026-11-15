@@ -1,7 +1,7 @@
 ---
 name: "feat: physics core, rigid bodies, symplectic Euler, box world with device gravity"
 priority: "high"
-state: "doing"
+state: "to-review"
 worktree: "feat/4-physics-core-integrator"
 issuer: "user"
 complexity: "moderate"
@@ -50,3 +50,14 @@ Write the rigid body state, the semi-implicit (symplectic) Euler integrator, the
 - `npm run build` exits 0.
 
 # Notes
+- Implemented `src/physics/box.js` (`METERS_PER_DEVICE_PIXEL`, `MIN_BOX_EDGE`, `boxFromViewport`), `body.js` (`DIE_DENSITY`, `DIE_RADIUS`, `createBody`, `updateDerived`, `applyImpulse`), `integrator.js` (`LINEAR_DAMPING`, `ANGULAR_DAMPING`, `integrateVelocities`, `integratePositions`), `contacts.js` (no-op `solveContacts`), `world.js` (`FIXED_DT = 1/480`, `MAX_STEPS = 16`, `MAX_FRAME_DT = 0.1`, `createWorld`).
+- Tests added next to the modules: 27 physics tests (free fall symplectic sum, constant spin, step cap, box sizing and zoom invariance, min-edge guard, `setBox` clamp, body mass and inertia derivation, impulse response).
+- `npx vitest run src/physics` exits 0, `npm run build` exits 0; clean-room check on the committed tree (`git archive` to /tmp/check, `npm ci && npm test && npm run build`) passes with 72 tests.
+- Assumption: `shape.inertia` is the mass-normalized inertia tensor as a mat3 with 9 values in the `src/math` column-major layout; a `vec3` diagonal from `src/dice/shapes.js` (#3) would break `createBody`.
+- Assumption: `DIE_RADIUS` sits in `body.js` next to `DIE_DENSITY` because the spec names no file and `src/dice/shapes.js` belongs to #3.
+- Assumption: damping values are `LINEAR_DAMPING = 0.1`, `ANGULAR_DAMPING = 0.2` (tunable; the spec fixes the formula only).
+- Assumption: `integrateVelocities` takes an optional 4th argument `{ linear, angular }` so the damped world and the undamped free-fall test share one function; the world always passes the constants.
+- Assumption: physics state (position, orientation, velocities, inertia tensors, gravity) uses `Float64Array`; `vec3.create()` gives `Float32Array`, which loses the 1e-13 free-fall tolerance.
+- Assumption: `setBox` zeroes both linear and angular velocity of moved bodies.
+- `step` calls `world.step(dt)` through the object property, so callers can wrap it (the step-cap test does).
+- Nothing wires the world into `main.js` yet; rendering and contacts come in later tasks.
