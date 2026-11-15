@@ -1,0 +1,73 @@
+export const MAX_MODE_FREQUENCY = 8000;
+
+export const DEFAULT_MAX_MODES = 24;
+
+export const BOX = { f11: 200, tau: 0.35, dampHF: 0.8 };
+
+export const GLASS = { f11: 900, tau: 0.9, dampHF: 0.45 };
+
+export const DIE_REFERENCE_RADIUS = 0.0139;
+
+const DIE_BASE_FREQUENCY = 2000;
+
+const DIE_FREQUENCY_STEP = 100;
+
+const DIE_MODE_RATIOS = [1, 1.47, 1.93, 2.4, 2.87];
+
+const DIE_TAU = 0.05;
+
+const DIE_DAMP_REFERENCE = 4000;
+
+function hashType(type) {
+  let hash = 0;
+  for (let i = 0; i < type.length; i++) {
+    hash = (hash * 31 + type.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+}
+
+function clamp(value, lo, hi) {
+  return value < lo ? lo : value > hi ? hi : value;
+}
+
+export function plateModes(a, b, u, v, material, maxModes = DEFAULT_MAX_MODES) {
+  if (!(a > 0) || !(b > 0)) return [];
+  const cu = clamp(u, 0, a);
+  const cv = clamp(v, 0, b);
+  const normalization = 1 / (a * a) + 1 / (b * b);
+  const limit = (MAX_MODE_FREQUENCY / material.f11) * normalization;
+  const frequency = (m, n) => (material.f11 * ((m / a) ** 2 + (n / b) ** 2)) / normalization;
+  const modes = [];
+  for (let m = 1; (m * m) / (a * a) < limit; m++) {
+    const su = Math.abs(Math.sin((m * Math.PI * cu) / a));
+    for (let n = 1; (n * n) / (b * b) < limit; n++) {
+      const f = frequency(m, n);
+      if (f >= MAX_MODE_FREQUENCY) continue;
+      modes.push({
+        f,
+        amp: clamp(su * Math.abs(Math.sin((n * Math.PI * cv) / b)), 0, 1),
+        tau: material.tau / (1 + (material.dampHF * f) / material.f11),
+      });
+    }
+  }
+  modes.sort((x, y) => x.f - y.f);
+  return modes.slice(0, Math.max(0, maxModes));
+}
+
+export function dieModes(type, radius = DIE_REFERENCE_RADIUS) {
+  const size = radius > 0 ? radius : DIE_REFERENCE_RADIUS;
+  const seed = hashType(String(type));
+  const scale = DIE_REFERENCE_RADIUS / size;
+  const base = (DIE_BASE_FREQUENCY + (seed % 5) * DIE_FREQUENCY_STEP) * scale;
+  const count = 3 + (seed % 3);
+  const modes = [];
+  for (let k = 0; k < count; k++) {
+    const f = base * DIE_MODE_RATIOS[k];
+    modes.push({
+      f,
+      amp: clamp(1 / (1 + 0.6 * k), 0, 1),
+      tau: DIE_TAU / (1 + f / DIE_DAMP_REFERENCE),
+    });
+  }
+  return modes;
+}
