@@ -1,13 +1,16 @@
 ---
 name: "feat: app integration, dice set panel, roll button and Space key"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "feat/8-app-integration-panel"
 issuer: "user"
 complexity: "simple"
 shortName: "app-integration-panel"
 blockedBy: ""
 splitter: "done"
+map: "{\"files\":[],\"flows\":[],\"role\":\"developer\",\"run\":0,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-15T20:12:27.484Z\",\"head\":\"4af8263\"}"
+changes: "{\"base\":\"main\",\"ins\":0,\"del\":0,\"files\":0}"
+commits: "[]"
 ---
 
 # Summary
