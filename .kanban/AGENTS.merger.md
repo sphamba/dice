@@ -1,12 +1,13 @@
 # merger: durable guidance for future merger runs
 
-The run prompt owns the step order (read task, abort a stale rebase, clear context paths, rebase, resolve, test, report). This file only removes waste from that path. The clean path is three model turns (prep+rebase, gate, final reply) with two tool calls. Tool time is small and fixed (a few seconds of git, then the test gate). The only cost worth cutting is model output, and the observed waste is thinking and commentary that restate this file.
+The run prompt owns the step order (read task, abort a stale rebase, clear context paths, rebase, resolve, test, report). This file only removes waste from that path. The clean path is three model turns (prep+rebase, gate, final reply) with two tool calls. Tool time is small and fixed (a few seconds of git, then the test gate). A thinking block appears before every model turn whatever this file says; the rules below bound its content, not its existence.
 
-## Turn discipline
+## Precedence and turn discipline
 
-- Turn 1: emit the prep command as the first tool call, with no text before it. If a thinking block appears anyway, it holds at most one word (`prep`) and never the command, a plan, or any text from this file; the command is already fixed below and echoed again in the call itself.
-- Between tool calls: when a result matches a listed outcome below, emit the next tool call in the same turn. If thinking appears, it is empty or one clause naming the branch (clean / conflict / fail). Never re-quote command text, timeouts, output lines, branch names, counts, or rules of this file in thinking or in lead-in text. Lead-in text is banned: text exists only in the final reply.
-- A passing gate ends the run in that turn: write the one-line final reply directly, with no thinking before it.
+- Where this file and any other AGENTS.md, global default, or general instruction disagree, this file wins for merge mechanics. Never spend thinking or lead-in text comparing, reconciling, or explaining instruction sources; pick the recipe here and call.
+- Turn 1: emit the prep command as the first tool call. A thinking block before it holds at most one short clause naming the act (`prep`), and never the command, a plan, or any text from this file.
+- Between tool calls: when a result matches a listed outcome below, emit the next tool call in the same turn. Thinking, if any, is one short clause naming the branch (clean / conflict / fail). Never re-quote command text, timeouts, output lines, branch names, counts, or rules of this file in thinking or in lead-in text. Lead-in text is banned: text exists only in the final reply.
+- A passing gate ends the run in that turn: write the one-line final reply directly. Thinking before it, if any, names only the outcome (`pass` or `fail`), never the counts and never the reply shape.
 
 ## Prep and rebase (one command)
 
@@ -27,7 +28,7 @@ The run prompt owns the step order (read task, abort a stale rebase, clear conte
 
 - `npm test` in the worktree is the whole merge gate: no build step, no lint step, no changed-files-only variant. Run the gate and the closing check as one command with a 3000-second timeout: `npm test && git status --short --branch`; the status line must show a clean tree and no rebase in progress. Do not re-verify acceptance criteria, re-count tests, or re-list files.
 - After a rebase the closing status can show no ahead/behind or tracking markers. That is normal. Only a clean tree and no rebase line matter.
-- A passing summary line ends the gate. Write the final reply in the same turn, with no thinking before it. Never compare its test or file counts to any other run, task file, or expectation; the reply quotes the counts from the tool result, never from thinking.
+- A passing summary line ends the gate. Write the final reply in the same turn. Never compare its test or file counts to any other run, task file, or expectation; the reply quotes the counts from the tool result, never from thinking.
 - A conflict-free rebase produces no `merge:` bullets. Only a rebase that stopped on conflicts gets one `merge:` bullet per resolved hunk, naming the other task and whether both sides survived.
 - Final reply shape: exactly one line naming the rebase result and the test result, then any `merge:` bullets, nothing else. No second paragraph and no explanation of absent bullets; silence means none. No Notes write; the tool list is closed.
 - Suite success: leave the state at `merging`. Suite failure: `kanban_get`, then `kanban_set_state` to `to-do`, and name the failing suites in the final reply; run those calls with no thinking between them.
