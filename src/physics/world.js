@@ -31,6 +31,7 @@ export function createWorld({ W, H, D }) {
     gravity: Float64Array.from([0, 0, -9.81]),
     box: { W, H, D },
     events: [],
+    beforeStep: null,
     addBody(body) {
       world.bodies.push(body);
       return body;
@@ -48,6 +49,7 @@ export function createWorld({ W, H, D }) {
       for (const body of world.bodies) clampIntoBox(world.box, body);
     },
     step(dt) {
+      if (world.beforeStep) world.beforeStep(dt);
       integrateVelocities(world.bodies, world.gravity, dt);
       solveContacts(world, dt);
       integratePositions(world.bodies, dt);

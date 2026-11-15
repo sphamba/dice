@@ -1,5 +1,3 @@
-import { FIXED_DT } from '../physics/world.js';
-
 export const MAX_DRAG_SPEED = 2;
 
 export const MAX_FLING_SPEED = 3;
@@ -49,7 +47,6 @@ function randomSpin(speed) {
 
 export function createPointer(canvas, { world, toWorld }) {
   const held = new Map();
-  let frame = 0;
 
   function worldXY(px, py) {
     const point = toWorld(px, py);
@@ -67,21 +64,14 @@ export function createPointer(canvas, { world, toWorld }) {
     return best;
   }
 
-  function drive(entry) {
-    const velocity = entry.body.linearVelocity;
-    for (let i = 0; i < 3; i += 1) {
-      velocity[i] = (entry.target[i] - entry.body.position[i]) / FIXED_DT;
+  function drive(dt) {
+    for (const entry of held.values()) {
+      const velocity = entry.body.linearVelocity;
+      for (let i = 0; i < 3; i += 1) {
+        velocity[i] = (entry.target[i] - entry.body.position[i]) / dt;
+      }
+      clampSpeed(velocity, MAX_DRAG_SPEED);
     }
-    clampSpeed(velocity, MAX_DRAG_SPEED);
-  }
-
-  function pump() {
-    if (held.size === 0) {
-      frame = 0;
-      return;
-    }
-    for (const entry of held.values()) drive(entry);
-    frame = requestAnimationFrame(pump);
   }
 
   function addSample(entry, t, x, y) {
@@ -98,7 +88,6 @@ export function createPointer(canvas, { world, toWorld }) {
     canvas.setPointerCapture(event.pointerId);
     const target = Float64Array.from([x, y, world.box.D - 2 * body.radius]);
     held.set(event.pointerId, { body, target, samples: [{ t: event.timeStamp, x, y }] });
-    if (!frame) frame = requestAnimationFrame(pump);
   }
 
   function onMove(event) {
@@ -130,6 +119,7 @@ export function createPointer(canvas, { world, toWorld }) {
   canvas.addEventListener('pointermove', onMove);
   canvas.addEventListener('pointerup', onRelease);
   canvas.addEventListener('pointercancel', onRelease);
+  world.beforeStep = drive;
 
   return {
     heldBodies: () => Array.from(held.values(), (entry) => entry.body),
@@ -138,8 +128,7 @@ export function createPointer(canvas, { world, toWorld }) {
       canvas.removeEventListener('pointermove', onMove);
       canvas.removeEventListener('pointerup', onRelease);
       canvas.removeEventListener('pointercancel', onRelease);
-      if (frame) cancelAnimationFrame(frame);
-      frame = 0;
+      if (world.beforeStep === drive) world.beforeStep = null;
       held.clear();
     },
   };

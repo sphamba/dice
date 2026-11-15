@@ -6,7 +6,9 @@ import {
   createPointer,
   flingVelocity,
 } from './pointer.js';
-import { FIXED_DT } from '../physics/world.js';
+import { FIXED_DT, createWorld } from '../physics/world.js';
+import { createBody } from '../physics/body.js';
+import * as mat3 from '../math/mat3.js';
 
 const near = (actual, expected, eps = 1e-9) => expect(Math.abs(actual - expected)).toBeLessThan(eps);
 
@@ -77,37 +79,85 @@ function fakeBody(x, y, z, radius = 0.014) {
 
 const toWorld = (px, py) => [px * 0.001, py * 0.001];
 
+const BOX = { W: 0.0681, H: 0.1476, D: 0.0681 };
+
+const makeDie = (position) =>
+  createBody(
+    {
+      radius: 0.0139,
+      volume: 4.096e-6,
+      inertia: mat3.fromDiagonal(new Float64Array(9), 2e-5, 3e-5, 4e-5),
+    },
+    { position },
+  );
+
+function dragWorld(position = [0, 0, 0.0139]) {
+  const world = createWorld(BOX);
+  const body = world.addBody(makeDie(position));
+  const canvas = fakeCanvas();
+  const pointer = createPointer(canvas, { world, toWorld });
+  return { world, body, canvas, pointer };
+}
+
 describe('createPointer', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   function setup(bodies, D = 0.068) {
-    let nextFrame = null;
-    vi.stubGlobal('requestAnimationFrame', (fn) => {
-      nextFrame = fn;
-      return 1;
-    });
     const canvas = fakeCanvas();
-    const pointer = createPointer(canvas, { world: { bodies, box: { W: 0.068, H: 0.14, D } }, toWorld });
-    return { canvas, pointer, pump: () => nextFrame?.() };
+    const pointer = createPointer(canvas, {
+      world: { bodies, box: { W: 0.068, H: 0.14, D } },
+      toWorld,
+    });
+    return { canvas, pointer };
   }
 
-  it('grabs the highest die under the point and drives it at hold height', () => {
+  it('grabs the highest die under the point', () => {
     const low = fakeBody(0, 0, 0.014);
     const high = fakeBody(0.002, 0, 0.03);
-    const { canvas, pointer, pump } = setup([low, high]);
+    const { canvas, pointer } = setup([low, high]);
     canvas.fire('pointerdown', { pointerId: 1, clientX: 0, clientY: 0, timeStamp: 0 });
     expect(pointer.heldBodies()).toEqual([high]);
+  });
 
-    pump();
-    const speed = Math.hypot(...high.linearVelocity);
-    expect(speed).toBeGreaterThan(0);
-    expect(speed).toBeLessThanOrEqual(MAX_DRAG_SPEED * (1 + 1e-12));
-    expect(high.linearVelocity[2]).toBeGreaterThan(0);
-    expect(high.position[2]).toBeLessThan(0.068 - 2 * high.radius);
+  it('drives the held die at hold height within one frame of a still pointer', () => {
+    const { world, body, canvas } = dragWorld([0, 0, 0.0139]);
+    canvas.fire('pointerdown', { pointerId: 1, clientX: 0, clientY: 0, timeStamp: 0 });
+    world.update(1 / 60);
+    const holdZ = BOX.D - 2 * body.radius;
+    expect(Math.abs(body.position[2] - holdZ)).toBeLessThan(0.001);
+    expect(Math.hypot(body.position[0], body.position[1])).toBeLessThan(0.001);
+    expect(Math.hypot(...body.linearVelocity)).toBeLessThanOrEqual(MAX_DRAG_SPEED * (1 + 1e-12));
+  });
 
-    canvas.fire('pointermove', { pointerId: 1, clientX: 10, clientY: 0, timeStamp: FIXED_DT * 1000 });
-    pump();
-    expect(high.linearVelocity[0]).toBeGreaterThan(0);
+  it('keeps a still die at hold height at every frame rate', () => {
+    for (const fps of [30, 60, 144]) {
+      const { world, body, canvas } = dragWorld();
+      canvas.fire('pointerdown', { pointerId: 1, clientX: 0, clientY: 0, timeStamp: 0 });
+      const holdZ = BOX.D - 2 * body.radius;
+      for (let frame = 0; frame < fps / 10; frame += 1) world.update(1 / fps);
+      let peak = 0;
+      for (let frame = 0; frame < fps; frame += 1) {
+        world.update(1 / fps);
+        peak = Math.max(peak, Math.abs(body.position[2] - holdZ));
+      }
+      expect(peak).toBeLessThan(0.001);
+    }
+  });
+
+  it('follows a pointer jump without overshoot at every frame rate', () => {
+    for (const fps of [30, 60, 144]) {
+      const { world, body, canvas } = dragWorld();
+      canvas.fire('pointerdown', { pointerId: 1, clientX: 0, clientY: 0, timeStamp: 0 });
+      for (let frame = 0; frame < fps / 2; frame += 1) world.update(1 / fps);
+      canvas.fire('pointermove', { pointerId: 1, clientX: 20, clientY: 0, timeStamp: (fps / 2) * 1000 / fps });
+      let peak = 0;
+      for (let frame = 0; frame < fps / 2; frame += 1) {
+        world.update(1 / fps);
+        peak = Math.max(peak, body.position[0] - 0.02);
+      }
+      expect(peak).toBeLessThan(0.002);
+      expect(Math.abs(body.position[0] - 0.02)).toBeLessThan(0.001);
+    }
   });
 
   it('releases with the pointer velocity and lets go of the die', () => {

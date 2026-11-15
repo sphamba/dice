@@ -104,6 +104,22 @@ describe('update', () => {
   });
 });
 
+describe('beforeStep', () => {
+  it('runs once per fixed step with the step dt', () => {
+    const world = createWorld(BOX);
+    const body = makeBody();
+    world.addBody(body);
+    const calls = [];
+    world.beforeStep = (dt) => {
+      calls.push(dt);
+      vec3.set(body.linearVelocity, 1, 0, 0);
+    };
+    world.update(2 * FIXED_DT);
+    expect(calls).toEqual([FIXED_DT, FIXED_DT]);
+    expect(body.position[0]).toBeGreaterThan(0);
+  });
+});
+
 describe('setBox', () => {
   it('moves a body back inside a smaller box and stops it', () => {
     const world = createWorld(BOX);
