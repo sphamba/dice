@@ -4,7 +4,7 @@ The run prompt owns the step order (read task, abort a stale rebase, clear conte
 
 ## General
 
-- Spend no thinking tokens re-narrating the run prompt or the step list. Narrate each command once, in one short sentence, then call it. Do not repeat that sentence in both thinking and text before the call. The final reply carries the outcome.
+- Routine calls need no thinking: this file holds the full recipe, so do not quote it back ("according to the guidance...") or plan the command in thinking before you call it. Narrate each command once, in one short text lead-in sentence, and never the same sentence in both thinking and text. Reserve thinking for a result this file does not already explain. The final reply carries the outcome.
 - When a command fails or a result looks odd, match it to this file first. Most failures in this workflow are by design. Think only about failures this file does not explain.
 
 ## Prep and rebase (one command)
