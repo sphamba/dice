@@ -6,7 +6,7 @@ worktree: ""
 issuer: "user"
 complexity: "complex"
 shortName: "collision-impulse-solver"
-blockedBy: "#3, #4"
+blockedBy: "#3"
 ---
 
 # Summary
