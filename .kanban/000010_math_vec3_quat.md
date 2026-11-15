@@ -1,7 +1,7 @@
 ---
 name: "feat: 3D math vec3 and quaternion"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "#2"
 complexity: "simple"
