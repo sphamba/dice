@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DIE_DENSITY, applyImpulse, createBody, updateDerived } from './body.js';
 import * as mat3 from '../math/mat3.js';
 import * as quat from '../math/quat.js';
+import { createShape } from '../dice/shapes.js';
 
 const near = (actual, expected, eps = 1e-9) =>
   expect(Math.abs(actual - expected)).toBeLessThan(eps);
@@ -43,13 +44,27 @@ describe('createBody', () => {
     expect(Array.from(body.position)).toEqual([0.01, 0.02, 0.03]);
   });
 
-  it('inverts the body frame inertia tensor and scales it by the mass', () => {
+  it('inverts the unit density inertia tensor and scales it by the density', () => {
     const shape = makeShape();
-    const m = massOf(shape);
     const body = createBody(shape);
-    nearRel(body.invInertiaBody[0], 1 / (2e-5 * m));
-    nearRel(body.invInertiaBody[4], 1 / (3e-5 * m));
-    nearRel(body.invInertiaBody[8], 1 / (4e-5 * m));
+    nearRel(body.invInertiaBody[0], 1 / (2e-5 * DIE_DENSITY));
+    nearRel(body.invInertiaBody[4], 1 / (3e-5 * DIE_DENSITY));
+    nearRel(body.invInertiaBody[8], 1 / (4e-5 * DIE_DENSITY));
+  });
+
+  it('uses the absolute tensor of a real dice shape', () => {
+    const shape = createShape('d6', 0.0139);
+    const [a, b] = shape.edges[0];
+    const edge = Math.hypot(
+      shape.vertices[a][0] - shape.vertices[b][0],
+      shape.vertices[a][1] - shape.vertices[b][1],
+      shape.vertices[a][2] - shape.vertices[b][2],
+    );
+    const expected = (massOf(shape) * edge ** 2) / 6;
+    const body = createBody(shape);
+    nearRel(body.invInertiaBody[0], 1 / expected);
+    nearRel(body.invInertiaBody[4], 1 / expected);
+    nearRel(body.invInertiaBody[8], 1 / expected);
   });
 });
 
@@ -61,13 +76,12 @@ describe('updateDerived', () => {
 
   it('rotates the inertia tensor into the world frame', () => {
     const body = createBody(makeShape());
-    const m = massOf(body.shape);
     quat.setAxisAngle(body.orientation, [0, 0, 1], Math.PI / 2);
     updateDerived(body);
     const scale = body.invInertiaWorld[0];
-    nearRel(body.invInertiaWorld[0], 1 / (3e-5 * m));
-    nearRel(body.invInertiaWorld[4], 1 / (2e-5 * m));
-    nearRel(body.invInertiaWorld[8], 1 / (4e-5 * m));
+    nearRel(body.invInertiaWorld[0], 1 / (3e-5 * DIE_DENSITY));
+    nearRel(body.invInertiaWorld[4], 1 / (2e-5 * DIE_DENSITY));
+    nearRel(body.invInertiaWorld[8], 1 / (4e-5 * DIE_DENSITY));
     expect(Math.abs(body.invInertiaWorld[1]) / scale).toBeLessThan(1e-6);
     expect(Math.abs(body.invInertiaWorld[3]) / scale).toBeLessThan(1e-6);
   });
@@ -83,7 +97,7 @@ describe('applyImpulse', () => {
   it('spins the body with the world frame lever arm cross impulse', () => {
     const body = createBody(makeShape());
     applyImpulse(body, [0, 0, 1], [0.01, 0, 0]);
-    const invInertiaY = 1 / (3e-5 * massOf(body.shape));
+    const invInertiaY = 1 / (3e-5 * DIE_DENSITY);
     nearRel(body.angularVelocity[1], -0.01 * invInertiaY);
   });
 });

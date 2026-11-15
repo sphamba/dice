@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { FIXED_DT, MAX_STEPS, createWorld } from './world.js';
 import { LINEAR_DAMPING } from './integrator.js';
 import { createBody } from './body.js';
+import { createShape } from '../dice/shapes.js';
 import * as mat3 from '../math/mat3.js';
 import * as vec3 from '../math/vec3.js';
 
@@ -117,6 +118,20 @@ describe('beforeStep', () => {
     world.update(2 * FIXED_DT);
     expect(calls).toEqual([FIXED_DT, FIXED_DT]);
     expect(body.position[0]).toBeGreaterThan(0);
+  });
+});
+
+describe('falling dice', () => {
+  it('rests a dropped die on the floor of the box', () => {
+    const world = createWorld(BOX);
+    const body = createBody(createShape('d6', 0.0139), { position: [0, 0, BOX.H / 2] });
+    world.addBody(body);
+
+    for (let i = 0; i < 480; i += 1) world.step(FIXED_DT);
+
+    expect(body.position[2]).toBeGreaterThan(0);
+    expect(body.position[2]).toBeLessThan(BOX.H / 2);
+    expect(Math.abs(body.linearVelocity[2])).toBeLessThan(0.01);
   });
 });
 

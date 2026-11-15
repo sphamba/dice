@@ -16,8 +16,8 @@ const scratchLever = vec();
 const scratchTorque = vec();
 const scratchSpin = vec();
 
-function scaleTensor(out, tensor, mass) {
-  for (let i = 0; i < 9; i += 1) out[i] = tensor[i] * mass;
+function scaleTensor(out, tensor, factor) {
+  for (let i = 0; i < 9; i += 1) out[i] = tensor[i] * factor;
   return out;
 }
 
@@ -33,7 +33,7 @@ export function createBody(
     linearVelocity: vec(),
     angularVelocity: vec(),
     invMass: 1 / mass,
-    invInertiaBody: mat3.invert(mat(), scaleTensor(mat(), shape.inertia, mass)),
+    invInertiaBody: mat3.invert(mat(), scaleTensor(mat(), shape.inertia, density)),
     invInertiaWorld: mat(),
     radius: shape.radius,
   };
