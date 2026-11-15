@@ -1,12 +1,12 @@
 ---
 name: "feat: convex collision detection and impulse-based contact resolution"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "user"
 complexity: "complex"
 shortName: "collision-impulse-solver"
-blockedBy: "#3"
+blockedBy: ""
 ---
 
 # Summary
