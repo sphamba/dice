@@ -1,14 +1,14 @@
 ---
 name: "feat: synthesized impact sounds with plate modes, and haptics"
 priority: "medium"
-state: "merging"
+state: "to-do"
 worktree: "feat/9-modal-sound-haptics"
 issuer: "user"
 complexity: "simple"
 shortName: "modal-sound-haptics"
 blockedBy: ""
 splitter: "done"
-map: "{\"files\":[],\"flows\":[],\"role\":\"developer\",\"run\":6,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-15T22:31:30.446Z\",\"head\":\"a968634\"}"
+map: "{\"files\":[],\"flows\":[],\"role\":\"developer\",\"run\":7,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-15T22:33:29.136Z\",\"head\":\"a968634\"}"
 ---
 
 # Summary
