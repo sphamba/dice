@@ -1,8 +1,8 @@
 ---
 name: "feat: app integration, dice set panel, roll button and Space key"
 priority: "high"
-state: "to-do"
-worktree: ""
+state: "doing"
+worktree: "feat/8-app-integration-panel"
 issuer: "user"
 complexity: "simple"
 shortName: "app-integration-panel"
