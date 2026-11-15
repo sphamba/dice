@@ -1,7 +1,7 @@
 ---
 name: "fix: held die oscillates around the pointer instead of following at hold height"
 priority: "high"
-state: "to-live-test"
+state: "live-testing"
 worktree: "fix/17-held-die-oscillates"
 issuer: "#13"
 complexity: "simple"
