@@ -35,3 +35,86 @@ body {
   text-align: center;
   line-height: 1.4;
 }
+
+.panel {
+  place-self: end center;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 16px;
+  background: rgb(20 21 26 / 72%);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 45%);
+  backdrop-filter: blur(12px);
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.panel-rows {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  justify-content: center;
+}
+
+.panel-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.panel-type {
+  width: 3.5ch;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: #a8a8b8;
+}
+
+.panel-count {
+  min-width: 2.5ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.panel-step,
+.panel-roll {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 6%);
+  color: inherit;
+  font: inherit;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.panel-step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.panel-step:focus-visible,
+.panel-roll:focus-visible {
+  outline: 2px solid #7aa2ff;
+  outline-offset: 2px;
+}
+
+.panel-roll {
+  height: 48px;
+  background: #4f6dff;
+  border-color: #4f6dff;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.panel-step:not(:disabled):hover,
+.panel-roll:hover {
+  background: rgb(255 255 255 / 14%);
+}
+
+.panel-roll:hover {
+  background: #6480ff;
+}
