@@ -1,7 +1,7 @@
 ---
 name: "feat: physics core, rigid bodies, symplectic Euler, box world with device gravity"
 priority: "high"
-state: "live-testing"
+state: "done"
 worktree: "feat/4-physics-core-integrator"
 issuer: "user"
 complexity: "moderate"
@@ -53,14 +53,23 @@ Write the rigid body state, the semi-implicit (symplectic) Euler integrator, the
 - `npm run build` exits 0.
 
 # Notes
-- Implemented `src/physics/box.js` (`METERS_PER_DEVICE_PIXEL`, `MIN_BOX_EDGE`, `boxFromViewport`), `body.js` (`DIE_DENSITY`, `DIE_RADIUS`, `createBody`, `updateDerived`, `applyImpulse`), `integrator.js` (`LINEAR_DAMPING`, `ANGULAR_DAMPING`, `integrateVelocities`, `integratePositions`), `contacts.js` (no-op `solveContacts`), `world.js` (`FIXED_DT = 1/480`, `MAX_STEPS = 16`, `MAX_FRAME_DT = 0.1`, `createWorld`).
-- Tests added next to the modules: 27 physics tests (free fall symplectic sum, constant spin, step cap, box sizing and zoom invariance, min-edge guard, `setBox` clamp, body mass and inertia derivation, impulse response).
-- `npx vitest run src/physics` exits 0, `npm run build` exits 0; clean-room check on the committed tree (`git archive` to /tmp/check, `npm ci && npm test && npm run build`) passes with 72 tests.
-- Assumption: `shape.inertia` is the mass-normalized inertia tensor as a mat3 with 9 values in the `src/math` column-major layout; a `vec3` diagonal from `src/dice/shapes.js` (#3) would break `createBody`.
-- Assumption: `DIE_RADIUS` sits in `body.js` next to `DIE_DENSITY` because the spec names no file and `src/dice/shapes.js` belongs to #3.
-- Assumption: damping values are `LINEAR_DAMPING = 0.1`, `ANGULAR_DAMPING = 0.2` (tunable; the spec fixes the formula only).
-- Assumption: `integrateVelocities` takes an optional 4th argument `{ linear, angular }` so the damped world and the undamped free-fall test share one function; the world always passes the constants.
-- Assumption: physics state (position, orientation, velocities, inertia tensors, gravity) uses `Float64Array`; `vec3.create()` gives `Float32Array`, which loses the 1e-13 free-fall tolerance.
-- Assumption: `setBox` zeroes both linear and angular velocity of moved bodies.
-- `step` calls `world.step(dt)` through the object property, so callers can wrap it (the step-cap test does).
-- Nothing wires the world into `main.js` yet; rendering and contacts come in later tasks.
+Live test result: PASS. Exercised the physics API in headless Chromium (Playwright) against the served project, the way the future UI will import it. 51/51 checks passed across three emulated contexts: desktop 1280x720 dpr 1, phone 393x852 dpr 3 (mobile emulation), fractional-DPR 786x1704 dpr 1.5. Pages loaded with zero console/page errors. All numeric expectations came from an independent plain-JS reference implementation (no repo imports); initial harness expectation bugs were audited numerically and fixed before drawing conclusions - the final run matched the product to ~1e-9.
+
+Verified flows:
+- Box sizing: boxFromViewport(393,852,3) gives W=0.068060, H=0.147551, D=W (within 1e-4 of spec's 0.0681/0.1476); zoom invariance holds exactly (393x852@dpr3 and 786x1704@dpr1.5 give a bitwise-identical box); live window values match in all three contexts; min-edge guard fires on small viewports (200x300@dpr1 and any desktop-height window at dpr1 give min(W,H)=0.05); resizing the viewport (393x852 then back) recomputes the box correctly with the guard.
+- World: default gravity (0,0,-9.81), box stored as given, addBody returns the body, removeBody removes exactly once.
+- Integration: 480 direct steps (=1 s) of damped free fall match the independent symplectic Euler reference (velocity-then-position order) to 1e-9; constant spin of an anisotropic rotated body for 1 s matches the first-order quaternion reference to 1e-9 and the exact exponential map within 7e-6 (spec tolerance 1e-3); quaternion stays unit length.
+- Gravity as device input: setGravity([9.81,0,0]) redirects motion (matches chained reference), setGravity back to default resumes downward fall; values exact.
+- Fixed-step accumulator: update(1.0) and update(0.1) both advance exactly 16 steps (cap + remainder drop); sub-step carry works (three update(0.6*FIXED_DT) calls produce 0, 1, 0 steps); 60 frames of update(1/60) produce exactly 480 steps = 1 s, identical to direct stepping.
+- Events: cleared at the start of update, not by step.
+- setBox: shrinking clamps an outside body to the boundary, zeroes its linear and angular velocity, leaves an inside body (position and velocities) untouched; growing back keeps positions; box values update.
+- applyImpulse: linear Delta-v = J/m; angular Delta-omega = invInertiaWorld * (r x J) verified for an identity cube and a rotated anisotropic body, confirming R * invInertiaBody * R^T and the column-major mat3 conventions; invInertiaWorld equals invInertiaBody for identity orientation.
+- Constants exported as specified: METERS_PER_DEVICE_PIXEL = 0.0254/440, MIN_BOX_EDGE = 0.05, DIE_DENSITY = 1200, DIE_RADIUS = 0.016*sqrt(3)/2, FIXED_DT = 1/480, MAX_STEPS = 16, MAX_FRAME_DT = 0.1, LINEAR_DAMPING = 0.1, ANGULAR_DAMPING = 0.2.
+
+Assumptions made while designing the usage tests:
+- src/dice/shapes.js does not exist yet (task #3), so bodies used stub shapes: a 16 mm cube die (volume a^3, mass-normalized inertia diag(2a^2/12)) plus one anisotropic box to exercise the rotated inertia tensor. This matches the spec's design note that body.js only needs shape.radius/volume/inertia.
+- Contacts are a later task, so bodies free-fall through the floor and walls under gravity; no resting behavior was expected or observed. Trajectories were verified against the independent reference instead.
+- Physics is not wired into main.js yet (per task Notes), so the module API imported from the served page is the change's real interface; browser contexts provided real devicePixelRatio values for the box flows.
+- Test tolerances: 1e-9 against first-order references (same double arithmetic), 1e-3 for spin against the exact exponential map (per spec).
+
+Observation (not a defect, spec-compliant and unreachable via the public box path): setBox with a depth smaller than 2*DIE_RADIUS (e.g. manual setBox({D:0.01})) inverts the clamp range and pins bodies at z = D - r. The viewport guard (MIN_BOX_EDGE 0.05 > 2 * 0.0139 m) prevents this for screen-derived boxes.

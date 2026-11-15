@@ -32,3 +32,10 @@ These modules only export functions. The wiring in `src/main.js` is done by the 
 - `npm run build` exits 0.
 
 # Notes
+- Added `src/input/pointer.js`: `createPointer(canvas, { world, toWorld })` (Pointer Events, per-pointer capture, one die per pointer), `heldBodies()`, `destroy()`, and pure `flingVelocity(samples, maxSpeed)`; constants `MAX_DRAG_SPEED = 2`, `MAX_FLING_SPEED = 3`, `MAX_FLING_SPIN = 60`, `FLING_WINDOW_MS = 80`.
+- Drag drives velocity from the stored target each animation frame (`(target - position) / FIXED_DT`, clamped), so a still finger keeps the die up and the die still collides; the rAF loop runs only while a pointer is held. Hold height `z = D - 2·radius`.
+- ondown keeps the current spin; onup/oncancel set linear velocity to the 80 ms pointer velocity (z zeroed, clamped) and add a random spin up to 60 rad/s scaled by fling speed.
+- Tests in `src/input/pointer.test.js` cover the pure fling function (constant motion, clamp, stale samples, degenerate input) and, with a fake canvas and stub rAF, picking the highest die, the clamped drag drive, and release.
+- Assumption: `toWorld(px, py)` returns a 2- or 3-element array or an `{x, y}` object in world units; the module accepts both.
+- Assumption: fling samples use `event.timeStamp` in milliseconds, newest sample included on pointerup.
+- Verification: `npx vitest run src/input/pointer.test.js` 6 passed, `npx vitest run src/physics` 27 passed, `npm run build` OK; clean-room `npm ci && npm test && npm run build` on the committed tree OK with relative asset paths. Commit `db548ef`.
