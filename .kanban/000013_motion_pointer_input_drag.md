@@ -1,7 +1,7 @@
 ---
 name: "feat: pointer drag and fling of dice"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "#7"
 complexity: "simple"
