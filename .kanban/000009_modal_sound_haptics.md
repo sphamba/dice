@@ -1,12 +1,12 @@
 ---
 name: "feat: synthesized impact sounds with plate modes, and haptics"
 priority: "medium"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "user"
 complexity: "moderate"
 shortName: "modal-sound-haptics"
-blockedBy: "#8"
+blockedBy: ""
 ---
 
 # Summary
