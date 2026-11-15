@@ -6,13 +6,15 @@ The run prompt owns the step order (read task, abort a stale rebase, clear conte
 
 - When a command fails or a result looks odd, match it to this file first. Most failures in this workflow are by design. Think only about failures this file does not explain.
 
-## Workflow
+## Pre-rebase
 
 - Batch the pre-rebase checks into one command: `git status --short --branch && git log --oneline -5`.
-- Clear the context paths with one command: `git update-index --no-skip-worktree -- AGENTS.md TASK.md && git restore --staged --worktree -- AGENTS.md TASK.md || true`. These paths are untracked in this repo, so both inner commands print errors and change nothing. That outcome is success. Never run `git ls-files` on them, never deduce tracking status from `git status` (empty status says nothing about tracking), and never reason about it.
+- Clear the context paths with one command: `git update-index --no-skip-worktree -- AGENTS.md TASK.md && git restore --staged --worktree -- AGENTS.md TASK.md || true`. These paths are untracked, so the update-index step prints `fatal: Unable to mark file ...`; that error is the expected success signal, and `|| true` already ends the command. Do not quote, explain, or reason about it, and never deduce tracking status from `git status`.
+
+## Rebase
+
 - Treat the `git rebase main` output as the truth. "Current branch ... is up to date" or "Fast-forwarded" is a final no-op merge: no fetch, no history or merge-base inspection, no conflict pass, and no re-check of the result. Go straight to the test gate.
 - Do not `git fetch` before the rebase. The daemon resolves the local `main`; a network fetch changes nothing.
-- Before the test gate: `[ -d node_modules ] || npm ci`.
 
 ## Conflicts (only when the rebase stops)
 
@@ -21,9 +23,10 @@ The run prompt owns the step order (read task, abort a stale rebase, clear conte
 - Both sides fit: re-apply the other side by hand. They do not fit: keep your side and add one open question through `kanban_update` with `openQuestions`.
 - Continue with `GIT_EDITOR=true git rebase --continue`. A rebase can stop once per replayed commit; resolve and continue again. On a sign failure, retry with `GIT_EDITOR=true git -c commit.gpgsign=false rebase --continue`.
 
-## Verification and exit
+## Gate and exit
 
 - `npm test` in the worktree is the merge gate. Never run a changed-files-only variant.
-- After the gate passes, run one check only: `git status --short --branch` (clean tree, no rebase in progress). Do not re-verify acceptance criteria and do not re-list files; the daemon proves the merge and fast-forwards.
+- After the gate passes, run one check only: `git status --short --branch` (clean tree, no rebase in progress). Do not re-verify acceptance criteria, re-count tests, or re-list files.
+- A conflict-free rebase produces no `merge:` bullets. Only a rebase that stopped on conflicts gets one `merge:` bullet per resolved hunk, naming the other task and whether both sides survived.
+- Final reply shape: one line naming the rebase result and the test result, then any `merge:` bullets, nothing else. No Notes write; the tool list is closed.
 - Suite success: leave the state at `merging`. Suite failure: `kanban_get`, then `kanban_set_state` to `to-do`, and name the failing suites in the final reply.
-- Report each resolved hunk in the final reply as one `merge:` bullet that names the other task and says whether both sides survived. No Notes write; the tool list is closed.
