@@ -1,7 +1,7 @@
 ---
 name: "feat: dice set panel UI, storage, roll button and Space key"
 priority: "high"
-state: "to-live-test"
+state: "live-testing"
 worktree: "feat/24-app-integration-panel-ui"
 issuer: "#8"
 complexity: "moderate"
