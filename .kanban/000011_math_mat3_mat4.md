@@ -1,7 +1,7 @@
 ---
 name: "feat: 3D math mat3 and mat4"
 priority: "high"
-state: "live-testing"
+state: "done"
 worktree: "feat/11-math-mat3-mat4"
 issuer: "#2"
 complexity: "simple"
