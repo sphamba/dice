@@ -2,11 +2,12 @@
 name: "feat: WebGL2 renderer with orthographic top-down view, face labels and shadows"
 priority: "high"
 state: "to-do"
-worktree: ""
+worktree: "feat/6-webgl2-dice-renderer"
 issuer: "user"
 complexity: "complex"
 shortName: "webgl2-dice-renderer"
 blockedBy: ""
+splitter: "done"
 ---
 
 # Summary

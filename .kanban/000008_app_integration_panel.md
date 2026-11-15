@@ -6,7 +6,7 @@ worktree: ""
 issuer: "user"
 complexity: "complex"
 shortName: "app-integration-panel"
-blockedBy: "#5, #6, #7"
+blockedBy: "#5, #6"
 ---
 
 # Summary

@@ -10,11 +10,13 @@ The run prompt owns the step order (read task, abort a stale rebase, clear conte
 
 - Read the task file once, with the read tool, at the start of the run. Keep the state and summary from that read. Do not cat or re-read it in later bash commands.
 - Run all pre-rebase prep as one command: `git status --short --branch && git log --oneline -5 && git update-index --no-skip-worktree -- AGENTS.md TASK.md 2>/dev/null; git restore --staged --worktree -- AGENTS.md TASK.md 2>/dev/null; true`. Judge branch state and a rebase in progress from the printed status; the path clear runs unconditionally and is safe either way. If the status shows a rebase you did not start, abort it as the next command.
+- The restore part of the prep command prints nothing on success. That silence is success: do not re-run status or log to confirm the clear. Start the rebase in the next command.
 - Do not inspect tracking or skip-worktree state, do not explain suppressed errors, and never deduce path status from `git status`. Go straight to the rebase.
 
 ## Rebase
 
 - Treat the `git rebase main` output as the truth. "Current branch ... is up to date" or "Fast-forwarded" is a final no-op merge: no fetch, no history or merge-base inspection, no conflict pass, and no re-check of the result. Go straight to the test gate.
+- "Successfully rebased and updated refs/heads/..." is also a clean result: your commits replayed with no conflicts. Do not parse the output again to tell a replay from a fast-forward. Both are success, and the next step is the same. Go straight to the test gate.
 - Do not `git fetch` before the rebase. The daemon resolves the local `main`; a network fetch changes nothing.
 
 ## Conflicts (only when the rebase stops)
@@ -27,6 +29,7 @@ The run prompt owns the step order (read task, abort a stale rebase, clear conte
 ## Gate and exit
 
 - `npm test` in the worktree is the whole merge gate: no build step, no lint step, no changed-files-only variant. Run the gate and the closing check as one command: `npm test && git status --short --branch`; the status line must show a clean tree and no rebase in progress. Do not re-verify acceptance criteria, re-count tests, or re-list files.
+- After a rebase the closing status can show no ahead/behind or tracking markers. That is normal. Only a clean tree and no rebase line matter.
 - A passing summary line ends the gate. Never compare its test or file counts to any other run, task file, or expectation; counts legitimately differ between tasks.
 - A conflict-free rebase produces no `merge:` bullets. Only a rebase that stopped on conflicts gets one `merge:` bullet per resolved hunk, naming the other task and whether both sides survived.
 - Final reply shape: one line naming the rebase result and the test result, then any `merge:` bullets, nothing else. No Notes write; the tool list is closed.
