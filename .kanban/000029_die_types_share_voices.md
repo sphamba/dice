@@ -1,7 +1,7 @@
 ---
 name: "fix: d4/d10 and d6/d12 die voices are identical (4 distinct sounds for 6 types)"
 priority: "low"
-state: "to-merge"
+state: "merging"
 worktree: "fix/29-die-types-share-voices"
 issuer: "#27"
 complexity: "simple"
