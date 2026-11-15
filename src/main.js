@@ -6,8 +6,10 @@ import { MAX_FRAME_DT, createWorld } from './physics/world.js';
 import { createShape } from './dice/shapes.js';
 import { createRenderer } from './render/renderer.js';
 import { backingSize } from './render/canvas-size.js';
-import { createMotion, unlockOnFirstGesture } from './input/motion.js';
+import { createMotion, onFirstGesture, unlockOnFirstGesture } from './input/motion.js';
 import { createPointer } from './input/pointer.js';
+import { createHaptics } from './audio/haptics.js';
+import { createSound } from './audio/sound.js';
 import { createPanel } from './ui/panel.js';
 
 export const ROLL_SPEED_MIN = 0.4;
@@ -45,6 +47,10 @@ if (!gl) {
 } else {
   const world = createWorld(boxFromViewport(innerWidth, innerHeight, devicePixelRatio));
   const renderer = createRenderer(gl);
+  const sound = createSound();
+  const haptics = createHaptics();
+
+  onFirstGesture(() => sound.resume());
 
   createMotion({ onGravity: (gravity) => world.setGravity(gravity) });
 
@@ -164,6 +170,8 @@ if (!gl) {
     const dt = Math.min((now - previous) / 1000, MAX_FRAME_DT);
     previous = now;
     world.update(dt);
+    sound.play(world.events, world.box);
+    haptics.play(world.events);
     renderer.draw(world.bodies);
     requestAnimationFrame(frame);
   }
