@@ -1,22 +1,18 @@
 # merger: durable guidance for future merger runs
 
-The run prompt owns the step order (read task, abort a stale rebase, clear context paths, rebase, resolve, test, report). This file only removes waste from that path.
+The run prompt owns the step order (read task, abort a stale rebase, clear context paths, rebase, resolve, test, report). This file only removes waste from that path. The clean path is three model turns: prep+rebase, gate, final reply. Model latency is the whole run cost; tool time is trivial except the test gate.
 
 ## General
 
-- Spend no thinking tokens re-narrating the run prompt or the step list. Tool time is trivial here; model latency is the whole run cost. Pick the next command in one short sentence, then call it.
+- Spend no thinking tokens re-narrating the run prompt or the step list. Pick the next command in one short sentence, then call it.
 - When a command fails or a result looks odd, match it to this file first. Most failures in this workflow are by design. Think only about failures this file does not explain.
 
-## Pre-rebase (one command)
+## Prep and rebase (one command)
 
 - Do not open TASK.md with the read tool. The frontmatter `map` field is machine output for other roles, grows to thousands of characters on complex tasks, and holds no merge content. Read the body once, Summary and Specs and Notes, inside the prep command below, and never read the task file again later in the run.
-- Run the whole pre-rebase prep as one command: `git status --short --branch && git log --oneline -5 && awk '/^---$/{n++; next} n>=2' TASK.md && git update-index --no-skip-worktree -- AGENTS.md TASK.md 2>/dev/null; git restore --staged --worktree -- AGENTS.md TASK.md 2>/dev/null; true`. The awk part prints the task body and skips the frontmatter. Judge branch state and a rebase in progress from the printed status; the path clear runs unconditionally and is safe either way. If the status shows a rebase you did not start, abort it as the next command.
-- The restore part prints nothing on success. That silence is success: do not re-run status or log to confirm the clear. Do not inspect tracking or skip-worktree state, and never deduce path status from `git status`. Start the rebase in the next command.
-
-## Rebase
-
-- Treat the `git rebase main` output as the truth. "Current branch ... is up to date", "Fast-forwarded", and "Successfully rebased and updated refs/heads/..." are all final clean results: no fetch, no history or merge-base inspection, no conflict pass, no re-parse. Do not tell a replay from a fast-forward; the next step is the same. Go straight to the test gate.
-- Do not `git fetch` before the rebase. The daemon resolves the local `main`; a network fetch changes nothing.
+- Run prep and rebase as one command: `git status --short --branch && git log --oneline -5 && awk '/^---$/{n++; next} n>=2' TASK.md && git update-index --no-skip-worktree -- AGENTS.md TASK.md 2>/dev/null; git restore --staged --worktree -- AGENTS.md TASK.md 2>/dev/null; git rebase main`. The awk part prints the task body and skips the frontmatter. The path clear runs unconditionally and is safe either way. Judge branch state from the printed status; the restore prints nothing on success, and that silence needs no confirmation.
+- The chained rebase refuses when a rebase is already in progress ("already a rebase-merge directory"). Then run `git rebase --abort && git rebase main` as one command and move on; do not re-run status or log first. Any other rebase stop goes to the conflicts section.
+- Treat the rebase output as the truth. "Current branch ... is up to date", "Fast-forwarded", and "Successfully rebased and updated refs/heads/..." are all final clean results: no fetch, no history or merge-base inspection, no conflict pass, no re-parse. Do not tell a replay from a fast-forward; the next step is the same. Go straight to the test gate. Do not `git fetch` first; the daemon resolves the local `main`.
 
 ## Conflicts (only when the rebase stops)
 
@@ -27,9 +23,9 @@ The run prompt owns the step order (read task, abort a stale rebase, clear conte
 
 ## Gate and exit
 
-- `npm test` in the worktree is the whole merge gate: no build step, no lint step, no changed-files-only variant. Run the gate and the closing check as one command: `npm test && git status --short --branch`; the status line must show a clean tree and no rebase in progress. Do not re-verify acceptance criteria, re-count tests, or re-list files.
+- `npm test` in the worktree is the whole merge gate: no build step, no lint step, no changed-files-only variant. Run the gate and the closing check as one command with a 3000-second timeout: `npm test && git status --short --branch`; the status line must show a clean tree and no rebase in progress. Do not re-verify acceptance criteria, re-count tests, or re-list files.
 - After a rebase the closing status can show no ahead/behind or tracking markers. That is normal. Only a clean tree and no rebase line matter.
 - A passing summary line ends the gate. Never compare its test or file counts to any other run, task file, or expectation; counts legitimately differ between tasks.
 - A conflict-free rebase produces no `merge:` bullets. Only a rebase that stopped on conflicts gets one `merge:` bullet per resolved hunk, naming the other task and whether both sides survived.
-- Final reply shape: one line naming the rebase result and the test result, then any `merge:` bullets, nothing else. No Notes write; the tool list is closed.
+- Final reply shape: exactly one line naming the rebase result and the test result, then any `merge:` bullets, nothing else. No second paragraph and no explanation of absent bullets; silence means none. No Notes write; the tool list is closed.
 - Suite success: leave the state at `merging`. Suite failure: `kanban_get`, then `kanban_set_state` to `to-do`, and name the failing suites in the final reply.
