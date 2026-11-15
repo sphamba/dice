@@ -29,9 +29,35 @@ Scale the pip layout and radius by `frame.radius` before the px/py mapping, e.g.
 - Rendered d6 top face (value 4): die color at the centroid, pips visible near the corners; other faces show correct pip counts 1-6.
 
 # Notes
-- Fixed in `src/dice/labels.js`: `drawPips` now multiplies `PIP_OFFSET` and `PIP_RADIUS` by the face radius before the meters-to-pixel mapping, so pips land in-cell (rx ≈ 22 px, ry ≈ 34 px in a 341×512 px cell).
-- Regression tests added in `src/dice/labels.test.js` using an OffscreenCanvas recording shim: pip counts, ellipses fully inside their cell, radii at the face-radius scale, classic ±offset layout, center pip for 1/3/5. Red before the fix (2 failures), green after: `npx vitest run src/dice/labels.test.js` 6/6, shapes suite 53/53, `npm run build` green.
-- Browser check (headless Chromium + SwiftShader, dev server on port 5199, killed afterwards): d6 atlas alpha fraction 4.82% (was 100%), per-cell opaque pixels 2,401/4,823/7,212/9,626/12,044/14,426 for values 1-6, value-1 cell center opaque, all four corners alpha 0, ink color [245,242,237]. Renderer driven directly: top face (value 4) reads red [237,76,64] with near-white pips; no console or GL errors.
-- Assumed pip geometry: `PIP_OFFSET`/`PIP_RADIUS` are fractions of the face corner radius (unchanged), only the unit conversion was wrong. `frame.radius` (corner distance) stays the single scale reference.
-- Committed as f7c07d2; clean-room acceptance not run separately (scoped tests plus build green).
-- `src/main.js` only clears the canvas, so no game scene is wired yet; that is out of scope for this fix.
+## Live test (this task, commit 8dbb83f, headless Chromium + SwiftShader)
+Scope: the d6 pip fix only. Atlas checks ran the production `buildLabelAtlas` in the browser. Render checks ran the production `createRenderer`/`resize`/`draw`/`dispose` on a real WebGL2 canvas. `src/main.js` clears the canvas only, so no scene flow exists to click through; I drove the renderer public API directly (same limit as the #6 test).
+
+Result: 67 checks, 66 pass, 0 product defects, 1 environment note. No defect cards filed.
+
+| Check | Result | Measured |
+| --- | --- | --- |
+| Atlas overall ink fraction | pass | 4.61% opaque (bug state was 100%) |
+| Atlas per-cell pip count v1-v6 | pass | opaque px 2303/4604/6909/9214/11512/13817, within 1% of the ellipse-area expectation, monotone with value+1 |
+| No ink outside expected pip ellipses | pass | 0 stray px in all 6 cells |
+| Every pip fully drawn | pass | coverage 1.0 for all 21 pips |
+| Cell centers | pass | opaque for v1/v3/v5 (ink [245,242,237]), alpha 0 for v2/v4/v6 |
+| Cell corners | pass | alpha 0 in all 24 corner probes |
+| Pip size at face-radius scale | pass | measured rx 22.0, ry 33.5 px in a 341x512 cell (expected 22.2, 33.3) |
+| Rendered top face v4 | pass | centroid [237,76,65] vs predicted lit die color [237,76,64]; 4 white pips [255,255,255] at predicted offsets; crop shows 4 pips on red |
+| Rendered pip counts 1-6 | pass | all 17 pip probes ink, all 8 between-pip probes die color, majority frac 1.0 |
+| GL errors | pass | none during 6 draws + dispose |
+| Console/page errors | note | see environment notes |
+
+Evidence: /tmp/d6livetest/{atlas.png, render-v4.png, v4-crop.png, run.log, expected.json} (PNG mean 0.046 for the atlas, red+white crop for the die).
+
+Assumptions:
+- Pip geometry units are unchanged (`PIP_OFFSET`/`PIP_RADIUS` stay fractions of the face corner radius); only the meters-to-pixel conversion was wrong. The checks pin this scale.
+- Atlas cell order follows the face array order; I read face values from `createShape('d6')` itself (cells hold v4,v5,v6,v1,v2,v3), not from hardcoded positions.
+- Face value 4 points up at identity orientation (confirmed: the +z face carries value 4).
+- Expected lit colors come from a Node reference script that ports `litColor()` from shaders.js verbatim (top face shadow=1); rendered pixels match within 2/255.
+
+Environment notes (not defects of this change):
+- The app `#view` canvas logged `CONTEXT_LOST_WEBGL` on first load and `gl.isContextLost()` was true ~3 s after boot; after a reload the context was live. Headless Chromium discards the un-composited WebGL context because `main.js` draws one clear and never renders again. Not reachable through the pip change, and no visible effect in this build because main.js renders nothing.
+- One `GPU stall due to ReadPixels` performance message appeared during a reload probe; headless GPU-process noise from the test harness readbacks.
+- Harness bug found and fixed during the run: my first world-to-pixel mapping halved the offset, so corner-pip probes missed while center probes passed. Re-ran after the fix; product code was not touched.
+- Server on port 5231 stopped and the port verified free.
