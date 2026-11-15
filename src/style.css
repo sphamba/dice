@@ -1,0 +1,37 @@
+html,
+body {
+  margin: 0;
+  overflow: hidden;
+  background: #14151a;
+  color: #e8e8ee;
+  font-family: system-ui, sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+#view {
+  position: fixed;
+  inset: 0;
+  width: 100dvw;
+  height: 100dvh;
+  touch-action: none;
+  display: block;
+}
+
+#ui {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+  pointer-events: none;
+}
+
+#unsupported {
+  max-width: 24ch;
+  text-align: center;
+  line-height: 1.4;
+}
