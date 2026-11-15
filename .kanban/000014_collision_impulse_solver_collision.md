@@ -1,7 +1,7 @@
 ---
 name: "feat: collision detection for dice vs box planes and dice vs dice"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "#5"
 complexity: "moderate"
