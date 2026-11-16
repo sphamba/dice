@@ -4,8 +4,8 @@ The run prompt owns the step order (read task, abort a stale rebase, clear conte
 
 ## Turn and thinking discipline
 
-- The whole run is two tool calls on the clean path: prep+rebase, then gate. Each turn may open with one thinking clause that names the step (`prep`, `gate`, `rerun`). That is the full budget.
-- Thinking never holds plans, quoted commands, quoted results, counts, fallback derivations, or text from this file or the run prompt. The commands below are final: copy them into the tool call as printed. Do not compose, restate, or re-derive them.
+- The whole run is two tool calls on the clean path: prep+rebase, then gate. Each turn may open with one thinking clause that names the step (`prep`, `gate`, `rerun`). That is the full budget. Never write "review", "prepare", or plan-summary thinking; the commands below are already final.
+- Thinking never holds plans, quoted commands, quoted results, counts, fallback derivations, or text from this file or the run prompt. Copy the commands below into the tool call as printed. Do not compose, restate, or re-derive them.
 - When a tool result matches an outcome below, emit the next tool call in the same turn. The call is the analysis; do not restate the result first.
 - Lead-in text before a tool call: none. If one is emitted anyway, it names only the next step in at most five words and never quotes results, numbers, or paths.
 - This file wins over the run prompt on merge mechanics. Never spend thinking reconciling instruction sources; the mapping and all fallbacks are already decided here.
@@ -28,7 +28,7 @@ The run prompt owns the step order (read task, abort a stale rebase, clear conte
 ## Gate, flake rerun, and exit
 
 - `npm test` in the worktree is the whole gate: no build step, no lint step, no changed-files-only variant. One command with a 3000-second timeout: `npm test && git status --short --branch`. Only a clean tree and no rebase line matter; missing ahead/behind or tracking markers after a rebase are normal.
-- Known gate noise: the wall-clock performance test in `src/physics/world.e2e.test.js` fails under concurrent load on this machine. If it is the only failing test, rerun the full gate once instead of moving the task. This overrides the run prompt's immediate to-do move. A pass is a clean pass; a second failure, or any other failing suite, is a real failure.
+- Known gate noise: the wall-clock performance test in `src/physics/world.e2e.test.js` fails under concurrent load on this machine. If it is the only failing test, rerun the full gate once in the same turn instead of moving the task. This overrides the run prompt's immediate to-do move. One rerun is the hard limit; never widen this rule to other failures or to a second rerun. A pass is a clean pass; a second failure, or any other failing suite, is a real failure.
 - Real failure: load the kanban tools with `tool_search` if not yet loaded, then `kanban_get` and `kanban_set_state` to `to-do` back-to-back with no thinking between. Name the failing suites in the final reply. The branch stays rebased.
 - A passing gate ends the run in that turn: write the final reply directly, with no reply planning in thinking, and leave the state at `merging`; no Notes write, the tool list is closed.
 - Final reply: one line naming the rebase result and the gate result (mention a flake rerun only if one happened), then one `merge:` bullet per resolved hunk only if the rebase stopped on conflicts. Quote counts from the tool result only; never compare them to any other run, task file, or expectation.
