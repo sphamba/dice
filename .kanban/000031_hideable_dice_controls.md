@@ -1,7 +1,7 @@
 ---
 name: "feat: make dice controls hideable with Roll still available"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "#8"
 complexity: "moderate"
