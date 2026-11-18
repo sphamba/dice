@@ -2,7 +2,7 @@
 name: "fix: pin parseStoredSet fill for missing keys (DEFAULT_SET vs 0)"
 priority: "low"
 state: "done"
-worktree: "fix/26-pin-parsestoredset-fill"
+worktree: ""
 issuer: "#24"
 complexity: "trivial"
 blockedBy: ""
