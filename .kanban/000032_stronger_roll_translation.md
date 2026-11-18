@@ -1,7 +1,7 @@
 ---
 name: "fix: double roll translation speed and lift without increasing spin"
 priority: "high"
-state: "doing"
+state: "to-review"
 worktree: "fix/32-stronger-roll-translation"
 issuer: "#8"
 complexity: "simple"
