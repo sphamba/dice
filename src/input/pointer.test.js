@@ -160,6 +160,28 @@ describe('createPointer', () => {
     }
   });
 
+  it('shares one die between two pointers in insertion order and releases each grab alone', () => {
+    const { world, body, canvas, pointer } = dragWorld([0, 0, 0.0139]);
+    canvas.fire('pointerdown', { pointerId: 1, clientX: 0, clientY: 0, timeStamp: 0 });
+    canvas.fire('pointerdown', { pointerId: 2, clientX: 0, clientY: 0, timeStamp: 0 });
+    const held = pointer.heldBodies();
+    expect(held).toHaveLength(2);
+    expect(held[0]).toBe(body);
+    expect(held[1]).toBe(body);
+
+    canvas.fire('pointermove', { pointerId: 2, clientX: 20, clientY: 0, timeStamp: 16 });
+    world.update(1 / 60);
+    expect(body.linearVelocity[0]).toBeGreaterThan(0);
+
+    canvas.fire('pointerup', { pointerId: 2, clientX: 20, clientY: 0, timeStamp: 32 });
+    expect(pointer.heldBodies()).toEqual([body]);
+    world.update(1 / 60);
+    expect(body.linearVelocity[0]).toBeLessThan(0);
+
+    canvas.fire('pointerup', { pointerId: 1, clientX: 0, clientY: 0, timeStamp: 48 });
+    expect(pointer.heldBodies()).toEqual([]);
+  });
+
   it('releases with the pointer velocity and lets go of the die', () => {
     const body = fakeBody(0, 0, 0.014);
     const { canvas, pointer } = setup([body]);
