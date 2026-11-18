@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   FLING_WINDOW_MS,
   MAX_DRAG_SPEED,
@@ -6,12 +6,24 @@ import {
   createPointer,
   flingVelocity,
 } from './pointer.js';
-import { FIXED_DT, createWorld } from '../physics/world.js';
+import { createWorld } from '../physics/world.js';
 import { createBody } from '../physics/body.js';
-import * as mat3 from '../math/mat3.js';
+import { DICE_TYPES, createShape } from '../dice/shapes.js';
+import * as quat from '../math/quat.js';
+import * as vec3 from '../math/vec3.js';
 
 const near = (actual, expected, eps = 1e-9) => expect(Math.abs(actual - expected)).toBeLessThan(eps);
 
+const BOX = { W: 0.0681, H: 0.1476, D: 0.0681 };
+
+const DIE_RADIUS = 0.0139;
+
+// Circumradius over root three: the d6 face is a square of this half-edge at this height.
+const FACE_HALF = DIE_RADIUS / Math.sqrt(3);
+
+const toWorld = (px, py) => [px * 0.001, py * 0.001];
+
+// Samples carry CSS-independent world x/y and a timeStamp in milliseconds, oldest first.
 describe('flingVelocity', () => {
   it('returns the speed of a constant motion in world units per second', () => {
     const velocity = flingVelocity([
@@ -68,112 +80,193 @@ function fakeCanvas() {
   };
 }
 
-function fakeBody(x, y, z, radius = 0.014) {
-  return {
-    position: Float64Array.from([x, y, z]),
-    linearVelocity: new Float64Array(3),
-    angularVelocity: new Float64Array(3),
-    radius,
-  };
+function makeDie({
+  type = 'd6',
+  position = [0, 0, 0.03],
+  orientation = [0, 0, 0, 1],
+  radius = DIE_RADIUS,
+} = {}) {
+  return createBody(createShape(type, radius), { position, orientation });
 }
 
-const toWorld = (px, py) => [px * 0.001, py * 0.001];
-
-const BOX = { W: 0.0681, H: 0.1476, D: 0.0681 };
-
-const makeDie = (position) =>
-  createBody(
-    {
-      radius: 0.0139,
-      volume: 4.096e-6,
-      inertia: mat3.fromDiagonal(new Float64Array(9), 2e-5, 3e-5, 4e-5),
-    },
-    { position },
-  );
-
-function dragWorld(position = [0, 0, 0.0139]) {
-  const world = createWorld(BOX);
-  const body = world.addBody(makeDie(position));
+function scene(bodies) {
   const canvas = fakeCanvas();
+  const world = createWorld(BOX);
+  for (const body of bodies) world.addBody(body);
   const pointer = createPointer(canvas, { world, toWorld });
-  return { world, body, canvas, pointer };
+  return { world, body: bodies[0], canvas, pointer };
 }
 
-describe('createPointer', () => {
-  afterEach(() => vi.unstubAllGlobals());
+const holdHeight = (body) => BOX.D - 2 * body.radius;
 
-  function setup(bodies, D = 0.068) {
-    const canvas = fakeCanvas();
-    const pointer = createPointer(canvas, {
-      world: { bodies, box: { W: 0.068, H: 0.14, D } },
-      toWorld,
-    });
-    return { canvas, pointer };
-  }
+const pressWorld = (canvas, pointerId, x, y, t = 0) =>
+  canvas.fire('pointerdown', { pointerId, clientX: x / 0.001, clientY: y / 0.001, timeStamp: t });
 
-  it('grabs the highest die under the point', () => {
-    const low = fakeBody(0, 0, 0.014);
-    const high = fakeBody(0.002, 0, 0.03);
-    const { canvas, pointer } = setup([low, high]);
-    canvas.fire('pointerdown', { pointerId: 1, clientX: 0, clientY: 0, timeStamp: 0 });
-    expect(pointer.heldBodies()).toEqual([high]);
-  });
+const moveWorld = (canvas, pointerId, x, y, t) =>
+  canvas.fire('pointermove', { pointerId, clientX: x / 0.001, clientY: y / 0.001, timeStamp: t });
 
-  it('drives the held die at hold height within one frame of a still pointer', () => {
-    const { world, body, canvas } = dragWorld([0, 0, 0.0139]);
-    canvas.fire('pointerdown', { pointerId: 1, clientX: 0, clientY: 0, timeStamp: 0 });
-    world.update(1 / 60);
-    const holdZ = BOX.D - 2 * body.radius;
-    expect(Math.abs(body.position[2] - holdZ)).toBeLessThan(0.001);
-    expect(Math.hypot(body.position[0], body.position[1])).toBeLessThan(0.001);
-    expect(Math.hypot(...body.linearVelocity)).toBeLessThanOrEqual(MAX_DRAG_SPEED * (1 + 1e-12));
-  });
+function run(world, fps, seconds) {
+  const frames = Math.round(seconds * fps);
+  for (let frame = 0; frame < frames; frame += 1) world.update(1 / fps);
+}
 
-  it('keeps a still die at hold height at every frame rate', () => {
-    for (const fps of [30, 60, 144]) {
-      const { world, body, canvas } = dragWorld();
-      canvas.fire('pointerdown', { pointerId: 1, clientX: 0, clientY: 0, timeStamp: 0 });
-      const holdZ = BOX.D - 2 * body.radius;
-      for (let frame = 0; frame < fps / 10; frame += 1) world.update(1 / fps);
-      let peak = 0;
-      for (let frame = 0; frame < fps; frame += 1) {
-        world.update(1 / fps);
-        peak = Math.max(peak, Math.abs(body.position[2] - holdZ));
+describe('face picking', () => {
+  it('holds the exact face point of every die type without moving the center', () => {
+    for (const type of DICE_TYPES) {
+      const shape = createShape(type, DIE_RADIUS);
+      const top = shape.faces.reduce((best, face) => (face.normal[2] > best.normal[2] ? face : best));
+      const centroid = [0, 0, 0];
+      for (const index of top.indices) {
+        for (let axis = 0; axis < 3; axis += 1) {
+          centroid[axis] += shape.vertices[index][axis] / top.indices.length;
+        }
       }
-      expect(peak).toBeLessThan(0.001);
+      const body = makeDie({ type });
+      const { world, canvas, pointer } = scene([body]);
+      pressWorld(canvas, 1, centroid[0], centroid[1]);
+      expect(pointer.heldBodies()).toEqual([body]);
+      run(world, 60, 0.4);
+      const anchor = [body.position[0] + centroid[0], body.position[1] + centroid[1]];
+      expect(Math.hypot(anchor[0] - centroid[0], anchor[1] - centroid[1])).toBeLessThan(0.001);
+      expect(Math.hypot(body.position[0], body.position[1])).toBeLessThan(0.001);
     }
   });
 
-  it('follows a pointer jump without overshoot at every frame rate', () => {
+  it('keeps a tilted grab anchored to the pressed material point', () => {
+    const orientation = quat.setAxisAngle(new Float64Array(4), [1, 0, 0], 0.6);
+    const body = makeDie({ orientation });
+    const grabbed = [FACE_HALF * 0.55, FACE_HALF * 0.3, FACE_HALF];
+    const worldPoint = vec3.add(
+      new Float64Array(3),
+      vec3.transformQuat(new Float64Array(3), grabbed, orientation),
+      body.position,
+    );
+    const { world, canvas, pointer } = scene([body]);
+    pressWorld(canvas, 1, worldPoint[0], worldPoint[1]);
+    expect(pointer.heldBodies()).toEqual([body]);
+    run(world, 60, 0.5);
+    const anchor = vec3.add(
+      new Float64Array(3),
+      vec3.transformQuat(new Float64Array(3), grabbed, body.orientation),
+      body.position,
+    );
+    expect(Math.hypot(anchor[0] - worldPoint[0], anchor[1] - worldPoint[1])).toBeLessThan(0.001);
+    expect(Math.abs(body.position[2] - holdHeight(body))).toBeLessThan(0.001);
+  });
+
+  it('holds nothing for a press inside the bounding circle but outside the face', () => {
+    const body = makeDie();
+    const { canvas, pointer } = scene([body]);
+    pressWorld(canvas, 1, FACE_HALF * 1.4, 0);
+    expect(pointer.heldBodies()).toEqual([]);
+  });
+
+  it('holds the die with the nearest surface, not the highest center', () => {
+    const high = makeDie({ position: [0, 0, 0.03], radius: 0.005 });
+    const wide = makeDie({ position: [0, 0, 0.025], radius: 0.02 });
+    const { canvas, pointer } = scene([high, wide]);
+    pressWorld(canvas, 1, 0, 0);
+    expect(pointer.heldBodies()).toEqual([wide]);
+  });
+});
+
+describe('held damping', () => {
+  it('does not snap the center under the pointer on an off-center grab', () => {
+    const body = makeDie();
+    const { world, canvas } = scene([body]);
+    pressWorld(canvas, 1, FACE_HALF * 0.55, FACE_HALF * 0.3);
+    world.update(1 / 60);
+    expect(Math.hypot(body.position[0], body.position[1])).toBeLessThan(1e-9);
+  });
+
+  it('settles the anchor and the hold height at 30, 60 and 144 fps', () => {
     for (const fps of [30, 60, 144]) {
-      const { world, body, canvas } = dragWorld();
-      canvas.fire('pointerdown', { pointerId: 1, clientX: 0, clientY: 0, timeStamp: 0 });
-      for (let frame = 0; frame < fps / 2; frame += 1) world.update(1 / fps);
-      canvas.fire('pointermove', { pointerId: 1, clientX: 20, clientY: 0, timeStamp: (fps / 2) * 1000 / fps });
+      const body = makeDie();
+      const { world, canvas } = scene([body]);
+      const grabbed = [FACE_HALF * 0.55, FACE_HALF * 0.3];
+      pressWorld(canvas, 1, grabbed[0], grabbed[1]);
+      run(world, fps, 0.4);
+      let peakAnchor = 0;
+      let peakHeight = 0;
+      for (let frame = 0; frame < fps / 2; frame += 1) {
+        world.update(1 / fps);
+        const anchor = [body.position[0] + grabbed[0], body.position[1] + grabbed[1]];
+        peakAnchor = Math.max(peakAnchor, Math.hypot(anchor[0] - grabbed[0], anchor[1] - grabbed[1]));
+        peakHeight = Math.max(peakHeight, Math.abs(body.position[2] - holdHeight(body)));
+      }
+      expect(peakAnchor).toBeLessThan(0.001);
+      expect(peakHeight).toBeLessThan(0.001);
+    }
+  });
+
+  it('tracks a pointer jump without visible overshoot at 30, 60 and 144 fps', () => {
+    for (const fps of [30, 60, 144]) {
+      const body = makeDie();
+      const { world, canvas } = scene([body]);
+      pressWorld(canvas, 1, 0, 0);
+      run(world, fps, 0.4);
+      moveWorld(canvas, 1, 0.02, 0, 400);
       let peak = 0;
+      let peakSpeed = 0;
       for (let frame = 0; frame < fps / 2; frame += 1) {
         world.update(1 / fps);
         peak = Math.max(peak, body.position[0] - 0.02);
+        peakSpeed = Math.max(
+          peakSpeed,
+          Math.hypot(body.linearVelocity[0], body.linearVelocity[1]),
+        );
       }
       expect(peak).toBeLessThan(0.002);
+      expect(peakSpeed).toBeLessThanOrEqual(MAX_DRAG_SPEED * (1 + 1e-9));
       expect(Math.abs(body.position[0] - 0.02)).toBeLessThan(0.001);
     }
   });
 
+  it('damps a spinning held die to rest within a second without collisions', () => {
+    const body = makeDie();
+    const { world, canvas } = scene([body]);
+    pressWorld(canvas, 1, 0, 0);
+    vec3.scale(body.angularVelocity, [0.6, 0, 0.8], 60);
+    let previous = 60;
+    for (let frame = 0; frame < 60; frame += 1) {
+      world.update(1 / 60);
+      const speed = Math.hypot(...body.angularVelocity);
+      expect(speed).toBeLessThanOrEqual(previous * (1 + 1e-9));
+      previous = speed;
+    }
+    expect(previous).toBeLessThan(0.1);
+
+    const anchor = () =>
+      vec3.add(
+        new Float64Array(3),
+        vec3.transformQuat(new Float64Array(3), [0, 0, FACE_HALF], body.orientation),
+        body.position,
+      );
+    const pinned = [body.position[0], body.position[1]];
+    run(world, 60, 0.2);
+    const drift = Math.hypot(body.position[0] - pinned[0], body.position[1] - pinned[1]);
+    expect(drift).toBeLessThan(0.001);
+    const settled = anchor();
+    expect(Math.hypot(settled[0], settled[1])).toBeLessThan(0.001);
+  });
+});
+
+describe('release', () => {
   it('shares one die between two pointers in insertion order and releases each grab alone', () => {
-    const { world, body, canvas, pointer } = dragWorld([0, 0, 0.0139]);
-    canvas.fire('pointerdown', { pointerId: 1, clientX: 0, clientY: 0, timeStamp: 0 });
-    canvas.fire('pointerdown', { pointerId: 2, clientX: 0, clientY: 0, timeStamp: 0 });
+    const body = makeDie({ position: [0, 0, 0.0139] });
+    const { world, canvas, pointer } = scene([body]);
+    pressWorld(canvas, 1, 0, 0);
+    pressWorld(canvas, 2, 0, 0);
     const held = pointer.heldBodies();
     expect(held).toHaveLength(2);
     expect(held[0]).toBe(body);
     expect(held[1]).toBe(body);
 
-    canvas.fire('pointermove', { pointerId: 2, clientX: 20, clientY: 0, timeStamp: 16 });
+    moveWorld(canvas, 2, 0.02, 0, 16);
     world.update(1 / 60);
     expect(body.linearVelocity[0]).toBeGreaterThan(0);
 
-    canvas.fire('pointerup', { pointerId: 2, clientX: 20, clientY: 0, timeStamp: 32 });
+    canvas.fire('pointerup', { pointerId: 2, clientX: 0.02 / 0.001, clientY: 0, timeStamp: 32 });
     expect(pointer.heldBodies()).toEqual([body]);
     world.update(1 / 60);
     expect(body.linearVelocity[0]).toBeLessThan(0);
@@ -183,14 +276,25 @@ describe('createPointer', () => {
   });
 
   it('releases with the pointer velocity and lets go of the die', () => {
-    const body = fakeBody(0, 0, 0.014);
-    const { canvas, pointer } = setup([body]);
-    canvas.fire('pointerdown', { pointerId: 1, clientX: 0, clientY: 0, timeStamp: 0 });
+    const body = makeDie({ position: [0, 0, 0.014] });
+    const { canvas, pointer } = scene([body]);
+    pressWorld(canvas, 1, 0, 0);
     canvas.fire('pointermove', { pointerId: 1, clientX: 10, clientY: 0, timeStamp: 40 });
     canvas.fire('pointerup', { pointerId: 1, clientX: 10, clientY: 0, timeStamp: 80 });
     expect(pointer.heldBodies()).toEqual([]);
     near(body.linearVelocity[0], 0.01 / 0.08, 1e-9);
     expect(body.linearVelocity[2]).toBe(0);
     expect(Math.hypot(...body.angularVelocity)).toBeLessThanOrEqual(60);
+  });
+
+  it('keeps the other grab alive when one pointer is cancelled', () => {
+    const body = makeDie();
+    const { canvas, pointer } = scene([body]);
+    pressWorld(canvas, 1, 0, 0);
+    pressWorld(canvas, 2, 0, 0);
+    canvas.fire('pointercancel', { pointerId: 1, clientX: 0, clientY: 0, timeStamp: 16 });
+    expect(pointer.heldBodies()).toEqual([body]);
+    canvas.fire('pointerup', { pointerId: 2, clientX: 0, clientY: 0, timeStamp: 32 });
+    expect(pointer.heldBodies()).toEqual([]);
   });
 });
