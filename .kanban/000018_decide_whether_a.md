@@ -1,11 +1,14 @@
 ---
 name: "feat: decide whether a die already held by one pointer may be grabbed by a second pointer"
 priority: "low"
-state: "merging"
+state: "to-live-test"
 worktree: "feat/18-decide-whether-a"
 issuer: "#13"
 complexity: "trivial"
 blockedBy: ""
+map: "{\"files\":[{\"path\":\"src/input/pointer.test.js\",\"symbols\":[{\"name\":\"shares one die between two pointers in insertion order and releases each grab alone\",\"kind\":\"case\",\"ins\":22,\"del\":0,\"isNew\":true}]}],\"flows\":[],\"role\":\"developer\",\"run\":0,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-18T21:34:28.897Z\",\"head\":\"fa74d35\"}"
+changes: "{\"base\":\"main\",\"ins\":22,\"del\":0,\"files\":1}"
+commits: "[{\"hash\":\"fa74d35\",\"subject\":\"test(input): pin shared grab by two pointers\",\"when\":\"2026-11-18T22:33:58+01:00\"}]"
 ---
 
 # Summary
