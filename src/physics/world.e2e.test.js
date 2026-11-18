@@ -150,6 +150,47 @@ describe('containment', () => {
   }, 30000);
 });
 
+describe('mixed dice', () => {
+  it('settles three dice on a level floor with a finite state', () => {
+    const types = ['d6', 'd8', 'd20'];
+    const world = createWorld(BOX);
+    const bodies = types.map((type, index) =>
+      dropBody(type, [0, (index - 1) * BOX.H * 0.3, BOX.D * 0.4 + index * 0.004]),
+    );
+    for (const body of bodies) world.addBody(body);
+
+    for (let step = 0; step < 5 * STEPS_PER_SECOND; step += 1) world.step(FIXED_DT);
+
+    for (const body of bodies) {
+      expect(Number.isFinite(vec3.length(body.linearVelocity))).toBe(true);
+      expect(Number.isFinite(vec3.length(body.angularVelocity))).toBe(true);
+      expect(vec3.length(body.linearVelocity)).toBeLessThan(0.005);
+      expect(vec3.length(body.angularVelocity)).toBeLessThan(0.1);
+      expect(Math.abs(lowestVertex(body))).toBeLessThan(0.0005);
+      expect(boxOvershoot(BOX, body)).toBeLessThan(0.001);
+    }
+  }, 30000);
+});
+
+describe('tilted gravity', () => {
+  it('slides a settled die down a 10 degree tilt and stays contained', () => {
+    const world = createWorld({ W: 0.5, H: 0.5, D: 0.2 });
+    const body = dropBody('d6', [0, 0, 0.05]);
+    world.addBody(body);
+
+    for (let step = 0; step < 3 * STEPS_PER_SECOND; step += 1) world.step(FIXED_DT);
+    const startX = body.position[0];
+
+    const radians = (10 * Math.PI) / 180;
+    world.setGravity([GRAVITY * Math.sin(radians), 0, -GRAVITY * Math.cos(radians)]);
+    for (let step = 0; step < 0.5 * STEPS_PER_SECOND; step += 1) world.step(FIXED_DT);
+
+    expect(body.position[0] - startX).toBeGreaterThan(0.02);
+    expect(boxOvershoot(world.box, body)).toBeLessThan(0.001);
+    expect(Number.isFinite(vec3.length(body.linearVelocity))).toBe(true);
+  }, 30000);
+});
+
 describe('die against die', () => {
   it('lets two stacked d6 rest without mutual penetration', () => {
     const world = createWorld(BOX);

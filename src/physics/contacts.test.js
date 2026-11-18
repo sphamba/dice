@@ -86,6 +86,55 @@ describe('friction', () => {
   });
 });
 
+describe('friction disk', () => {
+  it('clamps the combined tangent impulse on diagonal sliding', () => {
+    const body = makeBody([0, 0, 0.01], [1, 1, -0.5]);
+    const world = makeWorld(floorContact(body));
+    solveContacts(world, FIXED_DT);
+
+    const mass = 1 / body.invMass;
+    const normalImpulse = world.events[0].impulse;
+    const slideX = (1 - body.linearVelocity[0]) * mass;
+    const slideY = (1 - body.linearVelocity[1]) * mass;
+    const tangentImpulse = Math.hypot(slideX, slideY);
+
+    expect(body.linearVelocity[0]).toBeGreaterThan(0);
+    expect(body.linearVelocity[1]).toBeGreaterThan(0);
+    expect(tangentImpulse).toBeLessThanOrEqual(FRICTION_BOX * normalImpulse * (1 + 1e-12));
+    nearRel(tangentImpulse, FRICTION_BOX * normalImpulse);
+  });
+});
+
+describe('incline', () => {
+  const GRAVITY = 9.81;
+
+  const slideSpeed = (degrees, seconds = 1) => {
+    const radians = (degrees * Math.PI) / 180;
+    const body = makeBody([0, 0, 0]);
+    const world = makeWorld(floorContact(body));
+    const gravity = Float64Array.from([
+      GRAVITY * Math.sin(radians),
+      0,
+      -GRAVITY * Math.cos(radians),
+    ]);
+    const steps = Math.round(seconds / FIXED_DT);
+    for (let step = 0; step < steps; step += 1) {
+      vec3.scaleAndAdd(body.linearVelocity, body.linearVelocity, gravity, FIXED_DT);
+      solveContacts(world, FIXED_DT);
+      world.events.length = 0;
+    }
+    return body.linearVelocity[0];
+  };
+
+  it('holds a sliding contact below the critical angle of about 5.7 degrees', () => {
+    expect(Math.abs(slideSpeed(5))).toBeLessThan(0.02);
+  });
+
+  it('lets the same contact slide above the critical angle', () => {
+    expect(slideSpeed(10)).toBeGreaterThan(0.3);
+  });
+});
+
 describe('accumulated impulses', () => {
   it('keeps a resting contact stable over many iterations', () => {
     const depth = 0.0005;

@@ -9,9 +9,9 @@ export const RESTITUTION_BOX = 0.3;
 
 export const RESTITUTION_DIE = 0.4;
 
-export const FRICTION_BOX = 0.4;
+export const FRICTION_BOX = 0.1;
 
-export const FRICTION_DIE = 0.3;
+export const FRICTION_DIE = 0.1;
 
 export const BAUMGARTE = 0.2;
 
@@ -115,19 +115,37 @@ function applyPair(contact, direction, magnitude) {
   applyImpulse(contact.b, scratchImpulse, contact.point);
 }
 
-function solveAxis(contact, axis, isFriction) {
+// Impulses below this are physically meaningless; skipping them avoids subnormal arithmetic.
+const MIN_IMPULSE = 1e-12;
+
+function solveNormal(contact) {
   relativeVelocity(scratchRelative, contact);
-  const speed = vec3.dot(scratchRelative, axis.direction);
-  const previous = axis.impulse;
-  let next = previous + axis.mass * ((isFriction ? 0 : contact.target) - speed);
-  if (isFriction) {
-    const limit = contact.friction * contact.normal.impulse;
-    next = Math.min(Math.max(next, -limit), limit);
-  } else {
-    next = Math.max(next, 0);
+  const speed = vec3.dot(scratchRelative, contact.normal.direction);
+  const previous = contact.normal.impulse;
+  const next = Math.max(previous + contact.normal.mass * (contact.target - speed), 0);
+  contact.normal.impulse = next;
+  if (next !== previous) applyPair(contact, contact.normal.direction, next - previous);
+}
+
+// Both tangents share one Coulomb disk, so diagonal sliding cannot reach sqrt(2) times the limit.
+function solveFriction(contact) {
+  const [first, second] = contact.tangents;
+  relativeVelocity(scratchRelative, contact);
+  let firstImpulse = first.impulse - first.mass * vec3.dot(scratchRelative, first.direction);
+  let secondImpulse = second.impulse - second.mass * vec3.dot(scratchRelative, second.direction);
+  const limit = contact.friction * contact.normal.impulse;
+  const magnitude = Math.sqrt(firstImpulse * firstImpulse + secondImpulse * secondImpulse);
+  if (magnitude > limit) {
+    const scale = limit / magnitude;
+    firstImpulse *= scale;
+    secondImpulse *= scale;
   }
-  axis.impulse = next;
-  if (next !== previous) applyPair(contact, axis.direction, next - previous);
+  const deltaFirst = firstImpulse - first.impulse;
+  const deltaSecond = secondImpulse - second.impulse;
+  first.impulse = firstImpulse;
+  second.impulse = secondImpulse;
+  if (Math.abs(deltaFirst) > MIN_IMPULSE) applyPair(contact, first.direction, deltaFirst);
+  if (Math.abs(deltaSecond) > MIN_IMPULSE) applyPair(contact, second.direction, deltaSecond);
 }
 
 function groupKey(ids, contact) {
@@ -170,8 +188,8 @@ export function solveContacts(world, dt) {
 
   for (let iteration = 0; iteration < SOLVER_ITERATIONS; iteration += 1) {
     for (const contact of prepared) {
-      solveAxis(contact, contact.normal, false);
-      for (const tangent of contact.tangents) solveAxis(contact, tangent, true);
+      solveNormal(contact);
+      solveFriction(contact);
     }
   }
 

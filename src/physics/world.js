@@ -55,6 +55,7 @@ function containBody(box, body) {
   if (push[0] === 0 && push[1] === 0 && push[2] === 0) return;
   vec3.add(body.position, body.position, push);
   for (let axis = 0; axis < 3; axis += 1) {
+    if (push[axis] === 0) continue;
     if (push[axis] > 0 ? body.linearVelocity[axis] < 0 : body.linearVelocity[axis] > 0) {
       body.linearVelocity[axis] = 0;
     }
