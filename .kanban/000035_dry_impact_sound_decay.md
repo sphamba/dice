@@ -1,7 +1,7 @@
 ---
 name: "fix: make every synthesized impact sound very dry"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "#9"
 complexity: "simple"
