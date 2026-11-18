@@ -1,7 +1,7 @@
 ---
 name: "fix: place every non-d6 face number inside its label atlas cell"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "#8"
 complexity: "simple"

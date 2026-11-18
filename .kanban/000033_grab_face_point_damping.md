@@ -6,7 +6,7 @@ worktree: ""
 issuer: "#8"
 complexity: "moderate"
 shortName: "grab-face-point-damping"
-blockedBy: "#18"
+blockedBy: ""
 ---
 
 # Summary
