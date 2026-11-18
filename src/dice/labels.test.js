@@ -10,10 +10,33 @@ const PIP_RADIUS_FRACTION = 0.13;
 const PIP_OFFSET_FRACTION = 0.42;
 const D6_COLOR = [0.78, 0.22, 0.18];
 
+const IDENTITY = [1, 0, 0, 1, 0, 0];
+
+function multiply(m, n) {
+  return [
+    m[0] * n[0] + m[2] * n[1],
+    m[1] * n[0] + m[3] * n[1],
+    m[0] * n[2] + m[2] * n[3],
+    m[1] * n[2] + m[3] * n[3],
+    m[0] * n[4] + m[2] * n[5] + m[4],
+    m[1] * n[4] + m[3] * n[5] + m[5],
+  ];
+}
+
+function apply(m, x, y) {
+  return [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
+}
+
 class RecordingContext {
   constructor() {
     this.ellipses = [];
+    this.texts = [];
+    this.rects = [];
+    this.fillStyle = '#000';
+    this.font = '10px sans-serif';
     this._path = [];
+    this._matrix = IDENTITY;
+    this._stack = [];
   }
   beginPath() {
     this._path = [];
@@ -26,7 +49,51 @@ class RecordingContext {
     this.ellipses.push(...this._path);
     this._path = [];
   }
-  fillRect() {}
+  save() {
+    this._stack.push(this._matrix.slice());
+  }
+  restore() {
+    this._matrix = this._stack.pop();
+  }
+  translate(x, y) {
+    this._matrix = multiply(this._matrix, [1, 0, 0, 1, x, y]);
+  }
+  rotate(angle) {
+    this._matrix = multiply(this._matrix, [
+      Math.cos(angle),
+      Math.sin(angle),
+      -Math.sin(angle),
+      Math.cos(angle),
+      0,
+      0,
+    ]);
+  }
+  scale(x, y) {
+    this._matrix = multiply(this._matrix, [x, 0, 0, y, 0, 0]);
+  }
+  measureText(text) {
+    return { width: 56 * text.length };
+  }
+  fillText(text, x, y) {
+    const [tx, ty] = apply(this._matrix, x, y);
+    const fontPx = Number.parseFloat(this.font.replace(/^[^0-9]*/, ''));
+    this.texts.push({ text, x: tx, y: ty, fontPx, fillStyle: this.fillStyle });
+  }
+  fillRect(x, y, w, h) {
+    const corners = [
+      apply(this._matrix, x, y),
+      apply(this._matrix, x + w, y),
+      apply(this._matrix, x, y + h),
+      apply(this._matrix, x + w, y + h),
+    ];
+    this.rects.push({
+      left: Math.min(...corners.map((c) => c[0])),
+      right: Math.max(...corners.map((c) => c[0])),
+      top: Math.min(...corners.map((c) => c[1])),
+      bottom: Math.max(...corners.map((c) => c[1])),
+      fillStyle: this.fillStyle,
+    });
+  }
 }
 
 function recordAtlas(shape, color) {
@@ -50,7 +117,21 @@ function recordAtlas(shape, color) {
     if (previous === undefined) delete globalThis.OffscreenCanvas;
     else globalThis.OffscreenCanvas = previous;
   }
-  return { atlas, ellipses: contexts[0].ellipses };
+  return {
+    atlas,
+    ellipses: contexts[0].ellipses,
+    texts: contexts[0].texts,
+    rects: contexts[0].rects,
+  };
+}
+
+function cellBox(size, rect) {
+  return {
+    left: size * rect.u0,
+    right: size * rect.u1,
+    top: size * (1 - rect.v1),
+    bottom: size * (1 - rect.v0),
+  };
 }
 
 function overlap(a, b) {
@@ -189,5 +270,99 @@ describe('buildLabelAtlas d6 pips', () => {
     });
     const four = ellipses.slice(0, 4);
     expect(new Set(four.map((pip) => Math.round(pip.x))).size).toBe(2);
+  });
+});
+
+const DIE_COLORS = [
+  { die: [0.78, 0.22, 0.18], ink: 'rgb(245,242,237)' },
+  { die: [0.93, 0.92, 0.88], ink: 'rgb(20,18,18)' },
+];
+
+const CENTERED_TYPES = ['d8', 'd10', 'd12', 'd20'];
+
+describe('buildLabelAtlas d4 corner numbers', () => {
+  it('draws three distinct corner values inside every face cell', () => {
+    const shape = createShape('d4', RADIUS);
+    const { atlas, texts } = recordAtlas(shape, DIE_COLORS[0].die);
+    const { size, rects } = atlas;
+    const layout = faceVertexUvs(shape);
+    expect(texts).toHaveLength(shape.faces.length * 3);
+
+    let index = 0;
+    shape.faces.forEach((face, f) => {
+      const box = cellBox(size, rects[f]);
+      const { rect, uvs } = layout[f];
+      const centerX = (size * (rect.u0 + rect.u1)) / 2;
+      const centerY = size * (1 - (rect.v0 + rect.v1) / 2);
+      const values = [];
+      face.indices.forEach((vi, k) => {
+        const label = texts[index];
+        index += 1;
+        values.push(label.text);
+        expect(label.text).toBe(String(shape.vertexValues[vi]));
+        expect(label.fillStyle).toBe(DIE_COLORS[0].ink);
+        expect(label.fontPx).toBeGreaterThan(0);
+        expect(label.x).toBeCloseTo(centerX + 0.62 * (size * uvs[k][0] - centerX), 6);
+        expect(label.y).toBeCloseTo(centerY + 0.62 * (size * (1 - uvs[k][1]) - centerY), 6);
+        expect(label.x).toBeGreaterThan(box.left);
+        expect(label.x).toBeLessThan(box.right);
+        expect(label.y).toBeGreaterThan(box.top);
+        expect(label.y).toBeLessThan(box.bottom);
+      });
+      expect(new Set(values).size).toBe(3);
+    });
+  });
+});
+
+describe('buildLabelAtlas centered numbers', () => {
+  it('centers the complete face value inside every cell', () => {
+    for (const type of CENTERED_TYPES) {
+      const shape = createShape(type, RADIUS);
+      const { atlas, texts } = recordAtlas(shape, DIE_COLORS[1].die);
+      expect(texts).toHaveLength(shape.faces.length);
+      expect(new Set(shape.faces.map((face) => face.value)).size).toBe(shape.faces.length);
+
+      shape.faces.forEach((face, f) => {
+        const box = cellBox(atlas.size, atlas.rects[f]);
+        const label = texts[f];
+        expect(label.text).toBe(String(face.value));
+        expect(label.fillStyle).toBe(DIE_COLORS[1].ink);
+        expect(label.fontPx).toBeGreaterThan(0);
+        expect(label.x).toBeCloseTo((box.left + box.right) / 2, 6);
+        expect(label.y).toBeCloseTo((box.top + box.bottom) / 2, 6);
+        expect(label.x).toBeGreaterThan(box.left);
+        expect(label.x).toBeLessThan(box.right);
+        expect(label.y).toBeGreaterThan(box.top);
+        expect(label.y).toBeLessThan(box.bottom);
+      });
+    }
+  });
+
+  it('covers one-digit and two-digit values', () => {
+    const digits = new Set();
+    for (const type of CENTERED_TYPES) {
+      const shape = createShape(type, RADIUS);
+      const { texts } = recordAtlas(shape, DIE_COLORS[0].die);
+      for (const label of texts) digits.add(Math.abs(Number(label.text)).toString().length);
+    }
+    expect(digits.has(1)).toBe(true);
+    expect(digits.has(2)).toBe(true);
+  });
+
+  it('keeps the 6 and 9 underlines inside their own cell', () => {
+    const shape = createShape('d10', RADIUS);
+    const { atlas, texts, rects } = recordAtlas(shape, DIE_COLORS[0].die);
+    const marked = shape.faces.map((face, f) => ({ face, f })).filter(({ face }) => ['6', '9'].includes(String(face.value)));
+    expect(marked).toHaveLength(2);
+    expect(rects).toHaveLength(2);
+    marked.forEach(({ f }, i) => {
+      const box = cellBox(atlas.size, atlas.rects[f]);
+      const underline = rects[i];
+      expect(underline.left).toBeGreaterThanOrEqual(box.left - EPS);
+      expect(underline.right).toBeLessThanOrEqual(box.right + EPS);
+      expect(underline.top).toBeGreaterThanOrEqual(box.top - EPS);
+      expect(underline.bottom).toBeLessThanOrEqual(box.bottom + EPS);
+      expect(underline.top).toBeGreaterThan(texts[f].y);
+    });
   });
 });

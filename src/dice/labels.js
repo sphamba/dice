@@ -143,7 +143,7 @@ function drawFaceLabel(ctx, shape, face, rect, ink, size) {
         angle: Math.atan2(-x, y),
         maxWidth: 0.36 * frame.radius,
         maxHeight: 0.5 * frame.radius,
-        sx, sy, ink,
+        sx, sy, px, py, ink,
       });
     }
     return;
@@ -154,7 +154,7 @@ function drawFaceLabel(ctx, shape, face, rect, ink, size) {
     angle: 0,
     maxWidth: 1.7 * inradius,
     maxHeight: 1.15 * inradius,
-    sx, sy, ink,
+    sx, sy, px, py, ink,
   });
 }
 
@@ -170,7 +170,7 @@ function drawPips(ctx, value, { px, py, sx, sy, radius }, ink) {
   }
 }
 
-function drawText(ctx, text, { x, y, angle, maxWidth, maxHeight, sx, sy, ink }) {
+function drawText(ctx, text, { x, y, angle, maxWidth, maxHeight, sx, sy, px, py, ink }) {
   ctx.font = 'bold 100px Arial, "Helvetica Neue", Helvetica, sans-serif';
   const advance = ctx.measureText(text).width;
   // Font size in face units that fits both budgets, then converted to pixels.
@@ -178,7 +178,7 @@ function drawText(ctx, text, { x, y, angle, maxWidth, maxHeight, sx, sy, ink }) 
   const fontPx = fontFace * sy;
 
   ctx.save();
-  ctx.translate(sx * x, -sy * y);
+  ctx.translate(px(x), py(y));
   ctx.rotate(-angle);
   ctx.scale(sx / sy, 1);
   ctx.font = `bold ${fontPx}px Arial, "Helvetica Neue", Helvetica, sans-serif`;
