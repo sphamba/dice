@@ -1,11 +1,13 @@
 ---
 name: "fix: place every non-d6 face number inside its label atlas cell"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/30-numeric-label-placement"
 issuer: "#8"
 complexity: "simple"
 shortName: "numeric-label-placement"
+changes: "{\"base\":\"main\",\"ins\":181,\"del\":6,\"files\":2}"
+commits: "[{\"hash\":\"6d68aaa\",\"subject\":\"fix(dice): draw non-d6 numerals inside their atlas cell\",\"when\":\"2026-11-18T22:42:21+01:00\"}]"
 ---
 
 # Summary
