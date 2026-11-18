@@ -10,6 +10,8 @@ const isKnown = (type) => DICE_TYPES.includes(type);
 
 const total = (set) => DICE_TYPES.reduce((sum, type) => sum + set[type], 0);
 
+const emptySet = () => Object.fromEntries(DICE_TYPES.map((type) => [type, 0]));
+
 export function parseStoredSet(raw) {
   const fallback = () => ({ ...DEFAULT_SET });
   if (typeof raw !== 'string') return fallback();
@@ -22,7 +24,7 @@ export function parseStoredSet(raw) {
   }
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return fallback();
 
-  const set = fallback();
+  const set = emptySet();
   for (const [type, count] of Object.entries(parsed)) {
     if (!isKnown(type) || !Number.isInteger(count) || count < 0) return fallback();
     set[type] = count;

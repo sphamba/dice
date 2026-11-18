@@ -37,6 +37,13 @@ describe('parseStoredSet', () => {
 
   it('fills missing types with zero', () => {
     expect(parseStoredSet('{"d6":3}')).toEqual(setOf({ d6: 3 }));
+    expect(parseStoredSet('{"d20":1}')).toEqual(setOf({ d20: 1 }));
+    expect(parseStoredSet('{"d20":1}').d6).toBe(0);
+  });
+
+  it('falls back to 2 x d6 only when storage is missing or invalid', () => {
+    expect(parseStoredSet(null)).toEqual(setOf({ d6: 2 }));
+    expect(parseStoredSet('{not json')).toEqual(setOf({ d6: 2 }));
   });
 
   it('does not share the DEFAULT_SET object', () => {
