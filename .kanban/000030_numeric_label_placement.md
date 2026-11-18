@@ -1,7 +1,7 @@
 ---
 name: "fix: place every non-d6 face number inside its label atlas cell"
 priority: "high"
-state: "doing"
+state: "to-review"
 worktree: "fix/30-numeric-label-placement"
 issuer: "#8"
 complexity: "simple"
@@ -37,3 +37,10 @@ Only d6 markings are readable. d4, d8, d10, d12 and d20 faces have no usable num
 - `npm run build`
 
 # Notes
+- Deliverable: `src/dice/labels.js` `drawText()` now translates by the caller's atlas `px()`/`py()` cell mapping, so d4 corner numerals and centered d8/d10/d12/d20 values draw inside their own cell instead of at the canvas origin. d6 pip path untouched.
+- Verification: `npx vitest run src/dice/labels.test.js` 10 passed; `npx vitest run src/dice src/render` 72 passed; `npm run build` green with `dist/index.html` referencing `assets/index-B46EH-Ci.js` and `assets/index-DasNQWd4.css`. Live Chromium atlas pixel scan and desktop/phone roll screenshots: all six types PASS, 0 stranded pixels outside cells, 0 ink in the origin block, no console errors.
+- New tests in `src/dice/labels.test.js` record real `fillText`/`fillRect` transforms through a fake 2D context and assert per-cell positions for d4 (three distinct corner values), centered values for d8/d10/d12/d20, one- and two-digit coverage, and the 6/9 underlines inside their cells.
+- Commit `6d68aaa`.
+- Assumptions: the retained `angle = atan2(-x, y)` on d4 corners already satisfies "upright when that corner points up"; the fake-context `measureText` width (56 px per character at 100 px) only feeds font sizing, not asserted ink extents.
+- Blockers: none.
+- Manual checks left to other roles: none.

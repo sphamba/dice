@@ -34,3 +34,21 @@ In `src/main.js`, change only the roll translation ranges:
 - `npm run build`
 
 # Notes
+## Deliverable
+- `src/main.js`: `ROLL_SPEED_MIN/MAX` 0.4-0.8 → 0.8-1.6 m/s, `ROLL_LIFT_MIN/MAX` 0.3-0.6 → 0.6-1.2 m/s. `ROLL_SPIN_MIN/MAX` stays 15-40 rad/s.
+- `rollDice` body unchanged: same random XY direction, lift along negative normalized gravity, held dice skipped. Commit 10e3511.
+
+## Verification
+- `npm test`: 23 files, 228 tests passed.
+- `npm run build`: green; `dist/index.html` references `./assets/index-COenA9U1.js` and `./assets/index-DasNQWd4.css`.
+- No new test added: `main.js` has top-level DOM/WebGL setup and the Vitest environment is `node`, so a regression test would need a `main.js` restructure.
+
+## Assumptions
+- The roll translation contract (linear velocity magnitude = speed, lift opposite gravity) was already correct, so only the four range constants changed.
+- Stronger throws stay contained through the existing box collision and damping; no other parameter touched.
+
+## Blockers
+- None.
+
+## Manual checks left to other roles
+- Live test up to ten mixed dice on phone and desktop: stronger throws, contained, settle without tunneling or console errors, held dice do not move.
