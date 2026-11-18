@@ -1,7 +1,7 @@
 ---
 name: "feat: decide whether a die already held by one pointer may be grabbed by a second pointer"
 priority: "low"
-state: "doing"
+state: "to-review"
 worktree: "feat/18-decide-whether-a"
 issuer: "#13"
 complexity: "trivial"
@@ -24,6 +24,24 @@ Two pointers can hold the same die at the same time: heldBodies() then contains 
 - Add or adjust focused pointer tests only if needed to pin this contract with the corrected drag behavior. Do not add an abstraction or a new multi-pointer coordination policy.
 
 # Notes
+## Deliverable
+- Decision applied as-is: a die already held by one pointer may be grabbed by a second pointer. No production change was needed, `src/input/pointer.js` already stores holds per `pointerId` in a `Map` and never deduplicates `heldBodies()`.
+- Added one focused test in `src/input/pointer.test.js`: two pointers grab the same die, `heldBodies()` returns the body twice, the later held entry decides the frame drive (insertion order), releasing one pointer removes only its entry so the other grab still drives, releasing the last pointer empties `heldBodies()`.
+- Commit `fa74d35`.
+
+## Verification
+- `npm test -- src/input/pointer.test.js` → 10 passed.
+- Contract pinned for the upcoming grabbed-face-point drag correction: it must keep one `held` entry per pointer and must not deduplicate `heldBodies()`.
+
+## Assumptions
+- The current multi-touch behavior is the desired behavior, so the deliverable is a pinned contract test and not a new ownership policy.
+- No new abstraction or multi-pointer coordination code was added, per the implementation scope.
+
+## Blockers
+- None.
+
+## Manual checks left to other roles
+- None.
 
 # Open questions
 
