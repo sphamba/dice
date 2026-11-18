@@ -2,7 +2,7 @@
 name: "fix: place every non-d6 face number inside its label atlas cell"
 priority: "high"
 state: "done"
-worktree: "fix/30-numeric-label-placement"
+worktree: ""
 issuer: "#8"
 complexity: "simple"
 shortName: "numeric-label-placement"
