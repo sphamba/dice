@@ -59,6 +59,10 @@ body {
   justify-content: center;
 }
 
+.panel-rows[hidden] {
+  display: none;
+}
+
 .panel-row {
   display: flex;
   align-items: center;
@@ -79,7 +83,8 @@ body {
 }
 
 .panel-step,
-.panel-roll {
+.panel-roll,
+.panel-toggle {
   min-width: 44px;
   min-height: 44px;
   border: 1px solid rgb(255 255 255 / 12%);
@@ -97,7 +102,8 @@ body {
 }
 
 .panel-step:focus-visible,
-.panel-roll:focus-visible {
+.panel-roll:focus-visible,
+.panel-toggle:focus-visible {
   outline: 2px solid #7aa2ff;
   outline-offset: 2px;
 }
@@ -110,8 +116,13 @@ body {
   letter-spacing: 0.02em;
 }
 
+.panel-toggle {
+  font-size: 0.95rem;
+}
+
 .panel-step:not(:disabled):hover,
-.panel-roll:hover {
+.panel-roll:hover,
+.panel-toggle:hover {
   background: rgb(255 255 255 / 14%);
 }
 

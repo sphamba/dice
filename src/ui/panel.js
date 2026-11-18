@@ -6,6 +6,8 @@ export const DEFAULT_SET = { d4: 0, d6: 2, d8: 0, d10: 0, d12: 0, d20: 0 };
 
 export const STORAGE_KEY = 'dice.set';
 
+export const ROWS_ID = 'dice-rows';
+
 const isKnown = (type) => DICE_TYPES.includes(type);
 
 const total = (set) => DICE_TYPES.reduce((sum, type) => sum + set[type], 0);
@@ -116,6 +118,25 @@ export function createPanel(root, { initialSet, onAdd, onRemove, onRoll } = {}) 
 
   const rows = document.createElement('div');
   rows.className = 'panel-rows';
+  rows.id = ROWS_ID;
+  rows.hidden = true;
+
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'panel-toggle';
+  toggle.textContent = 'Show controls';
+  toggle.setAttribute('aria-expanded', 'false');
+  toggle.setAttribute('aria-controls', ROWS_ID);
+
+  let expanded = false;
+  toggle.addEventListener('click', () => {
+    const wasInRows = rows.contains(document.activeElement);
+    expanded = !expanded;
+    rows.hidden = !expanded;
+    toggle.textContent = expanded ? 'Hide controls' : 'Show controls';
+    toggle.setAttribute('aria-expanded', String(expanded));
+    if (!expanded && wasInRows) toggle.focus();
+  });
 
   const syncers = [];
   const syncAll = () => syncers.forEach((sync) => sync());
@@ -142,11 +163,12 @@ export function createPanel(root, { initialSet, onAdd, onRemove, onRoll } = {}) 
   roll.setAttribute('aria-label', 'Roll dice');
   roll.addEventListener('click', () => onRoll?.());
 
-  panel.append(rows, roll);
+  panel.append(toggle, rows, roll);
   panel.addEventListener('pointerdown', (event) => event.stopPropagation());
 
   const onKeyDown = (event) => {
     if (event.code !== 'Space' || event.repeat) return;
+    if (event.target?.tagName === 'BUTTON') return;
     event.preventDefault();
     onRoll?.();
   };
