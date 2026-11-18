@@ -2,7 +2,7 @@
 name: "feat: synthesized impact sounds with plate modes, and haptics"
 priority: "medium"
 state: "done"
-worktree: "feat/9-modal-sound-haptics"
+worktree: ""
 issuer: "user"
 complexity: "simple"
 shortName: "modal-sound-haptics"
