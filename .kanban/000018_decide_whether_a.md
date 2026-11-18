@@ -1,8 +1,8 @@
 ---
 name: "feat: decide whether a die already held by one pointer may be grabbed by a second pointer"
 priority: "low"
-state: "to-do"
-worktree: ""
+state: "doing"
+worktree: "feat/18-decide-whether-a"
 issuer: "#13"
 complexity: "trivial"
 blockedBy: ""
