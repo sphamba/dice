@@ -12,10 +12,10 @@ import { createHaptics } from './audio/haptics.js';
 import { createSound } from './audio/sound.js';
 import { createPanel } from './ui/panel.js';
 
-export const ROLL_SPEED_MIN = 0.4;
-export const ROLL_SPEED_MAX = 0.8;
-export const ROLL_LIFT_MIN = 0.3;
-export const ROLL_LIFT_MAX = 0.6;
+export const ROLL_SPEED_MIN = 0.8;
+export const ROLL_SPEED_MAX = 1.6;
+export const ROLL_LIFT_MIN = 0.6;
+export const ROLL_LIFT_MAX = 1.2;
 export const ROLL_SPIN_MIN = 15;
 export const ROLL_SPIN_MAX = 40;
 
