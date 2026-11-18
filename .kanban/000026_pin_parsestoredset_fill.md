@@ -1,12 +1,14 @@
 ---
 name: "fix: pin parseStoredSet fill for missing keys (DEFAULT_SET vs 0)"
 priority: "low"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/26-pin-parsestoredset-fill"
 issuer: "#24"
 complexity: "trivial"
 blockedBy: ""
 map: "{\"files\":[{\"path\":\"src/ui/panel.js\",\"symbols\":[{\"name\":\"emptySet\",\"kind\":\"fn\",\"ins\":2,\"del\":0,\"isNew\":true},{\"name\":\"parseStoredSet\",\"kind\":\"fn\",\"ins\":1,\"del\":1,\"isNew\":false}]},{\"path\":\"src/ui/panel.test.js\",\"symbols\":[{\"name\":\"fills missing types with zero\",\"kind\":\"case\",\"ins\":3,\"del\":0,\"isNew\":false},{\"name\":\"falls back to 2 x d6 only when storage is missing or invalid\",\"kind\":\"case\",\"ins\":4,\"del\":0,\"isNew\":true}]}],\"flows\":[],\"role\":\"developer\",\"run\":0,\"model\":\"DeepSeek V4.1 Flash\",\"at\":\"2026-11-18T21:34:27.578Z\",\"head\":\"c6ba85b\"}"
+changes: "{\"base\":\"main\",\"ins\":10,\"del\":1,\"files\":2}"
+commits: "[{\"hash\":\"17fee15\",\"subject\":\"fix(ui): fill missing stored dice types with zero\",\"when\":\"2026-11-18T22:33:33+01:00\"}]"
 ---
 
 # Summary
