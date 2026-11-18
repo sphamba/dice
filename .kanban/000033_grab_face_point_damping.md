@@ -1,7 +1,7 @@
 ---
 name: "fix: drag dice by the grabbed face point with linear and angular damping"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "#8"
 complexity: "moderate"
