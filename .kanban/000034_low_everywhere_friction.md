@@ -1,7 +1,7 @@
 ---
 name: "fix: reduce box and die friction and clamp diagonal friction correctly"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "#8"
 complexity: "simple"
