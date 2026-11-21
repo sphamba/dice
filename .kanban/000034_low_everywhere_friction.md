@@ -2,7 +2,7 @@
 name: "fix: reduce box and die friction and clamp diagonal friction correctly"
 priority: "high"
 state: "done"
-worktree: "fix/34-low-everywhere-friction"
+worktree: ""
 issuer: "#8"
 complexity: "simple"
 shortName: "low-everywhere-friction"
