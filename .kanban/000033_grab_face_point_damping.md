@@ -42,26 +42,11 @@ Use exact ray/face picking and retain a body-local grab point. Drive that point 
 - `npm run build`
 
 # Notes
-## Deliverable
-- `src/input/pointer.js`: rays are intersected with the transformed convex faces of each die (plane solve on the orthographic downward ray plus per-edge containment), and the closest non-negative surface hit wins across bodies, so the nearest surface replaces the old greatest-center-z rule. The bounding circle stays only as a broad-phase prune.
-- Pointer down converts the world hit to a body-local offset. Every fixed step rotates that offset with the current orientation and drives the center so the material point tracks pointer XY, with `linearVelocity + angularVelocity x rotatedOffset` accounted for, so damping the spin does not pull the anchor off the finger. Center z still drives to hold height `D - 2 * radius`.
-- Held damping lives in the existing `world.beforeStep` drive: frame-rate-independent exponential gain for the point pull and per-step exponential decay of angular velocity. No new world callback, unheld integrator damping unchanged, no upright forcing.
-- Release/fling untouched: pointer velocity to center XY, `vz = 0`, residual spin plus the existing speed-based random spin, 3 m/s clamp, pointercancel handled as before.
-- `src/input/pointer.test.js` rewritten: exact top-face hit for every die type (d4, d6, d8, d10, d12, d20 real shape data), tilted off-center grab anchored to the pressed material point, miss inside the bounding circle but outside the face, nearest-surface pick between overlapping dice with a lower center, no center snap on an off-center grab, anchor and height within 1 mm at 30/60/144 fps, pointer jump with under 2 mm overshoot and held XY speed at the drag clamp, 60 rad/s spin to under 0.1 rad/s within one second and monotone decay, linear rest without drift, duplicate shared holds in insertion order, and pointercancel keeping the other grab.
+## Review progress (held at watch checkpoint)
 
-## Verification
-- `npx vitest run src/input/pointer.test.js`: 15 passed.
-- `npm run build`: green; `dist/index.html` references `./assets/index-CG-QCp7E.js` and `./assets/index-DasNQWd4.css`.
-- Commit `2cef6cc` on `fix/33-grab-face-point-damping`.
-
-## Assumptions
-- Held drive commands the point velocity directly from the current anchor error instead of retaining momentum: this is the only shape that meets the settle, no-snap and no-overshoot requirements at every frame rate, and it keeps the old drag-speed clamp.
-- Hold damping constants are unexported module values (120 1/s point pull, 8 1/s angular decay); tests assert the spec thresholds, not the constants.
-- Bodies without face data are not pickable; every body from `createBody` has shape faces.
-- Duplicate holds damp spin once per held entry, so a shared grab decays slightly faster.
-
-## Blockers
-- None.
-
-## Manual checks left to other roles
-- Confirm in a browser that a die grabbed near a face edge or vertex does not slide under the finger and that a held fling still spins.
+- Scope confirmed: single commit `2cef6cc` on `fix/33-grab-face-point-damping`, touching `src/input/pointer.js` (+125/-?) and `src/input/pointer.test.js` (284 insertions, 95 deletions vs `main`).
+- Interfaces verified once: `world.beforeStep` contract and `FIXED_DT` in `src/physics/world.js`, `quat`/`vec3` helpers, `integrator.js` untouched (unheld damping unchanged), `main.js` rollDice wraps `heldBodies()` in a `Set` so duplicate holds stay safe for roll exclusion.
+- Acceptance commands initially failed only because this worktree's copied `node_modules/.bin` shims are dereferenced symlinks (untracked, environment artifact, not work product). Restored the `vitest`/`vite` symlinks locally; then `npx vitest run src/input/pointer.test.js` = 15 passed, `npm run build` = green with the exact asset hashes the developer reported (`index-CG-QCp7E.js`, `index-DasNQWd4.css`).
+- Spec-by-spec code review done: plane-solve + winding containment math derived correct for convex CCW faces; body-local offset conversion, `linearVelocity + omega x rotatedOffset` compensation, hold height `D - 2 * radius`, frame-rate-independent gain `1 - exp(-k dt)` over dt in the fixed-step path, angular decay `1/(1 + k dt)` per fixed step; no new world callback; release/fling/pointercancel untouched; multi-pointer insertion order and last-pointer drive covered by tests; every regression-coverage bullet maps to a test.
+- In progress: one numeric Node probe (`probe.mjs`, untracked, removed after the run) validating the pick against an independent brute-force Moller-Trumbore ray-triangle intersection on tilted real shapes for all six die types, and the full local offset + omega x r compensation through `world.beforeStep` with measured post-decay omega.
+- Remaining: run the probe once, delete it, then write the final review Notes with the outcome. Current leaning: approved, no code fixes needed.
