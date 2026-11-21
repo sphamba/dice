@@ -34,12 +34,13 @@ Lower box and die-die Coulomb friction to 0.10 and use a true 2D friction disk s
 - `npm run build`
 
 # Notes
-## Review outcome: approved (no fixes committed, state unchanged)
+## Live test in progress (held at watch checkpoint)
 
-- Spec verified in the diff: FRICTION_BOX/FRICTION_DIE = 0.10; `solveAxis` split into `solveNormal` + `solveFriction` with one 2D Coulomb disk clamping the combined tangent magnitude to `mu * normal.impulse`, so diagonal motion cannot reach sqrt(2) times the coefficient. Solver iterations, restitution, Baumgarte, event thresholds, and free/contact angular damping are untouched; `FRICTION_*` and tangents have no consumers outside contacts.js; audio uses only the summed normal event impulse, which kept its semantics.
-- `containBody` fix accepted as in scope and correct: with any nonzero push on another axis (e.g. floor penetration), the old loop's ternary zeroed positive x/y velocity on zero-push axes, which blocked +x/+y sliding; the new `push[axis] === 0` skip removes that bug and adds no damping. The developer disclosed it in Notes.
-- Tests: `contacts.test.js` 18/18, `world.test.js` 13/13, `npm run build` green (dist hashes match the Notes; needed the documented node_modules/.bin symlink repair). New regression coverage matches the spec: one-axis test retained, diagonal disk bound, incline hold at 5 degrees and slide at 10 degrees, mixed-dice level settling, tilted-gravity 10-degree slide, all passing.
-- Performance test: the e2e `performance` threshold (500 ms) fails intermittently here, but an A/B on a git-archive copy of `main` (main checkout untouched) failed 4/4 runs at 584-612 ms, so this is pre-existing machine noise, not a regression from this change. The developer's environment-noise interpretation is verified and accepted, as is the `MIN_IMPULSE = 1e-12` skip (probe confirms exact disk saturation despite it).
-- Independent numeric probe: applied friction impulse saturates exactly at `mu * N` (0.065) for tangent directions 0/15/30/45/60/75/90 degrees, restitution target preserved, and the incline boundary sits between 5.5 and 5.9 degrees, matching the documented atan(0.1) ~ 5.71 degrees.
-- Deferred to live testing: browser check of tilted-device gravity on walls and die-die contacts at phone and desktop sizes.
-- Guidance for future reviewers: run only `contacts.test.js` and `world.test.js` plus one `world.e2e.test.js` pass, and weigh the `performance` case against a `main` baseline before calling it a regression.
+Plan committed: Playwright (absolute path from /home/phamba/repos/tarot/app/node_modules/playwright, chromium-1217 in ~/.cache/ms-playwright) against `npx vite --port 8731` served from this worktree. Tilt input via synthetic `devicemotion` dispatch mapped per motion.js (`IOS ? -1 : 1` sign); observation via a test-only route rewrite of `/src/main.js` that rebinds `createWorld` to record the live world instance (no app-behavior change; repo untouched).
+
+Done so far:
+- Read TASK.md; the deferred item is: browser check of tilted-device gravity on walls and die-die contacts at phone and desktop sizes, plus level-floor settling, containment, no tunneling/NaN.
+- Code inspection for the flows under test: contacts.js (FRICTION_BOX/DIE = 0.10, 2D Coulomb disk in solveFriction), world.js (containBody, FIXED_DT 1/480, MAX_STEPS 16, MAX_FRAME_DT 0.1), motion.js (devicemotion → deviceToWorldGravity, MAX_GRAVITY 4g), panel.js (Roll button, Add/Remove d6 rows, DEFAULT_SET 2x d6), body.js (DIE_RADIUS = 0.016*sqrt(3)/2 ≈ 13.86 mm), integrator.js (LINEAR_DAMPING 0.1, ANGULAR_DAMPING 0.2 preserved).
+- Planned scenarios: probe (WebGL2, spy, devicemotion plumbing, fps, console audit); tilt slide/flip at 10 deg on desktop and phone (dice must leave a wall and cross the floor both ways); tilt hold at 4 deg below the atan(0.1) ≈ 5.7 deg critical angle (no drift); die-die pile of 6 dice under 12 deg tilt with flip (phone); level-floor roll settling; tilted roll with audio/haptics path. Checks: dice reach the far wall, no drift below critical angle, containment (per-vertex), no NaN, settled speeds, no tunneling, console clean.
+
+No test run has completed yet; no findings so far. Test scenarios are written and about to execute after release.
