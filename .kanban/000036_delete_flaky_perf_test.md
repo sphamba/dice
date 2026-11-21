@@ -1,0 +1,27 @@
+---
+name: "fix: delete the flaky ten-dice wall-time performance test"
+priority: "medium"
+state: "backlog"
+worktree: ""
+issuer: "#34"
+complexity: "trivial"
+shortName: "delete-flaky-perf-test"
+---
+
+# Summary
+Delete the wall-time performance test in src/physics/world.e2e.test.js. It fails on main at 584-612 ms against its 500 ms limit because of JIT warm-up and parallel test files, so it can block merges.
+
+# Specs
+# Need
+- Delete the test `simulates ten dice for one second in under 500 ms` in `src/physics/world.e2e.test.js` (about lines 255-271 on main).
+- Remove an import, constant or helper only when this test was its last user. Keep everything that other tests still use.
+
+# Constraints
+- Do not change any other test or any source file under `src/` other than `src/physics/world.e2e.test.js`.
+- Do not add a replacement timing check.
+
+# Acceptance criteria
+- `grep -n "under 500 ms" src/physics/world.e2e.test.js` finds nothing.
+- The file has no unused imports or helpers that this deletion caused.
+
+# Notes
