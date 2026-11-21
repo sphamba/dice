@@ -3,6 +3,15 @@ import * as vec3 from './math/vec3.js';
 import { DIE_RADIUS, createBody } from './physics/body.js';
 import { boxFromViewport } from './physics/box.js';
 import { MAX_FRAME_DT, createWorld } from './physics/world.js';
+import {
+  ROLL_RISE_MAX,
+  ROLL_RISE_MIN,
+  ROLL_SPEED_MAX,
+  ROLL_SPEED_MIN,
+  ROLL_SPIN_MAX,
+  ROLL_SPIN_MIN,
+  rollVelocity,
+} from './physics/roll.js';
 import { createShape } from './dice/shapes.js';
 import { createRenderer } from './render/renderer.js';
 import { backingSize } from './render/canvas-size.js';
@@ -11,13 +20,6 @@ import { createPointer } from './input/pointer.js';
 import { createHaptics } from './audio/haptics.js';
 import { createSound } from './audio/sound.js';
 import { createPanel } from './ui/panel.js';
-
-export const ROLL_SPEED_MIN = 0.8;
-export const ROLL_SPEED_MAX = 1.6;
-export const ROLL_LIFT_MIN = 0.6;
-export const ROLL_LIFT_MAX = 1.2;
-export const ROLL_SPIN_MIN = 15;
-export const ROLL_SPIN_MAX = 40;
 
 const SPAWN_SPEED = 0.2;
 const SPAWN_TRIES = 50;
@@ -115,23 +117,19 @@ if (!gl) {
     world.removeBody(list.pop());
   }
 
-  const gravityDirection = new Float64Array(3);
   const direction = new Float64Array(3);
 
   function rollDice() {
     const held = new Set(pointer.heldBodies());
-    vec3.normalize(gravityDirection, world.gravity);
     for (const body of world.bodies) {
       if (held.has(body)) continue;
-      const angle = Math.random() * 2 * Math.PI;
-      const speed = randomRange(ROLL_SPEED_MIN, ROLL_SPEED_MAX);
-      const lift = randomRange(ROLL_LIFT_MIN, ROLL_LIFT_MAX);
-      vec3.set(
-        body.linearVelocity,
-        speed * Math.cos(angle) - gravityDirection[0] * lift,
-        speed * Math.sin(angle) - gravityDirection[1] * lift,
-        -gravityDirection[2] * lift,
-      );
+      rollVelocity(body.linearVelocity, {
+        box: world.box,
+        gravity: world.gravity,
+        angle: Math.random() * 2 * Math.PI,
+        speed: randomRange(ROLL_SPEED_MIN, ROLL_SPEED_MAX),
+        rise: randomRange(ROLL_RISE_MIN, ROLL_RISE_MAX),
+      });
       const spin = randomRange(ROLL_SPIN_MIN, ROLL_SPIN_MAX);
       vec3.scale(body.angularVelocity, randomAxis(direction), spin);
     }
