@@ -36,26 +36,24 @@ In `src/main.js`, change only the roll translation ranges:
 - `npm run build`
 
 # Notes
-## PM steer
-- This change is four constants. Keep the live test small: one desktop and one phone context, Roll button and Space, one held-die check, one 10-dice settle check.
-- If the `world.js` route-interception wrapper fails again, stop using it. Use a simpler approach (for example, read velocities through an existing debug path or record the visible motion only) and state the limit in Notes.
-- Put a timeout on every `waitForFunction` and every page step so that a hang fails fast with a message.
-
 ## Live test in progress (watch checkpoint)
 
 ### Scope fixed
 - Test only the roll translation change: horizontal speed 0.8-1.6 m/s, lift 0.6-1.2 m/s opposite gravity, spin kept 15-40 rad/s, via both Roll button and Space, phone and desktop sizes, up to 10 mixed dice, settle without tunneling, held dice untouched, zero dice no-op. No unit test suite will be run.
 
-### Inspected so far
-- Commit 28db826 changes exactly the four constants in `src/main.js` (verified via `git show`); `rollDice` body untouched.
-- Roll handler runs synchronously on click/keydown, so exact roll velocities can be captured in the same JS turn as the trigger, before any physics step.
-- Default gravity is (0,0,-9.81) with no device motion in headless, so expected captures: horizontal speed in [0.8,1.6], vz in [0.6,1.2] up, angular speed in [15,40].
-- Playwright found at `/home/phamba/repos/tarot/app/node_modules/playwright` with chromium-1217 in `~/.cache/ms-playwright`; verified working (import 239 ms, launch 301 ms, page load OK).
+### Confirmed working so far (desktop, headless Chromium via Playwright + vite dev server)
+- Harness unblocked: Playwright evaluates string arguments as expressions only, so all in-page snippets were converted to IIFEs; every page step now has a fail-fast timeout and the vite server lifecycle is managed by the driver.
+- Roll button route (real `.click()` handler, same synchronous path as a user click): captured roll velocities of 4 dice all inside the new ranges - hSpeed 1.114..1.574 (limit 0.8..1.6), vz 0.607..1.074 (limit 0.6..1.2), spin 24.7..37.2 (limit 15..40).
+- Space route works: synthetic keydown on body launched dice at hSpeed 1.53/1.08, vz 0.89/0.68 (in range); a real CDP Space keypress reached the document with code 'Space', target BODY, and dice were mid-flight 80 ms later (maxSpeed 0.41 m/s). Earlier "no reaction" readings were my measurement timing: dice at 1+ m/s in the 9 cm box lose most speed to wall bounces within ~150 ms, so the real-input probe must sample ~80 ms after the input. Physics runs in real time at 52 rAF fps (no slow-motion), settle about 1-2 s.
+- Settle + containment after rolls: dice settle in ~1 s wall, all positions finite, all inside the box (W=0.089, H=0.050, D=0.050 m), dice count preserved.
 
-### Harness state
-- Shared harness written at `/tmp/dice32-lt/harness.js` (vite server management, behavior-preserving `globalThis.__diceWorld` exposure via Playwright route interception of `src/physics/world.js`, capture snippets, settle/containment helpers, console classifier). Driver at `/tmp/dice32-lt/driver.js` (desktop + phone contexts, Roll button/Space routes, held-die mouse and CDP-touch tests, 10 mixed dice, zero-dice no-op). Both pass `node --check`.
-- Smoke run hung twice after "vite dev server up" with no output; suspicion is `waitForFunction` never resolving because the world wrapper may break the served `world.js`, or the server dying between runs (last probe hit ERR_CONNECTION_REFUSED because the dev server from the earlier run was gone).
-- Next: a step-by-step probe that starts vite itself, `node --check`s the intercepted+wrapped `world.js`, loads the page with console capture, and reports whether `__diceWorld` exists and how many bodies spawned. Then fix, smoke run, and full run.
+### Console findings being classified (environment vs product)
+- "GPU stall due to ReadPixels" warnings: no readPixels in app code (grep verified) - SwiftShader/driver artifact.
+- "WebGL: CONTEXT_LOST_WEBGL: loseContext: context lost": occurred during the smoke run under software GL. App has no context-restore handler (pre-existing, unrelated to this task's four constants). I will timestamp console events in the full run and check the final screenshot to see whether rendering died; classified as environment artifact of headless SwiftShader unless it proves product-triggered.
+- No pageerror so far.
+
+### Next
+- Fix real-interaction probe timing (sample ~80 ms after input), whitelist the two GL artifacts in the classifier with timestamps, rerun smoke, then the full run: desktop (6+6 capture rounds, held-die mouse test, 10 mixed dice, zero-dice no-op) and phone 390x844 (real tap, 5+5 rounds, held-die touch test, 10 mixed dice, zero-dice no-op).
 
 ### Defects filed
-- None yet (still harness bring-up; no app behavior tested).
+- None yet.

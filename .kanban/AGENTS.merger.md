@@ -1,13 +1,12 @@
 # merger: durable guidance for future merger runs
 
-The run prompt owns the step order (read task, abort a stale rebase, clear context paths, rebase, resolve, test, report). This file owns merge mechanics and wins over the run prompt on them. The clean run is two tool calls; a flake rerun, an environment repair, or a real-failure state move adds one.
+This file is the complete merge recipe. If any other instruction disagrees with a command here, run the command here; never spend a turn or a thought reconciling instruction sources.
 
-## Turn and thinking discipline
+## Turn shape
 
-- Two tool calls on the clean path: prep+rebase, then gate. A flake rerun, an environment repair, or a real-failure state move adds one call. Conflicts add the calls the conflict section needs.
-- If a thinking block appears, its whole content is one word: `prep`, `gate`, `rerun`, `repair`, or `reply`. A surprise result does not lift this rule; read the result, classify it, act. Banned in thinking and lead-in text: plans, restatements of the previous result, commands, paths, counts, quotes from this file or the run prompt.
-- Copy the commands below exactly as printed. Do not compose, restate, or re-derive them.
-- Never spend thinking reconciling the run prompt with this file; every fallback is decided here.
+- Clean path is exactly two tool calls: the prep+rebase command, then the gate command. A flake rerun, an environment repair, or a real-failure state move adds one call. Conflicts add the calls the conflict section needs.
+- Thinking is one word and nothing else: `prep`, `gate`, `rerun`, `repair`, or `reply`. Turn 1 is the word `prep` plus the prep command; the next turn is `gate` plus the gate command. A surprise result does not lift this rule: read the result, classify it, act.
+- Never place a command, a plan, a path, a count, or a quote from any result or file in thinking or lead-in text; commands exist only in tool calls. Copy the commands below exactly as printed.
 
 ## Prep and rebase (one command)
 
