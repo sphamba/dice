@@ -38,6 +38,7 @@ The #32 roll lift (0.6-1.2 m/s) throws dice past the glass lid in a 50 mm box. D
 # Notes
 ## PM steer
 - Higher toss per the new Specs: lift from the headroom (centre to lid along the lift direction, minus DIE_RADIUS), random fraction 0.60-0.95 per die, roll alone never touches the lid.
+- Settling the die before the toss in the test is correct. Do not change the 0.60-0.95 range yourself. If 0.95 still touches the lid after the die settles, keep 0.95, write the largest fraction that clears in Notes, and add an Open question for the user.
 
 ## Current state (in progress, not committed)
 - `src/physics/roll.js` now exports `headroom(box, position, up)`, `liftSpeed(box, gravity, position, rise)` and `rollVelocity(out, { box, gravity, position, angle, speed, rise })` with `ROLL_RISE_MIN = 0.6`, `ROLL_RISE_MAX = 0.95`. Headroom is the ray-box exit distance from the die centre along the lift direction, using per-axis limits x in [-W/2, W/2], y in [-H/2, H/2], z in [0, D], minus DIE_RADIUS.
@@ -46,10 +47,10 @@ The #32 roll lift (0.6-1.2 m/s) throws dice past the glass lid in a 50 mm box. D
 - Unit test and the apex and settle assertions pass. The lid-contact assertion still fails on a few orientations.
 
 ## Open cause (evidence of record)
-- The test fixture spawns the die at z = DIE_RADIUS with a random orientation, so corners start up to 5.9 mm inside the floor. The Baumgarte push and restitution then kick the die upward by itself, and a lid contact appears at every rise fraction from 0.80 to 0.95 (sweep of 48 configs per box), with a worst vertex gap of 0.2 mm. The lift is therefore not the remaining cause: the fixture must settle the die first, as the page does before a roll.
+- The test fixture spawns the die at z = DIE_RADIUS with a random orientation, so corners start up to 5.9 mm inside the floor. The Baumgarte push and restitution then kick the die upward by itself, and a lid contact appears at every rise fraction from 0.80 to 0.95 (sweep of 48 configs per box), with a worst vertex gap of 0.2 mm.
 
 ## Next step
-- Settle the die before the toss in the test, re-run, then check whether 0.95 of the headroom clears the lid on the smallest box, or take the largest fraction that does and record the value as an assumption.
+- Settle the die before the toss in the test and re-run.
 
 ## Earlier committed work
 - HEAD 696fede: the previous 0.1-0.2 of D lift, `npm test` 254 passed, build green.
@@ -57,4 +58,3 @@ The #32 roll lift (0.6-1.2 m/s) throws dice past the glass lid in a 50 mm box. D
 
 ## Blockers
 - None.
-
