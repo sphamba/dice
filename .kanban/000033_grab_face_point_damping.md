@@ -44,14 +44,20 @@ Use exact ray/face picking and retain a body-local grab point. Drive that point 
 - `npm run build`
 
 # Notes
-## Review outcome: approved
+Live test in progress (environment probe mostly done, no product findings yet).
 
-- Verified commit `2cef6cc` against every spec bullet; no code fixes needed; no state move.
-- Acceptance: `npx vitest run src/input/pointer.test.js` 15 passed; `npm run build` green with identical asset hashes (`index-CG-QCp7E.js`, `index-DasNQWd4.css`). Both commands first failed only because this worktree's copied `node_modules/.bin` shims lost their symlink targets; restored the `vitest`/`vite` symlinks (untracked environment fix, nothing committed).
-- Independent numeric probe (run once, then deleted): for all six die types tilted about (1,2,3) by 0.7 rad, the plane-solve + winding-containment pick matches a brute-force Moller-Trumbore ray-triangle hit, and the drive's `linearVelocity = pull - omega x rWorld` compensation matches with measured post-decay omega within 1e-9.
-- Spec checks: exact face pick, body-local anchor, no center snap (1e-9 one-frame test), settle within 1 mm at 30/60/144 fps, under 2 mm jump overshoot with XY speed at the drag clamp, 60 rad/s to under 0.1 rad/s monotone within 1 s, linear rest without drift, nearest-surface pick over greatest center z, bounding-circle miss holds nothing, duplicate shared holds with last-pointer drive, pointercancel keeps the other grab, release/fling and 3 m/s clamp untouched, no new world callback, integrator damping unchanged, roll exclusion safe via Set in `main.js`.
-- Accepted (developer-documented): velocity-servo drive instead of momentum retention; unexported damping constants with tests asserting thresholds; faceless bodies unpickable; duplicate holds decay spin once per entry.
-- Accepted deviation (found in review, undocumented): the drag clamp now bounds only the XY point pull before spin compensation and the z pull is unclamped, so the initial rise to hold height can transiently exceed 2 m/s (bounded exponential, worst case about 2.8 m/s, no overshoot; anchor XY stays within the clamp). Spec requires no hold-path z clamp.
-- Deferred to live testing: a die grabbed near a face edge or vertex must not slide under the finger; a held fling still spins.
+Setup: serving the worktree `dist` (asset hashes match the approved review: index-CG-QCp7E.js) via python http.server on 127.0.0.1:4733; Playwright (chromium 147) from /home/phamba/repos/tarot/app; harness in /tmp/dice-lt33 (lib.mjs shared: screenshot->PNG->ImageMagick raw->red-die blob analysis with pip-hole fill + convex hull, CDP touch helpers, box math). No code edits; storage seeded once per fresh context with the app's own format `dice.set={"d6":1}`.
 
-Guidance: in this worktree restore `node_modules/.bin` symlinks before trusting the acceptance commands; validate pick math against ray-triangle brute force, not a re-implementation of the winding test.
+Probe facts pinned so far:
+- Viewport 1280x800, dpr 1: box W=0.08 m, H=D=0.05 m, px/m=16000, die circumradius 221.7 px, face halfwidth 128 px, 2 mm = 32 px.
+- Headless fps ~29.5 (SwiftShader); initial settle ~1.7 s; no console errors on load.
+- Red-mask blob analysis isolates the die cleanly (area 65604 px, one blob); shadows/background/panel excluded.
+- Mouse grab plumbing works end to end: off-center press + drag, die followed the pointer.
+- CDP touch -> pointer events: touchStart yields pointerdown with pointerType=touch, pointerId 2 then 3 for a second simultaneous point. Hit a harness bug: each touch() call opened a NEW CDP session, so touchMove was rejected ("Must send a TouchStart first"). Fix planned: reuse one CDP session per page for the whole touch sequence, then finish pinning touchMove/touchEnd/touchCancel semantics.
+
+Design assumptions for the usage tests (from reading src/input/pointer.js, main.js, physics/*):
+- Camera is orthographic top-down: world z is invisible on screen, so hold height, vz=0 on release and drop behavior are only indirectly observable (XY tracking, occlusion, stacking outcomes). Numeric anchor tolerances (1 mm/2 mm, 30/60/144 fps) stay with the unit suite; live checks are behavioral.
+- At 1280x800 hold height D-2r = 0.0223 m, so a held die genuinely hovers (bottom ~0.0084 m above floor): enables the hover-over-second-die scenario for nearest-surface pick + shared multi-pointer grab (#18).
+- At phone viewport 390x844 the box depth (0.0225 m) is smaller than 2r (0.0277 m): a held die cannot lift there (drive z-target is below the floor and containBody clamps); drag still works. The spec preserves the D-2r formula, so this is an observation, not a defect.
+
+Remaining plan: probe touch semantics (fixed CDP session), then scenario driver: off-center grab no center-snap + point-tracks-pointer drag; near-edge/vertex hold no slide; bounding-circle miss holds nothing (with positive control); roll -> mid-tumble grab calms to rest without forced upright; fling (direction, tumble, containment) + synthetic over-speed fling containment; panel Roll exclusion while held + d8 grab sanity; two-pointer shared grab (mouse + touch): last pointer wins, partial release, return to first pointer; pointercancel release. Report via kanban_create defect cards + Notes rewrite.
