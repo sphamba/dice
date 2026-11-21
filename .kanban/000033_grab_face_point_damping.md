@@ -44,21 +44,12 @@ Use exact ray/face picking and retain a body-local grab point. Drive that point 
 - `npm run build`
 
 # Notes
-Live test #33, run5 complete on the fresh HEAD build (index-CG-QCp7E.js was stale; serving /tmp/dice-lt33/dist-check = fresh build of 507cf53 — environment finding for the merger pipeline, not a grab-code defect).
+Live test #33 status: page-1 core behavior all PASS on the fresh HEAD build (S1 off-center grab no-snap 0.0px drift, S2 slow drag exact follow, S3 near-vertex grab, S4 outside-silhouette no-grab + positive control, S5 mid-tumble catch calms with 0.0px vector and 0.0deg mask-angle drift, S6 fling departs + tumbles + contained, S6b slow release no fling). S6 tumble confirmed via mask angle 50->57->64->-31deg across clipped flight frames.
 
-PASSING (core spec behavior, all with 0.0px drift measurements):
-- S1 off-center grab +60px: no center snap/slide over 2.5s hold, offset vector constant, center stays 60px off pointer.
-- S2 slow drag 240px: die follows exactly (centroid lands at press+drag-off), material point stays under pointer, center never pulled in.
-- S3 near-vertex grab 154px from center: no slide, follows.
-- S4 press inside bounding circle (140px) but outside silhouette: holds nothing (0.1px), positive control grab right after works.
-- S5 mid-tumble catch (retry-press loop caught on attempt 0): held die calms to static ~1.0s after grab, grabbed-point vector drift 0.0px, mask-angle drift 0.0deg over 0.9s hold (damped, orientation not forced).
-- S6 fling: departs +x, tumbling confirmed (mask angle 50->57->64->-31 deg across fast clipped flight frames), stays inside walls.
-- S6b slow release: no fling (0px). S6c over-speed synthetic fling (3 m/s input): die moves 213-336px, contained in all 8 frames.
-- S8 plumbing: touch grab moves the die; pointercancel event fires (pev log confirms pointerdown id=2 touch + pointercancel).
+S8 investigation COMPLETE, root cause found, product defect FILED as card #37:
+- The S8 detector used "Roll tumbles the die" as the stuck-hold signal. That signal is INVALID: card #37 = after one Roll click, dice are thrown up with ROLL_LIFT 0.6-1.2 m/s in a 0.05 m-tall box, slam into the ceiling and stay PINNED mid-air, static for the full 20 s measured (14 frames, whole-scene diff 5-13 px, die frozen at (525,334)). Every earlier "die settled before a slow frame" oddity matches this pin. Filed with evidence and fix direction (scale lift to the box / fix wake); it is a roll-feature defect, not a grab-code defect, and it blocks the old S8 method only.
+- Also calibrated: in the fresh build a grabbed resting die does NOT lift (y constant 243 through hold+release; the drive holds z at grab-time z), so a fall-based probe needs an airborne grab. CDP rejects a bare touchMove after touchCancel, but a synthetic pointercancel for the touch pointerId leaves the CDP touch session active, so post-cancel touchMove still dispatches.
 
-OPEN, under analysis:
-1. S8 CRITICAL SUSPECT: after both real-touch pointercancel and synthetic mouse pointercancel, the subsequent panel Roll moved NOTHING (scene pixel diff 11/6, die-region diff 7/6). Since rollDice excludes held bodies, zero movement is consistent with a STUCK HOLD after pointercancel (product defect candidate). Before filing: must rule out harness causes — verifying with the actual s8 frames (die position/visibility) and an isolated rerun (single die, roll clicked manually, also testing WITHOUT any prior grab as a control). Note the app binds pointercancel to the same onRelease as pointerup, and the event log shows the cancel fired, so if the hold survives it is a real bug in entry cleanup (e.g. cancel path differing from the CDP touch path).
-2. S5 'grab live after calm' FAIL = harness timing: check formula double-counted the +60px drag (pointerPos already updated), and 300ms settle is short vs ~30fps headless convergence; observed die lagged 71px behind pointer, consistent with damping lag not loss of hold. Fixing formula + 900ms settle.
-3. S6c movement threshold 250px too strict vs bounce variance (213-336px observed across runs); lowering to 150px.
+NEW S8 design (implemented next, no Roll involved): grab -> positive control (pointer move +40px, die must follow, proving the drive path works) -> pointercancel (real CDP touchCancel for touch; synthetic pointercancel for mouse pointerId 1) -> same-pointer move +80px -> the die must NOT follow (released entry). Direct test of the hold-table cleanup, robust at floor level.
 
-Next: isolated S8 reproduction with controls (no-grab control, mouse-grab+cancel, touch-grab+cancel), inspect s8 frames, file defect card if the hold survives pointercancel; fix S5/S6c harness items; rerun full suite; final Notes + results table.
+Remaining after S8 rewrite: fix S5 follow-check formula (it double-counted the +60px drag; pointerPos already updated) and 900ms settle, relax S6c movement threshold 250->150px (observed 213-336px variance from bounces), rerun full suite, final results table.
