@@ -44,17 +44,21 @@ Use exact ray/face picking and retain a body-local grab point. Drive that point 
 - `npm run build`
 
 # Notes
-Live test #33, driver run3 finished page 1 and is in S8/page-2. Setup changed for cause: the served worktree `dist` was STALE — fresh `npx vite build` of HEAD (507cf53) produces index-CvbZh8Pv.js (46.03 kB) while the served index-CG-QCp7E.js (45.5 kB) lacks the panel disclosure button (no `panel-toggle`/`Show controls` strings) and the Add/Remove aria-labels of current src. The approved-review hash predates parts of HEAD. Harness now serves /tmp/dice-lt33/dist-check (fresh HEAD build). Environment finding, not a product defect in the grab code; flagged for the merger pipeline.
+Live test #33, run5 complete on the fresh HEAD build (index-CG-QCp7E.js was stale; serving /tmp/dice-lt33/dist-check = fresh build of 507cf53 — environment finding for the merger pipeline, not a grab-code defect).
 
-Results so far (run3, page 1, all on fresh build):
-- PASS S1: off-center press at +60px holds with zero centroid drift and zero offset-vector drift for 2.5 s; die center never snaps under pointer.
-- PASS S3: grab 154 px from center (near hull vertex, silhouette halfwidth 128) — no slide, die follows.
-- PASS S4: press inside bounding circle (140 px from center) but outside silhouette holds nothing (centroid moved 0.0 px) + positive control grab right after works.
-- PASS S5 (fallback path): held die calms to static ~1.1 s after grab; grabbed-point vector drift 0.0 px; mask-angle drift 0.0 deg over last 0.9 s (damped, not forced upright); grab live after calm. Mid-tumble catch window was missed again — slow-phase window is a few ms wide at 30 fps headless; converting S5 to a retry-press loop next run.
-- PASS S6: fling departs +x 320 px in first flight frame; stays inside walls. Tumble check FAIL is a harness measurement bug: pitch tumble keeps the 2D principal-axis angle constant; switching to bbox aspect-ratio spread.
-- PASS S6b: slow release = no fling (0 px). PASS S6c movement: over-speed synthetic fling moves die 336 px. S6c containment FAIL is a harness margin bug: die legitimately rests against the wall at the viewport edge (center clamp 1058.3 + circumradius 221.7 = exactly 1280); fixing tolerance to [0, W-1].
-- PASS S9: Roll excludes held die (0.0 px drift, held via touch while mouse clicks panel); expanded panel measured (y=602,h=182); held die undisturbed while d8 spawns and settles; (d8 grab check pending in log).
-- S2 FAIL = harness expected-value bug (die correctly lands at press+240-off = die.cx+240; my formula added off twice). Behavior correct (offset vector exactly preserved).
-- S8 (run3, pending full-log analysis): after real touchCancel, Roll tumbled something (scene diff 337) but the die-region around the touch-grabbed die shows diff=11 — either a stuck hold after pointercancel (possible product defect) or a harness identification bug; two die-region diffs 11 and 8 px both FAIL. Analyzing with pev event log and the grabbed-die identity next; will re-run S8 in isolation with a known single die before filing any card.
+PASSING (core spec behavior, all with 0.0px drift measurements):
+- S1 off-center grab +60px: no center snap/slide over 2.5s hold, offset vector constant, center stays 60px off pointer.
+- S2 slow drag 240px: die follows exactly (centroid lands at press+drag-off), material point stays under pointer, center never pulled in.
+- S3 near-vertex grab 154px from center: no slide, follows.
+- S4 press inside bounding circle (140px) but outside silhouette: holds nothing (0.1px), positive control grab right after works.
+- S5 mid-tumble catch (retry-press loop caught on attempt 0): held die calms to static ~1.0s after grab, grabbed-point vector drift 0.0px, mask-angle drift 0.0deg over 0.9s hold (damped, orientation not forced).
+- S6 fling: departs +x, tumbling confirmed (mask angle 50->57->64->-31 deg across fast clipped flight frames), stays inside walls.
+- S6b slow release: no fling (0px). S6c over-speed synthetic fling (3 m/s input): die moves 213-336px, contained in all 8 frames.
+- S8 plumbing: touch grab moves the die; pointercancel event fires (pev log confirms pointerdown id=2 touch + pointercancel).
 
-No product defect card filed yet. Next: fix 4 harness checks (S2 expected, S6 tumble via aspect, S6c/S6 containment margin, S5 retry-press catch), rerun, analyze S8 in isolation, then page-2 S7 shared-grab tests.
+OPEN, under analysis:
+1. S8 CRITICAL SUSPECT: after both real-touch pointercancel and synthetic mouse pointercancel, the subsequent panel Roll moved NOTHING (scene pixel diff 11/6, die-region diff 7/6). Since rollDice excludes held bodies, zero movement is consistent with a STUCK HOLD after pointercancel (product defect candidate). Before filing: must rule out harness causes — verifying with the actual s8 frames (die position/visibility) and an isolated rerun (single die, roll clicked manually, also testing WITHOUT any prior grab as a control). Note the app binds pointercancel to the same onRelease as pointerup, and the event log shows the cancel fired, so if the hold survives it is a real bug in entry cleanup (e.g. cancel path differing from the CDP touch path).
+2. S5 'grab live after calm' FAIL = harness timing: check formula double-counted the +60px drag (pointerPos already updated), and 300ms settle is short vs ~30fps headless convergence; observed die lagged 71px behind pointer, consistent with damping lag not loss of hold. Fixing formula + 900ms settle.
+3. S6c movement threshold 250px too strict vs bounce variance (213-336px observed across runs); lowering to 150px.
+
+Next: isolated S8 reproduction with controls (no-grab control, mouse-grab+cancel, touch-grab+cancel), inspect s8 frames, file defect card if the hold survives pointercancel; fix S5/S6c harness items; rerun full suite; final Notes + results table.
