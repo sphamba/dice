@@ -1,11 +1,13 @@
 ---
 name: "fix: double roll translation speed and lift without increasing spin"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/32-stronger-roll-translation"
 issuer: "#8"
 complexity: "simple"
 shortName: "stronger-roll-translation"
+changes: "{\"base\":\"main\",\"ins\":4,\"del\":4,\"files\":1}"
+commits: "[{\"hash\":\"28db826\",\"subject\":\"fix(roll): double roll translation speed and lift\",\"when\":\"2026-11-18T22:47:32+01:00\"}]"
 ---
 
 # Summary
