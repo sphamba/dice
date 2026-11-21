@@ -1,7 +1,7 @@
 ---
 name: "fix: delete the flaky ten-dice wall-time performance test"
 priority: "medium"
-state: "live-testing"
+state: "done"
 worktree: "fix/36-delete-flaky-perf-test"
 issuer: "#34"
 complexity: "trivial"
@@ -27,7 +27,16 @@ Delete the wall-time performance test in src/physics/world.e2e.test.js. It fails
 - The file has no unused imports or helpers that this deletion caused.
 
 # Notes
-- Deleted the `performance` describe block with the `simulates ten dice for one second in under 500 ms` test from `src/physics/world.e2e.test.js`.
-- No import, constant or helper became unused: `mulberry32`, `randomQuat`, `DIE_RADIUS`, `DICE_TYPES`, `STEPS_PER_SECOND`, `dropBody` are all still used by the remaining tests.
-- Verification at c229b03: `grep -n "under 500 ms" src/physics/world.e2e.test.js` returns nothing (exit 1); `npm test -- src/physics/world.e2e.test.js` gives 12 passed (was 13).
-- Assumption: no replacement timing check added, as the Specs require.
+Live test of the merged commit c229b03 (worktree clean, HEAD = main = c229b03). The change is a test-file-only deletion, so no runtime flow exists to exercise; the test was a static acceptance check of the real file, with no test suite runs.
+
+Results:
+- PASS `grep -n "under 500 ms" src/physics/world.e2e.test.js` finds nothing (exit 1). No match anywhere under src/.
+- PASS Scope: `git show c229b03 --stat` shows only src/physics/world.e2e.test.js, 18 deletions, 0 insertions. The diff removes exactly the `performance` describe block with the `simulates ten dice for one second in under 500 ms` test. No other test or source file touched.
+- PASS No replacement timing check: the file has no `performance` reference and no wall-time assertion left.
+- PASS No unused imports or helpers from the deletion: every import (describe, expect, it, boxFromViewport, createBody, createShape, DIE_RADIUS, DICE_TYPES, FIXED_DT, createWorld, quat, vec3) and every top-level constant/helper (BOX, GRAVITY, STEPS_PER_SECOND, vec, mulberry32, randomQuat, randomUnit, scratchVertex, worldVertex, lowestVertex, deepestFaceAgainstFloor, boxOvershoot, dropBody) still has at least one user in the remaining tests. The deleted test used only the `performance` global, so nothing else became dead.
+- PASS Structure: the file declares 12 test cases (6 from the settling loop over DICE_TYPES + 6 fixed), which matches the recorded "12 passed (was 13)" at c229b03. `node --check` passes on the file.
+
+Assumptions:
+- The change has no user-facing runtime interface, so the live test is the static acceptance verification above. App behavior is unchanged by construction because no source file changed; running the app or the vitest suite was out of scope for the live test.
+
+No defects found.
