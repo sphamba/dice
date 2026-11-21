@@ -36,21 +36,21 @@ In `src/main.js`, change only the roll translation ranges:
 - `npm run build`
 
 # Notes
-## Deliverable
-- `src/main.js`: `ROLL_SPEED_MIN/MAX` 0.4-0.8 → 0.8-1.6 m/s, `ROLL_LIFT_MIN/MAX` 0.3-0.6 → 0.6-1.2 m/s. `ROLL_SPIN_MIN/MAX` stays 15-40 rad/s.
-- `rollDice` body unchanged: same random XY direction, lift along negative normalized gravity, held dice skipped. Commit 10e3511.
+## Live test in progress (watch checkpoint)
 
-## Verification
-- `npm test`: 23 files, 228 tests passed.
-- `npm run build`: green; `dist/index.html` references `./assets/index-COenA9U1.js` and `./assets/index-DasNQWd4.css`.
-- No new test added: `main.js` has top-level DOM/WebGL setup and the Vitest environment is `node`, so a regression test would need a `main.js` restructure.
+### Scope fixed
+- Test only the roll translation change: horizontal speed 0.8-1.6 m/s, lift 0.6-1.2 m/s opposite gravity, spin kept 15-40 rad/s, via both Roll button and Space, phone and desktop sizes, up to 10 mixed dice, settle without tunneling, held dice untouched, zero dice no-op. No unit test suite will be run.
 
-## Assumptions
-- The roll translation contract (linear velocity magnitude = speed, lift opposite gravity) was already correct, so only the four range constants changed.
-- Stronger throws stay contained through the existing box collision and damping; no other parameter touched.
+### Inspected so far
+- Commit 28db826 changes exactly the four constants in `src/main.js` (verified via `git show`); `rollDice` body untouched.
+- Roll handler runs synchronously on click/keydown, so exact roll velocities can be captured in the same JS turn as the trigger, before any physics step.
+- World is not exposed globally; plan is to expose it with a Playwright route-interception wrapper on `src/physics/world.js` (one behavior-preserving line adding `globalThis.__diceWorld`, no repo edits).
+- Default gravity is (0,0,-9.81) with no device motion in headless, so expected captures: horizontal speed in [0.8,1.6], vz in [0.6,1.2] up, angular speed in [15,40].
+- Playwright found at `/home/phamba/repos/tarot/app/node_modules/playwright` with chromium-1217 in `~/.cache/ms-playwright`; app served with `vite` dev server (the README user command).
 
-## Blockers
-- None.
+### Plan
+1. Shared `/tmp` harness (server, world exposure, console capture, settle/containment helpers), smoke run first, then full driver.
+2. Desktop 1280x720 and phone 390x844 contexts: real Roll click / Space press / phone tap as UX evidence, synchronous captures per die for range verification on both routes, held-die test (mouse hold on desktop, CDP touch hold on phone) with before/after velocity comparison, 10 mixed dice settle + containment, zero-dice no-op, console gate with environment artifacts whitelisted.
 
-## Manual checks left to other roles
-- Live test up to ten mixed dice on phone and desktop: stronger throws, contained, settle without tunneling or console errors, held dice do not move.
+### Defects filed
+- None yet (no test executed yet).
