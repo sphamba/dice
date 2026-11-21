@@ -1,7 +1,7 @@
 ---
 name: "fix: reduce box and die friction and clamp diagonal friction correctly"
 priority: "high"
-state: "reviewing"
+state: "to-merge"
 worktree: "fix/34-low-everywhere-friction"
 issuer: "#8"
 complexity: "simple"
@@ -32,12 +32,12 @@ Lower box and die-die Coulomb friction to 0.10 and use a true 2D friction disk s
 - `npm run build`
 
 # Notes
-## Review progress (checkpoint)
+## Review outcome: approved (no fixes committed, state unchanged)
 
-- Read TASK.md, the full diff `main...HEAD` (4 files, +124/-15), and all changed files plus `src/physics/world.js` context. Base branch confirmed as `main`.
-- Spec compliance verified by reading: FRICTION_BOX/FRICTION_DIE = 0.10; `solveAxis` split into `solveNormal` + `solveFriction` with one 2D Coulomb disk clamping the combined tangent magnitude to `mu * normal.impulse`; iterations, restitution, Baumgarte, event thresholds, angular damping untouched; `FRICTION_*`/tangents used nowhere else; audio reads only the summed normal event impulse (unchanged).
-- `containBody` fix in world.js judged correct and in scope: with any nonzero push (e.g. floor penetration), the old loop zeroed positive x/y velocity on zero-push axes via the ternary false branch; the new `push[axis] === 0` skip removes that blocker. It removes a bug, adds no damping.
-- Scoped tests run: `contacts.test.js` 18/18 passed; `world.e2e.test.js` flaky only in the pre-existing `performance` test (observed 511/632 ms fails and one pass in 3 runs); `world.test.js` 13/13 passed. `npm run build` green after the documented node_modules/.bin symlink repair; dist asset hashes match the developer's Notes.
-- Performance A/B: `main` code run from a git-archive copy in /tmp (main checkout untouched) failed the same 500 ms threshold in 4/4 runs at 584-612 ms, so the threshold failure is pre-existing machine noise, not a regression from this change. Developer's environment-noise claim verified.
-- Numeric probe designed: disk saturation across tangent directions 0-90 degrees plus critical-angle boundary at 5.5/5.9 degrees. First run failed on a probe formula error (used `v0 - v` on both axes instead of per-axis initial components); solver behavior confirmed correct by direct inspection (v = [0.935, 0, 0.15] for a 1 m/s tangent). Probe fixed, rerun pending.
-- Still pending: probe rerun, final verdict, final Notes rewrite. No findings requiring fixes so far.
+- Spec verified in the diff: FRICTION_BOX/FRICTION_DIE = 0.10; `solveAxis` split into `solveNormal` + `solveFriction` with one 2D Coulomb disk clamping the combined tangent magnitude to `mu * normal.impulse`, so diagonal motion cannot reach sqrt(2) times the coefficient. Solver iterations, restitution, Baumgarte, event thresholds, and free/contact angular damping are untouched; `FRICTION_*` and tangents have no consumers outside contacts.js; audio uses only the summed normal event impulse, which kept its semantics.
+- `containBody` fix accepted as in scope and correct: with any nonzero push on another axis (e.g. floor penetration), the old loop's ternary zeroed positive x/y velocity on zero-push axes, which blocked +x/+y sliding; the new `push[axis] === 0` skip removes that bug and adds no damping. The developer disclosed it in Notes.
+- Tests: `contacts.test.js` 18/18, `world.test.js` 13/13, `npm run build` green (dist hashes match the Notes; needed the documented node_modules/.bin symlink repair). New regression coverage matches the spec: one-axis test retained, diagonal disk bound, incline hold at 5 degrees and slide at 10 degrees, mixed-dice level settling, tilted-gravity 10-degree slide, all passing.
+- Performance test: the e2e `performance` threshold (500 ms) fails intermittently here, but an A/B on a git-archive copy of `main` (main checkout untouched) failed 4/4 runs at 584-612 ms, so this is pre-existing machine noise, not a regression from this change. The developer's environment-noise interpretation is verified and accepted, as is the `MIN_IMPULSE = 1e-12` skip (probe confirms exact disk saturation despite it).
+- Independent numeric probe: applied friction impulse saturates exactly at `mu * N` (0.065) for tangent directions 0/15/30/45/60/75/90 degrees, restitution target preserved, and the incline boundary sits between 5.5 and 5.9 degrees, matching the documented atan(0.1) ~ 5.71 degrees.
+- Deferred to live testing: browser check of tilted-device gravity on walls and die-die contacts at phone and desktop sizes.
+- Guidance for future reviewers: run only `contacts.test.js` and `world.test.js` plus one `world.e2e.test.js` pass, and weigh the `performance` case against a `main` baseline before calling it a regression.
