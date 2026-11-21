@@ -1,11 +1,13 @@
 ---
 name: "fix: reduce box and die friction and clamp diagonal friction correctly"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/34-low-everywhere-friction"
 issuer: "#8"
 complexity: "simple"
 shortName: "low-everywhere-friction"
+changes: "{\"base\":\"main\",\"ins\":124,\"del\":15,\"files\":4}"
+commits: "[{\"hash\":\"0553e31\",\"subject\":\"fix(physics): use a 2D Coulomb friction disk at mu 0.1\",\"when\":\"2026-11-18T22:58:49+01:00\"}]"
 ---
 
 # Summary
