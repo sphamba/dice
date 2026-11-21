@@ -1,7 +1,7 @@
 ---
 name: "fix: make every synthesized impact sound very dry"
 priority: "high"
-state: "reviewing"
+state: "to-merge"
 worktree: "fix/35-dry-impact-sound-decay"
 issuer: "#9"
 complexity: "simple"
@@ -35,21 +35,11 @@ T60 is the time to decay by 60 dB. For an exponential mode, `tau = T60 / ln(1000
 - `npm run build`
 
 # Notes
-## Deliverable
-- Retuned modal decays to T60 targets in `src/audio/modes.js`: box slowest mode 80 ms, glass 200 ms, every die under 30 ms at `DIE_RADIUS`.
-- Frequencies, `dampHF` ratios, per-type die voices and material ordering unchanged.
-- `src/audio/sound.js` renders 8 tail decays instead of 5 and applies a 3 ms linear end fade, so buffers end at exactly zero before the 0.6 s cap.
-- Added numeric slowest-mode T60 tests for box, glass and all six die types, plus buffer ring-down and silent-end assertions in `src/audio/sound.test.js`.
-
-## Verification
-- `npx vitest run src/audio`: 3 files, 30 tests passed.
-- `npm run build`: built successfully; asset check found `./assets/index-yd_R0ixB.js` and `./assets/index-DA_12YQk.css`.
-
-## Assumptions
-- T60 means 60 dB amplitude decay, so `tau = T60 / ln(1000)`; the plate `dampHF` factor is divided out in the constants so the slowest mode meets the target.
-
-## Blockers
-- None.
-
-## Manual checks left to other roles
-- Live-test floor, wall, center, edge, glass-lid and die-die impacts on real speakers/headphones for dryness, no clicks, and preserved material/position/die-type distinctions.
+- Outcome: approved, no fixes needed.
+- Verified slowest-mode T60s with an independent numeric probe (assert-based, derived through the damping law, not the tuned constants) at real box dims 0.1/0.08/0.06 m and the app DIE_RADIUS: floor/wall 80.0 ms at 200 Hz, lid 200.0 ms at 900 Hz, all six die types 18.7 to 19.6 ms, so at or under the 30 ms target. Glass remains the longest-decaying material.
+- Diff is minimal and at the root cause: tau constants retuned via t60Tau with the dampHF factor divided out at the slowest mode; frequencies, dampHF ratios and per-type die voices untouched. The only sound.js changes are TAIL_DECAYS 5 to 8 and a 3 ms linear end fade that ends at exactly zero.
+- Buffers end cleanly: duration is 8x peakTau (0.17 to 0.23 s for plates, 50 ms floor for die-die), so it no longer reaches the 0.6 s cap and nothing is truncated; end amplitude before the fade is about exp(-8) or 3.4e-4.
+- The dampHF divide-out at the slowest mode matches the spec's slowest-mode T60 definition and is documented in the developer's assumptions, not silent.
+- Tests: `npx vitest run src/audio` 30 passed, exit 0; `npm run build` exit 0. New numeric T60 assertions for box, glass and all six dies at real radii plus the buffer ring-down and silent-end test satisfy the regression spec.
+- Deferred to live-testing: dryness, absence of clicks and preserved material/position/die-type distinctions on real speakers/headphones.
+- Guidance for future reviewers: check slowest-mode targets with a probe through the damping law at real geometry and a non-center impact point, not only the test's center-point dims.
