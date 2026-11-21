@@ -44,20 +44,10 @@ Use exact ray/face picking and retain a body-local grab point. Drive that point 
 - `npm run build`
 
 # Notes
-Live test in progress (environment probe mostly done, no product findings yet).
+Live test #33 in progress. Setup: worktree `dist` (index-CG-QCp7E.js) served on 127.0.0.1:4733; Playwright chromium from /home/phamba/repos/tarot/app; harness in /tmp/dice-lt33 (lib.mjs shared helpers: red-die blob analysis with hull/mask-angle, CDP touch helpers on one reused session per page, box math, event log). No code edits; storage seeded per fresh context with app format `dice.set={"d6":1}`.
 
-Setup: serving the worktree `dist` (asset hashes match the approved review: index-CG-QCp7E.js) via python http.server on 127.0.0.1:4733; Playwright (chromium 147) from /home/phamba/repos/tarot/app; harness in /tmp/dice-lt33 (lib.mjs shared: screenshot->PNG->ImageMagick raw->red-die blob analysis with pip-hole fill + convex hull, CDP touch helpers, box math). No code edits; storage seeded once per fresh context with the app's own format `dice.set={"d6":1}`.
+Probe done: pointerIds sequential per context (mouse=1, touch 2,3); touchMove lists only changed points; touchEnd lifts listed points; touchCancel takes no points and cancels remaining. Console clean on load (only SwiftShader artifacts at close). Box: W=0.08m=1280px, px/m=16000, die circumradius 221.7px, face halfwidth 128px, fps ~29.5.
 
-Probe facts pinned so far:
-- Viewport 1280x800, dpr 1: box W=0.08 m, H=D=0.05 m, px/m=16000, die circumradius 221.7 px, face halfwidth 128 px, 2 mm = 32 px.
-- Headless fps ~29.5 (SwiftShader); initial settle ~1.7 s; no console errors on load.
-- Red-mask blob analysis isolates the die cleanly (area 65604 px, one blob); shadows/background/panel excluded.
-- Mouse grab plumbing works end to end: off-center press + drag, die followed the pointer.
-- CDP touch -> pointer events: touchStart yields pointerdown with pointerType=touch, pointerId 2 then 3 for a second simultaneous point. Hit a harness bug: each touch() call opened a NEW CDP session, so touchMove was rejected ("Must send a TouchStart first"). Fix planned: reuse one CDP session per page for the whole touch sequence, then finish pinning touchMove/touchEnd/touchCancel semantics.
+Scenario driver /tmp/dice-lt33/driver.mjs written covering: S1 off-center hold (no snap/slide, offset vector constant), S2 slow drag tracks material point, S3 near-edge/vertex grab, S4 press inside bounding circle but outside silhouette holds nothing (+positive control), S5 roll-then-catch hold (spin calms, no forced upright, angle-drift check), S6 fling (departs +x, tumbles, stays in walls), S6b slow-release control, S6c over-speed synthetic fling (clamp/containment), S9 Roll/Add-d8 exclusion while held (die held via touch so mouse clicks don't chase the held die) + d8 grab sanity, S8 pointercancel real-touch + synthetic-mouse paths (stuck-hold detected via per-die crop pixel diff after Roll), S7 two-dice page: mouse hovers A over B, touch2 presses the overlap (nearest-surface pick), B unmoved, releasing one pointer returns A to pointer-1 hold, both release cleanly.
 
-Design assumptions for the usage tests (from reading src/input/pointer.js, main.js, physics/*):
-- Camera is orthographic top-down: world z is invisible on screen, so hold height, vz=0 on release and drop behavior are only indirectly observable (XY tracking, occlusion, stacking outcomes). Numeric anchor tolerances (1 mm/2 mm, 30/60/144 fps) stay with the unit suite; live checks are behavioral.
-- At 1280x800 hold height D-2r = 0.0223 m, so a held die genuinely hovers (bottom ~0.0084 m above floor): enables the hover-over-second-die scenario for nearest-surface pick + shared multi-pointer grab (#18).
-- At phone viewport 390x844 the box depth (0.0225 m) is smaller than 2r (0.0277 m): a held die cannot lift there (drive z-target is below the floor and containBody clamps); drag still works. The spec preserves the D-2r formula, so this is an observation, not a defect.
-
-Remaining plan: probe touch semantics (fixed CDP session), then scenario driver: off-center grab no center-snap + point-tracks-pointer drag; near-edge/vertex hold no slide; bounding-circle miss holds nothing (with positive control); roll -> mid-tumble grab calms to rest without forced upright; fling (direction, tumble, containment) + synthetic over-speed fling containment; panel Roll exclusion while held + d8 grab sanity; two-pointer shared grab (mouse + touch): last pointer wins, partial release, return to first pointer; pointercancel release. Report via kanban_create defect cards + Notes rewrite.
+Pending: add cropDiff helper to lib.mjs, node --check, run driver, analyze results. No product findings yet.
