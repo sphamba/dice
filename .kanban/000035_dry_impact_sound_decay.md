@@ -2,7 +2,7 @@
 name: "fix: make every synthesized impact sound very dry"
 priority: "high"
 state: "done"
-worktree: "fix/35-dry-impact-sound-decay"
+worktree: ""
 issuer: "#9"
 complexity: "simple"
 shortName: "dry-impact-sound-decay"
