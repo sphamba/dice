@@ -1,7 +1,7 @@
 ---
 name: "fix: make every synthesized impact sound very dry"
 priority: "high"
-state: "doing"
+state: "to-review"
 worktree: "fix/35-dry-impact-sound-decay"
 issuer: "#9"
 complexity: "simple"
@@ -35,3 +35,21 @@ T60 is the time to decay by 60 dB. For an exponential mode, `tau = T60 / ln(1000
 - `npm run build`
 
 # Notes
+## Deliverable
+- Retuned modal decays to T60 targets in `src/audio/modes.js`: box slowest mode 80 ms, glass 200 ms, every die under 30 ms at `DIE_RADIUS`.
+- Frequencies, `dampHF` ratios, per-type die voices and material ordering unchanged.
+- `src/audio/sound.js` renders 8 tail decays instead of 5 and applies a 3 ms linear end fade, so buffers end at exactly zero before the 0.6 s cap.
+- Added numeric slowest-mode T60 tests for box, glass and all six die types, plus buffer ring-down and silent-end assertions in `src/audio/sound.test.js`.
+
+## Verification
+- `npx vitest run src/audio`: 3 files, 30 tests passed.
+- `npm run build`: built successfully; asset check found `./assets/index-yd_R0ixB.js` and `./assets/index-DA_12YQk.css`.
+
+## Assumptions
+- T60 means 60 dB amplitude decay, so `tau = T60 / ln(1000)`; the plate `dampHF` factor is divided out in the constants so the slowest mode meets the target.
+
+## Blockers
+- None.
+
+## Manual checks left to other roles
+- Live-test floor, wall, center, edge, glass-lid and die-die impacts on real speakers/headphones for dryness, no clicks, and preserved material/position/die-type distinctions.
