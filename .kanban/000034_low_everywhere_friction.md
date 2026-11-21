@@ -1,7 +1,7 @@
 ---
 name: "fix: reduce box and die friction and clamp diagonal friction correctly"
 priority: "high"
-state: "live-testing"
+state: "done"
 worktree: "fix/34-low-everywhere-friction"
 issuer: "#8"
 complexity: "simple"
@@ -34,18 +34,33 @@ Lower box and die-die Coulomb friction to 0.10 and use a true 2D friction disk s
 - `npm run build`
 
 # Notes
-## Live test in progress (held at watch checkpoint)
+## Live test report: PASS, no defects filed
 
-Harness unchanged (Playwright via /home/phamba/repos/tarot/app, vite :8731 IPv6 localhost, devicemotion tilt, test-only createWorld spy route on /src/main.js, sim clock via world.beforeStep, frame-granular flight tracker wrapping world.update; repo code untouched). No defect cards filed so far.
+Tested only the change of this task in a real browser run of the app from the worktree (vite dev server, Playwright chromium): tilted-device gravity on walls, die-die contacts, phone and desktop sizes, level-floor settling, containment, tunneling, NaN. Repo code was not modified.
 
-Scenario results so far (behavior checks all PASS; two earlier FAILs were my own instrumentation bugs, fixed and rerun):
-- probe (desktop): WebGL2 renders, tilt plumbing exact (10 deg -> gravity [1.703, 0, -9.661]), dice slide to +x wall at 10 deg (centroid 0 -> 30.7 of 40 mm half-width), settle, contained, no NaN.
-- flip-desktop: +10 deg then -10 deg. Dice leave the +x wall, cross 48 mm of the 80 mm box and settle at the -x wall both ways (maxSpeed 0.0002-0.03 m/s). Core "not friction-stuck on slanted walls" check passes.
-- hold-desktop and hold-phone: 4 deg tilt (below the atan(0.1) ~ 5.7 deg critical angle). Drift 0.0 mm over 6 sim-seconds on both sizes; friction still holds below the critical angle.
-- slide-phone (iPhone 13, dpr 3): 10 deg along the short axis reaches the +x wall (centroid 24.5 of 33.8 mm half-width), then along the long axis reaches the +y wall (41.5 of 57.5 mm). Contained, no NaN, console clean.
-- pile-phone: 6 d6 via the panel ("Show controls" + Add d6), 12 deg tilt: corner pile settles at the +x wall (5/6 dice within 15 mm of the wall, min pair distance 16.6 mm = no interpenetration), then -12 deg: the whole pile leaves the wall and settles at the -x wall (5/6). Die-die contacts un-stick under tilt on both flips.
-- settle-desktop: Roll at level gravity. Instrumentation fixed (frame-granular tracker): flight maxSpeed 1.471 m/s, dice airborne to z=36 mm (rest 8 mm), then settle on the floor at z=8.0 mm with 0.0 m/s residual. Contained, no NaN, console clean.
-- roll-tilt-phone: Roll under 10 deg tilt: flight maxSpeed 1.584 m/s, dice settle back on the +x side (centroid 25.8 mm), contained, no NaN.
-- Console gate: zero product errors across all runs; only known SwiftShader artifacts (CONTEXT_LOST_WEBGL at load, ReadPixels GPU-stall) and vite dev-server debug chatter.
+### Harness
+- Playwright from /home/phamba/repos/tarot/app/node_modules (chromium-1217), `npx vite --port 8731` from this worktree. Phone = iPhone 13 descriptor (390x844 CSS, dpr 3, iPhone UA, so the iOS sign branch of deviceToWorldGravity runs; box 67.5x146x67.5 mm). Desktop = 1280x800, dpr 1 (MIN_BOX_EDGE guard active; box 80x50x50 mm).
+- Tilt input: synthetic `devicemotion` events with accelerationIncludingGravity mapped through the app's own motion.js math (10 deg tilt verified to yield world.gravity [1.703, 0, -9.661] exactly; screen angle 0).
+- Observation: test-only route rewrite of `/src/main.js` that rebinds `createWorld` to record the live world instance, plus a frame-granular flight tracker wrapping `world.update` and a sim-time clock via `world.beforeStep`. No app behavior changed.
 
-In flight when held: added a diagonal-gravity corner scenario (10 deg toward the (+x,+y) corner, the 2D-disk case) and a clean flip-desktop rerun with the corrected console-gate regex. Both about to run, then cleanup (kill vite, verify port with lsof) and the final report. No product defects found so far.
+### Results (all checks PASS)
+- Tilt slide, desktop, 10 deg then -10 deg (core friction-stuck check): dice leave the +x wall, cross 48-58 mm of the 80 mm box and settle at the -x wall both ways; final speeds 0.0000-0.0002 m/s. A die at 10 deg cannot stay stuck (tan(10)=0.176 > mu=0.1) and the run confirms it behaviorally.
+- Tilt slide, phone, 10 deg along both axes: dice slide the short axis to the +x wall (centroid 24.5 of 33.8 mm half-width) and the long axis to the +y wall (41.5 of 57.5 mm), settle, contained, no NaN.
+- Tilt hold, desktop and phone, 4 deg (below the atan(0.1) ~ 5.7 deg critical angle): drift 0.0 mm over 6 sim-seconds on both sizes; friction 0.10 still holds below the critical angle.
+- Diagonal gravity, desktop, 10 deg toward the (+x,+y) corner: dice settle in that corner (18.8 mm from the corner), exercising the 2D friction disk path behaviorally.
+- Die-die pile, phone, 6 d6 via the real panel flow ("Show controls" + "Add d6"), 12 deg tilt: corner pile at the +x wall (5/6 dice within 15 mm of the wall, min pair distance 16.6 mm, no interpenetration, settled at 0.001 m/s); flipping to -12 deg moves the whole pile to the -x wall (5/6). Dice do not stick to each other or to walls under tilt.
+- Level-floor settling, desktop: Roll via the button; flight tracker saw roll velocities 1.471 m/s (ROLL_SPEED range 0.8-1.6) and dice airborne to z=36 mm above the 8 mm rest height (lift, bounce, restitution alive), then all dice settle at z=8.0 mm (d6 face rest) with 0.0 m/s residual.
+- Tilted roll, phone, 10 deg: roll velocities 1.584 m/s, dice settle back on the downhill +x side, contained, no NaN.
+- Containment/tunneling/NaN: after every phase of every scenario, all shape vertices inside the box (worst protrusion 0.000 mm), all state finite.
+- Console: zero product errors across all runs; only known headless SwiftShader artifacts (CONTEXT_LOST_WEBGL at load, ReadPixels GPU-stall warnings) and vite dev-server debug chatter.
+
+### Assumptions
+- "Tilted-device gravity" was driven through the real devicemotion listener and mapping code; only event trust differs from a physical device, which the app ignores.
+- Settle threshold 0.03 m/s is above observed rest noise (0.0000-0.0010 m/s).
+- Impulse-level diagonal saturation (exactly mu*N at all tangent angles) was verified by the reviewer's numeric probe; this live test verifies the behavior end to end (diagonal corner, pile un-stick).
+
+### Environment notes
+- Vite 8 binds IPv6 localhost; 127.0.0.1 refused connections (harness uses http://localhost:8731). Server killed after testing, port verified free with lsof.
+- Headless SwiftShader renders at ~33-37 fps; simulation ran at ~0.94x real time; all waits were sim-time based.
+- Two early check failures were test-harness instrumentation bugs (sim-time target computed in Node as NaN; maxZ sampled only post-settle), fixed and rerun green; they were not product behavior.
+- No open questions.
