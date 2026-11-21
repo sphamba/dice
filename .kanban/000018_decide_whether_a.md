@@ -27,24 +27,28 @@ Two pointers can hold the same die at the same time: heldBodies() then contains 
 - Add or adjust focused pointer tests only if needed to pin this contract with the corrected drag behavior. Do not add an abstraction or a new multi-pointer coordination policy.
 
 # Notes
-## Deliverable
-- Decision applied as-is: a die already held by one pointer may be grabbed by a second pointer. No production change was needed, `src/input/pointer.js` already stores holds per `pointerId` in a `Map` and never deduplicates `heldBodies()`.
-- Added one focused test in `src/input/pointer.test.js`: two pointers grab the same die, `heldBodies()` returns the body twice, the later held entry decides the frame drive (insertion order), releasing one pointer removes only its entry so the other grab still drives, releasing the last pointer empties `heldBodies()`.
-- Commit `fa74d35`.
+## Live test report (usage test through the real browser UI)
+Result: the shared-grab decision holds in the app. 20/20 usage checks passed against the merged commit `fa74d35`, driven with real multi-touch input (CDP touch events on Chromium, viewport 800x600, dpr 1, hasTouch, headless, rAF ≈ 25-30 fps). Die positions were tracked from rendered pixels (red-dominant silhouette centroid, read inside the rAF job), not from app internals. No product defect found; no defect cards filed.
 
-## Verification
-- `npm test -- src/input/pointer.test.js` → 10 passed.
-- Contract pinned for the upcoming grabbed-face-point drag correction: it must keep one `held` entry per pointer and must not deduplicate `heldBodies()`.
+Checks mapped to the Specs decision:
+- Second pointer can grab a die already held by one pointer: PASS (finger 2 pressed on the held die at its position, no error, no ownership fight).
+- Last held entry drives the frame (insertion order): PASS (A2: die follows finger 2's target; A3: moving finger 1 while finger 2 holds does not move the die; A4: with both moving, finger 2 wins).
+- Releasing one pointer removes only that pointer's entry: PASS both orders (A5: lift finger 1, finger 2 still drives; B3: lift finger 2 first, finger 1 still holds and drives).
+- No stuck or prematurely released body after release order games: PASS (B4: final release with no fling leaves the die exactly at rest, drift 0.0 px; A6: fling release sends the die flying and it settles afterwards).
+- Each pointer still holds at most one die (baseline multi-touch untouched): PASS (C0b/C1/C3: two dice, one pointer each, each die follows its own finger to targets 424 px apart, both at rest after release).
+- No page errors, no pointercancel leaks; pointerdown/up balanced 6/6 on the canvas across all scenarios.
 
-## Assumptions
-- The current multi-touch behavior is the desired behavior, so the deliverable is a pinned contract test and not a new ownership policy.
-- No new abstraction or multi-pointer coordination code was added, per the implementation scope.
+Assumptions made while designing the usage tests:
+- Emulated touch pointers in a real Chromium browser are representative for this pointer contract (same pointerdown/move/up path as real fingers).
+- The panel −/+/Roll buttons are the user way to configure the dice set; reducing to one d6 makes pixel tracking of the shared grab unambiguous.
+- Assertions use the rendered die silhouette centroid with 45-60 px tolerance, well inside the pick radius (~166 css px at this viewport), and drag targets stay away from walls (the die physically cannot reach within ~150 px of a wall).
+- Headless SwiftShader runs ~25-30 fps with physics at ~0.5x wall speed (FIXED_DT 1/480, MAX_STEPS 16), so settle and follow waits are frame-count based, never wall-clock.
 
-## Blockers
-- None.
+Behavior contradicting the task's stated assumptions: none observed.
 
-## Manual checks left to other roles
-- None.
+Environment problem during the run (not a product issue): at 22:48, mid-run, the task worktree `.worktrees/feat/18-decide-whether-a` and its branch were deleted externally (task state also moved live-testing → done by the orchestrator). I restored the worktree from commit `fa74d35` in the parent repo and recreated the .kanban/TASK.md/AGENTS.md symlinks to finish the test. The worktree is left in place at `fa74d35`.
+
+Test-harness difficulty solved during the run: CDP `Input.dispatchTouchEvent` type `touchEnd` lifts exactly the LISTED points (empty list lifts all) — the opposite of my first assumption. Two early false findings (A5/B3) came from this and were resolved with a pointer-event log; final run uses corrected semantics. Out-of-scope observation, pre-existing and not from this change: the dice-set panel covers a full-width strip at the bottom (y ≈ 408-584 at 800x600) and stops propagation, so a die resting behind the panel cannot be grabbed there.
 
 # Open questions
 

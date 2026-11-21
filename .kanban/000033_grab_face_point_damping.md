@@ -42,3 +42,26 @@ Use exact ray/face picking and retain a body-local grab point. Drive that point 
 - `npm run build`
 
 # Notes
+## Deliverable
+- `src/input/pointer.js`: rays are intersected with the transformed convex faces of each die (plane solve on the orthographic downward ray plus per-edge containment), and the closest non-negative surface hit wins across bodies, so the nearest surface replaces the old greatest-center-z rule. The bounding circle stays only as a broad-phase prune.
+- Pointer down converts the world hit to a body-local offset. Every fixed step rotates that offset with the current orientation and drives the center so the material point tracks pointer XY, with `linearVelocity + angularVelocity x rotatedOffset` accounted for, so damping the spin does not pull the anchor off the finger. Center z still drives to hold height `D - 2 * radius`.
+- Held damping lives in the existing `world.beforeStep` drive: frame-rate-independent exponential gain for the point pull and per-step exponential decay of angular velocity. No new world callback, unheld integrator damping unchanged, no upright forcing.
+- Release/fling untouched: pointer velocity to center XY, `vz = 0`, residual spin plus the existing speed-based random spin, 3 m/s clamp, pointercancel handled as before.
+- `src/input/pointer.test.js` rewritten: exact top-face hit for every die type (d4, d6, d8, d10, d12, d20 real shape data), tilted off-center grab anchored to the pressed material point, miss inside the bounding circle but outside the face, nearest-surface pick between overlapping dice with a lower center, no center snap on an off-center grab, anchor and height within 1 mm at 30/60/144 fps, pointer jump with under 2 mm overshoot and held XY speed at the drag clamp, 60 rad/s spin to under 0.1 rad/s within one second and monotone decay, linear rest without drift, duplicate shared holds in insertion order, and pointercancel keeping the other grab.
+
+## Verification
+- `npx vitest run src/input/pointer.test.js`: 15 passed.
+- `npm run build`: green; `dist/index.html` references `./assets/index-CG-QCp7E.js` and `./assets/index-DasNQWd4.css`.
+- Commit `2cef6cc` on `fix/33-grab-face-point-damping`.
+
+## Assumptions
+- Held drive commands the point velocity directly from the current anchor error instead of retaining momentum: this is the only shape that meets the settle, no-snap and no-overshoot requirements at every frame rate, and it keeps the old drag-speed clamp.
+- Hold damping constants are unexported module values (120 1/s point pull, 8 1/s angular decay); tests assert the spec thresholds, not the constants.
+- Bodies without face data are not pickable; every body from `createBody` has shape faces.
+- Duplicate holds damp spin once per held entry, so a shared grab decays slightly faster.
+
+## Blockers
+- None.
+
+## Manual checks left to other roles
+- Confirm in a browser that a die grabbed near a face edge or vertex does not slide under the finger and that a held fling still spins.
