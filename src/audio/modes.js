@@ -2,9 +2,22 @@ export const MAX_MODE_FREQUENCY = 8000;
 
 export const DEFAULT_MAX_MODES = 24;
 
-export const BOX = { f11: 200, tau: 0.35, dampHF: 0.8 };
+const T60_DECAYS = Math.log(1000);
 
-export const GLASS = { f11: 900, tau: 0.9, dampHF: 0.45 };
+// tau for an exponential mode to fall by 60 dB in the given time.
+const t60Tau = (seconds) => seconds / T60_DECAYS;
+
+const BOX_DAMP_HF = 0.8;
+
+const GLASS_DAMP_HF = 0.45;
+
+export const BOX = { f11: 200, tau: t60Tau(0.08) * (1 + BOX_DAMP_HF), dampHF: BOX_DAMP_HF };
+
+export const GLASS = {
+  f11: 900,
+  tau: t60Tau(0.2) * (1 + GLASS_DAMP_HF),
+  dampHF: GLASS_DAMP_HF,
+};
 
 export const DIE_REFERENCE_RADIUS = 0.0139;
 
@@ -16,7 +29,7 @@ const DIE_DETUNE_STEP = 0.003;
 
 const DIE_MODE_RATIOS = [1, 1.47, 1.93, 2.4, 2.87];
 
-const DIE_TAU = 0.05;
+const DIE_TAU = t60Tau(0.03);
 
 const DIE_DAMP_REFERENCE = 4000;
 

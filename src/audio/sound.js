@@ -16,7 +16,9 @@ export const MAX_IMPULSE = 1e-1;
 
 const MIN_DURATION = 0.05;
 
-const TAIL_DECAYS = 5;
+const TAIL_DECAYS = 8;
+
+const END_FADE = 0.003;
 
 const PAIR_GAP_PRUNE = 64;
 
@@ -75,6 +77,10 @@ function renderModes(context, modes, speed) {
       envelope *= decay;
       if (envelope < 1e-4) break;
     }
+  }
+  const fade = Math.min(Math.ceil(END_FADE * sampleRate), data.length);
+  for (let index = 0; index < fade; index += 1) {
+    data[data.length - 1 - index] *= index / (fade - 1);
   }
   return buffer;
 }

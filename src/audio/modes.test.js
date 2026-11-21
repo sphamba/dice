@@ -8,6 +8,7 @@ import {
   dieModes,
   plateModes,
 } from './modes.js';
+import { DIE_RADIUS } from '../physics/body.js';
 
 const MAX_F = MAX_MODE_FREQUENCY;
 
@@ -35,6 +36,10 @@ const oddOddFrequencies = (a, b, material, maxModes) => {
 
 const near = (actual, expected, eps = 1e-9) =>
   expect(Math.abs(actual - expected)).toBeLessThan(eps * Math.max(Math.abs(expected), 1));
+
+const T60 = (tau) => Math.log(1000) * tau;
+
+const slowestT60 = (modes) => T60(Math.max(...modes.map((mode) => mode.tau)));
 
 describe('materials', () => {
   it('describes a wood-like box and a brighter, longer-ringing glass', () => {
@@ -115,6 +120,29 @@ describe('plateModes', () => {
       if (modes[i].f > modes[i - 1].f) {
         expect(modes[i].tau).toBeLessThan(modes[i - 1].tau);
       }
+    }
+  });
+});
+
+describe('dry impact decay targets', () => {
+  it('meets the box and glass slowest-mode T60 targets', () => {
+    const box = plateModes(A, B, A / 2, B / 2, BOX);
+    const glass = plateModes(A, B, A / 2, B / 2, GLASS);
+    expect(slowestT60(box)).toBeCloseTo(0.08, 6);
+    expect(slowestT60(glass)).toBeCloseTo(0.2, 6);
+  });
+
+  it('keeps the glass longer than the box inside the dry target', () => {
+    const box = plateModes(A, B, A / 2, B / 2, BOX);
+    const glass = plateModes(A, B, A / 2, B / 2, GLASS);
+    expect(Math.max(...glass.map((mode) => mode.tau))).toBeGreaterThan(
+      Math.max(...box.map((mode) => mode.tau)),
+    );
+  });
+
+  it('keeps every die type at or below 30 ms slowest-mode T60', () => {
+    for (const type of ['d4', 'd6', 'd8', 'd10', 'd12', 'd20']) {
+      expect(slowestT60(dieModes(type, DIE_RADIUS))).toBeLessThanOrEqual(0.03);
     }
   });
 });

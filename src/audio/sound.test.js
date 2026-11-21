@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, expect, test } from 'vitest';
-import { MAX_IMPULSE, MAX_VOICES, MIN_EVENT_SPEED, MIN_IMPULSE, PAIR_GAP, createSound } from './sound.js';
+import {
+  MAX_DURATION,
+  MAX_IMPULSE,
+  MAX_VOICES,
+  MIN_EVENT_SPEED,
+  MIN_IMPULSE,
+  PAIR_GAP,
+  createSound,
+} from './sound.js';
 
 const BOX = { W: 0.1, H: 0.08, D: 0.06 };
 
@@ -170,6 +178,33 @@ test('limits one body pair to one voice per gap', async () => {
   expect(audio.created.sources).toHaveLength(2);
   sound.play([impact({ a: body, surface: 'lid' })], BOX);
   expect(audio.created.sources).toHaveLength(3);
+});
+
+test('renders buffers that decay below audible level and end at silence', async () => {
+  const sound = createSound();
+  await sound.resume();
+  const events = [
+    impact({ surface: 'floor' }),
+    impact({ surface: 'wall', point: [BOX.W / 2 - 0.001, 0, 0.03] }),
+    impact({ surface: 'lid', point: [0.01, 0.02, 0.06] }),
+    impact({ surface: 'die', b: die(), point: [0, 0, 0.03] }),
+  ];
+  for (const event of events) sound.play([event], BOX);
+  expect(audio.created.buffers).toHaveLength(events.length);
+  for (const buffer of audio.created.buffers) {
+    const data = buffer.getChannelData();
+    expect(data.length).toBeLessThanOrEqual(Math.ceil(MAX_DURATION * buffer.sampleRate));
+    expect(data.length).toBeGreaterThan(0);
+    const peak = data.reduce((max, value) => Math.max(max, Math.abs(value)), 0);
+    const tailStart = data.length - Math.ceil(0.01 * buffer.sampleRate);
+    let tailPeak = 0;
+    for (let index = tailStart; index < data.length; index += 1) {
+      tailPeak = Math.max(tailPeak, Math.abs(data[index]));
+    }
+    expect(tailPeak).toBeLessThan(0.01 * peak);
+    expect(tailPeak).toBeLessThan(1e-3);
+    expect(Math.abs(data[data.length - 1])).toBeLessThan(1e-6);
+  }
 });
 
 test('caps the voice count and drops the quietest voice', async () => {
