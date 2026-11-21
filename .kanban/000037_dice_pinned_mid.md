@@ -1,7 +1,7 @@
 ---
 name: "fix: dice pinned mid-air after Roll, never settle"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "#33"
 complexity: "simple"
