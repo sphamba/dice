@@ -37,18 +37,22 @@ T60 is the time to decay by 60 dB. For an exponential mode, `tau = T60 / ln(1000
 - `npm run build`
 
 # Notes
-Live test ~85% done. Second full driver run (130 real played buffers, exact voice-to-buffer 1:1 pairing): every product check passes.
+LIVE TEST COMPLETE: 27/27 checks PASS, 0 product defects. Third full driver run (116 real played buffers, exact 1:1 voice-to-buffer pairing via voices.push observer; headless Chromium 44.1 kHz, real app at worktree HEAD, harness /tmp/dice-lt-audio/).
 
-Confirmed on the real app path (headless Chromium 44.1 kHz, real events from roll + gravity-flip lid flow):
-- Unlock preserved: pre-gesture floor impacts logged but zero buffers and no AudioContext; first gesture creates a running 44.1 kHz AudioContext (headless creates it already 'running', so resume() is rightly skipped - by design in sound.js).
-- Coverage: floor, wall, glass-lid and die-die impacts all sounded (78 box / 29 glass / 18 die buffers).
-- Per-buffer (130/130): duration <= 0.6 s and exactly min(0.6, max(0.05, 8*peakTau)); last sample exactly 0; no end click (fade jump <= -30 dB rel peak); tail below -50 dB rel peak before the 3 ms fade (natural ring-down via the 1e-4 per-mode break, no cap truncation); lowest spectral peak always a real mode of the matched event; gain exactly gainForImpulse within AudioParam float32 rounding.
-- Slowest-mode T60 theory at real geometry: box floor/wall exactly 80.0 ms, glass lid exactly 200.0 ms, dice 18.7-19.6 ms (<= 30 ms target).
-- Rendered tail medians: glass 186 ms > box 76 ms > die ~19 ms - material identities and ordering preserved.
-- Position distinction: center vs edge hit spectra differ (cosine similarity 0.935 cross vs 0.966 within, n=41 center / 29 edge).
-- Die types: all six have distinct lowest mode frequencies (2126-2415 Hz); every measured die-die lowest peak matches the paired types' theory (7 and 5 type-pairs across two runs).
-- No page errors; no console errors.
+Rendered decay verified with a sliding Goertzel band fit at the slowest active mode frequency (die-click immune, break-floor aware):
+- Box: median 79.8 ms vs 80 ms target (measurable on 22/72 box buffers; the other 50 unmeasurable because the designed 1e-4 per-mode break floor ends weak edge-position rings before 40 dB of clean span - not a defect, see below).
+- Glass: 200.0 ms exactly vs 200 ms target (28/28 measurable).
+- Die: median diff +1.2 ms vs theory over 16 measurable fits; theory 18.7-19.6 ms <= 30 ms target for all six types.
+- Ordering preserved: glass 200.0 > box 79.8 > die 20.6 (rendered); box 80.0 > die 19.6 (slowest-mode parameters).
 
-Harness notes (my instruments, not product defects): a late-window RMS fit crossed into the post-break digital-silence floor (span 160-184 dB) giving false ~11-49 ms reads - replaced with a sliding Goertzel band fit at the slowest mode frequency (die-click immune); a w3 dB-window fit on edge hits reads the loud die click instead of the quiet box ring - same replacement covers it. Also found my drain() discarded vibrate-call logs (false 'haptics silent' alarm); fixing accumulation. Max voice event speed 2.056 m/s exceeds haptics MIN_SPEED 0.8, so haptics should have fired - will confirm with fixed logging.
+Everything else re-confirmed this run:
+- Unlock preserved: pre-gesture floor impacts logged, zero buffers, no AudioContext; first gesture creates a running 44.1 kHz context.
+- Coverage: floor, wall, glass-lid, die-die all sounded (72 box / 28 glass / 16 die).
+- Per-buffer 116/116: duration exact min(0.6, max(0.05, 8*peakTau)); last sample 0; no end click (<= -30 dB); tail below -50 dB; no late-tail discontinuity > -50 dB (1e-4 break step inaudible); lowest spectral peak always a real mode; gain exact.
+- Position distinction: center vs edge spectra differ (cosine 0.945 cross vs 0.978 within, n=39/18). Die-type distinction: all six lowest modes distinct (2126-2415 Hz), every measured die-die pair matches theory (7 type-pairs).
+- Haptics wired and firing: 10 vibrate calls, 5-14 ms, at voice speeds > 0.8 m/s (max 1.7).
+- No page errors, no console errors.
 
-Remaining on release: final rerun with band-T60 check for all buckets (box ~80 ms, glass ~200 ms, die ~19 ms rendered), fixed haptics log, then write the final report and file any defects.
+Perceptual summary (numeric proxies for the headphone listen I cannot perform): all impacts are dry and short (buffers 50-232 ms), decay at exactly the specified slowest-mode rates, end in digital silence with no clicks, and keep material, position and die-type distinctions. A final human headphone check of the four scenarios is the only remaining subjective confirmation.
+
+Not a defect (verified, out of task scope): wall contacts exactly on a plate node (corner hits where two plate candidates tie) excite zero plate modes, so the sound is a die-only click - physically correct for mode shapes with nodes at supported edges, pre-existing behavior, unchanged by this task. Measured numbers and instrument details in /tmp/dice-lt-audio/results.json. No defects filed.
