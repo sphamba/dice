@@ -80,3 +80,29 @@ Remove the directional shadow map and add a custom screen-space GTAO pass in raw
 - Live check (browser): no console or GL errors. With one settled d6, the floor 2 mm from each of its four sides is darker than open floor, and the darkening is symmetric left/right and top/bottom within a small tolerance. Under a die held high, the floor is not darker than open floor. After a resize between phone and desktop sizes, the darkening stays centred on the dice. `WEBGL_lose_context` lose and restore renders again with AO.
 
 # Notes
+# Notes
+
+## Deliverable
+- GTAO screen-space AO pass replaces shadow mapping entirely (raw WebGL2, no extra deps): AO depth render target, AO normal prepass (dice only), GTAO slice-integral pass, edge-aware blur, depth-aware bilinear upsample into the lit forward pass. Die tops light up when held; AO fades with height; resting dice get contact darkening.
+- Ortho top-down camera: halfExtent = max(halfDiagonal + 0.5·radius + camera margin, distance·tan(MIN_VERTICAL_FOV/2)), camera height = max(distance, minDistance)/cos(MIN_VERTICAL_FOV/2), floor clamp keeps the play area centered under min distance.
+- New helpers in camera.js: dropShadowCamera → keepCameraInView(box, radius, viewport) + dropDistance(distance, viewport); dropViewProjection → dropViewProjection(box, distance). Shadow FBO and camera state removed.
+- gl.js: createTexture, createRenderTarget, resizeRenderTarget; new FBO format R8 + DEPTH_COMPONENT16 for the AO buffers.
+
+## Progress
+- camera.js rewritten + tests green (12/12 camera.test.js). gl.js helpers in. shaders.js rewritten: AO prepass, GTAO fragment (XeGTAO slice integral, 4x4 tile jitter, quadratic sample distribution, z-scaled falloff, nAng±π/2 horizon clamp), blur, lit forward sources with AO upsample.
+- Next: rewrite renderer.js (AO constants, aoTargetSize, three-pass draw, drop lighting/shadow uniforms), then renderer.test.js + ao.test.js (source check + JS mirror of the slice integral), scoped suites, build, browser check.
+
+## Verification
+- Pending. Planned: npx vitest run src/render/ + npm run build + headless browser check with --use-angle=swiftshader.
+
+## Assumptions
+- XeGTAO sign convention verified against upstream src/integration/xeGTAO.fs.glsl: side 1 horizon angle is negated (h0 = -acos(horizonCos1)), falloff mul/add = -1/(range·R), (1-range)/range+1; flat floor gives exactly 1.0 visibility, wall-base test uses a 10 mm wall (inside falloff reach; a truly infinite wall is killed by the falloff by design).
+- AO upsample weights are normalized by their sum (spec formula without normalization diverges on open floor).
+- uMinDist texel unit = AO-texture texel (0.2 mm); dice aspect uses DIE_HEIGHT/DIE_WIDTH=0.75.
+- Held-die note: die bottom at 13.86 mm (lift + half die) still shows weak contact shadow per falloff math (~1.4% angle); visually negligible, not worth extra clamping.
+
+## Blockers
+- None.
+
+## Manual checks left to other roles
+- Visual pass on device: AO strength/falloff look, contact darkening under resting dice, die top brightness when held.
