@@ -1,7 +1,7 @@
 ---
 name: "fix: delete the flaky ten-dice wall-time performance test"
 priority: "medium"
-state: "doing"
+state: "to-review"
 worktree: "fix/36-delete-flaky-perf-test"
 issuer: "#34"
 complexity: "trivial"
@@ -25,3 +25,7 @@ Delete the wall-time performance test in src/physics/world.e2e.test.js. It fails
 - The file has no unused imports or helpers that this deletion caused.
 
 # Notes
+- Deleted the `performance` describe block with the `simulates ten dice for one second in under 500 ms` test from `src/physics/world.e2e.test.js`.
+- No import, constant or helper became unused: `mulberry32`, `randomQuat`, `DIE_RADIUS`, `DICE_TYPES`, `STEPS_PER_SECOND`, `dropBody` are all still used by the remaining tests.
+- Verification at c229b03: `grep -n "under 500 ms" src/physics/world.e2e.test.js` returns nothing (exit 1); `npm test -- src/physics/world.e2e.test.js` gives 12 passed (was 13).
+- Assumption: no replacement timing check added, as the Specs require.
