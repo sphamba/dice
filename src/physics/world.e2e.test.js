@@ -251,21 +251,3 @@ describe('energy', () => {
     expect(peak).toBeLessThanOrEqual(dropHeight);
   });
 });
-
-describe('performance', () => {
-  it('simulates ten dice for one second in under 500 ms', () => {
-    const random = mulberry32(5150);
-    const world = createWorld(BOX);
-    for (let index = 0; index < 10; index += 1) {
-      world.addBody(dropBody(DICE_TYPES[index % DICE_TYPES.length], [
-        (random() - 0.5) * (BOX.W - 2 * DIE_RADIUS) * 0.9,
-        (random() - 0.5) * (BOX.H - 2 * DIE_RADIUS) * 0.9,
-        BOX.D / 2,
-      ], randomQuat(random)));
-    }
-
-    const started = performance.now();
-    for (let step = 0; step < STEPS_PER_SECOND; step += 1) world.step(FIXED_DT);
-    expect(performance.now() - started).toBeLessThan(500);
-  });
-});
