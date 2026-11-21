@@ -44,13 +44,13 @@ In `src/main.js`, change only the roll translation ranges:
 ### Inspected so far
 - Commit 28db826 changes exactly the four constants in `src/main.js` (verified via `git show`); `rollDice` body untouched.
 - Roll handler runs synchronously on click/keydown, so exact roll velocities can be captured in the same JS turn as the trigger, before any physics step.
-- World is not exposed globally; plan is to expose it with a Playwright route-interception wrapper on `src/physics/world.js` (one behavior-preserving line adding `globalThis.__diceWorld`, no repo edits).
 - Default gravity is (0,0,-9.81) with no device motion in headless, so expected captures: horizontal speed in [0.8,1.6], vz in [0.6,1.2] up, angular speed in [15,40].
-- Playwright found at `/home/phamba/repos/tarot/app/node_modules/playwright` with chromium-1217 in `~/.cache/ms-playwright`; app served with `vite` dev server (the README user command).
+- Playwright found at `/home/phamba/repos/tarot/app/node_modules/playwright` with chromium-1217 in `~/.cache/ms-playwright`; verified working (import 239 ms, launch 301 ms, page load OK).
 
-### Plan
-1. Shared `/tmp` harness (server, world exposure, console capture, settle/containment helpers), smoke run first, then full driver.
-2. Desktop 1280x720 and phone 390x844 contexts: real Roll click / Space press / phone tap as UX evidence, synchronous captures per die for range verification on both routes, held-die test (mouse hold on desktop, CDP touch hold on phone) with before/after velocity comparison, 10 mixed dice settle + containment, zero-dice no-op, console gate with environment artifacts whitelisted.
+### Harness state
+- Shared harness written at `/tmp/dice32-lt/harness.js` (vite server management, behavior-preserving `globalThis.__diceWorld` exposure via Playwright route interception of `src/physics/world.js`, capture snippets, settle/containment helpers, console classifier). Driver at `/tmp/dice32-lt/driver.js` (desktop + phone contexts, Roll button/Space routes, held-die mouse and CDP-touch tests, 10 mixed dice, zero-dice no-op). Both pass `node --check`.
+- Smoke run hung twice after "vite dev server up" with no output; suspicion is `waitForFunction` never resolving because the world wrapper may break the served `world.js`, or the server dying between runs (last probe hit ERR_CONNECTION_REFUSED because the dev server from the earlier run was gone).
+- Next: a step-by-step probe that starts vite itself, `node --check`s the intercepted+wrapped `world.js`, loads the page with console capture, and reports whether `__diceWorld` exists and how many bodies spawned. Then fix, smoke run, and full run.
 
 ### Defects filed
-- None yet (no test executed yet).
+- None yet (still harness bring-up; no app behavior tested).
