@@ -35,10 +35,26 @@ The #32 roll lift (0.6-1.2 m/s) throws dice past the glass lid in a 50 mm box. D
 
 # Notes
 # Notes
+# Notes
 ## PM steer
-- The user wants a higher toss than 0.1-0.2 of D. Read the new Specs: lift from the headroom (centre to lid along the lift direction, minus DIE_RADIUS), with a random fraction 0.60-0.95 per die. A roll alone must never touch the lid.
-- Change `src/physics/roll.js`, `src/main.js` and `src/physics/roll.test.js` to match. The test must also prove a high toss (apex at least 0.5 x headroom) on desktop and phone boxes.
+- Higher toss per the new Specs: lift from the headroom (centre to lid along the lift direction, minus DIE_RADIUS), random fraction 0.60-0.95 per die, roll alone never touches the lid.
 
-## Earlier progress (fraction 0.1-0.2 of D, now replaced)
-- Lift was `sqrt(2 g rise D)` with rise 0.1-0.2 of D in `src/physics/roll.js`. `rollDice` in `src/main.js` uses `rollVelocity`. Regression test `src/physics/roll.test.js` with 8 orientations. HEAD 696fede, `npm test` 254 passed, build green.
-- Live headless check: before the fix the die centre reached z=0.0389, past the lid limit at 0.0361. Dice were never pinned: the offset shadow made a resting die look raised.
+## Current state (in progress, not committed)
+- `src/physics/roll.js` now exports `headroom(box, position, up)`, `liftSpeed(box, gravity, position, rise)` and `rollVelocity(out, { box, gravity, position, angle, speed, rise })` with `ROLL_RISE_MIN = 0.6`, `ROLL_RISE_MAX = 0.95`. Headroom is the ray-box exit distance from the die centre along the lift direction, using per-axis limits x in [-W/2, W/2], y in [-H/2, H/2], z in [0, D], minus DIE_RADIUS.
+- `src/main.js` passes `position: body.position` to `rollVelocity`.
+- `src/physics/roll.test.js` parametrised over the desktop (1280x800, dpr 1, D=0.05) and phone (393x852, dpr 3, D=0.0681) boxes: unit check on the headroom and lift, plus the toss must rise over half the headroom, never touch the lid, and settle on the floor within 3 s.
+- Unit test and the apex and settle assertions pass. The lid-contact assertion still fails on a few orientations.
+
+## Open cause (evidence of record)
+- The test fixture spawns the die at z = DIE_RADIUS with a random orientation, so corners start up to 5.9 mm inside the floor. The Baumgarte push and restitution then kick the die upward by itself, and a lid contact appears at every rise fraction from 0.80 to 0.95 (sweep of 48 configs per box), with a worst vertex gap of 0.2 mm. The lift is therefore not the remaining cause: the fixture must settle the die first, as the page does before a roll.
+
+## Next step
+- Settle the die before the toss in the test, re-run, then check whether 0.95 of the headroom clears the lid on the smallest box, or take the largest fraction that does and record the value as an assumption.
+
+## Earlier committed work
+- HEAD 696fede: the previous 0.1-0.2 of D lift, `npm test` 254 passed, build green.
+- Live headless check: dice are never pinned. The old lid slam reached z = 0.0389 past the lift limit at 0.0361; the offset shadow under the orthographic top view made a resting die look raised.
+
+## Blockers
+- None.
+

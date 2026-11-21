@@ -81,28 +81,16 @@ Remove the directional shadow map and add a custom screen-space GTAO pass in raw
 
 # Notes
 # Notes
+## PM steer
+- Your earlier Notes described camera changes (FOV, camera distance, `keepCameraInView`, `dropViewProjection`, die aspect) and "die tops light up when held". None of these are in the Specs, and the diff does not have them. Keep it that way: `createCamera` and the frustum stay as on main. In `camera.js` only remove `createLightViewProjection` and add `worldZFromDepth` and `floorClearDepth`.
+- Write Notes that describe the real diff only.
 
-## Deliverable
-- GTAO screen-space AO pass replaces shadow mapping entirely (raw WebGL2, no extra deps): AO depth render target, AO normal prepass (dice only), GTAO slice-integral pass, edge-aware blur, depth-aware bilinear upsample into the lit forward pass. Die tops light up when held; AO fades with height; resting dice get contact darkening.
-- Ortho top-down camera: halfExtent = max(halfDiagonal + 0.5·radius + camera margin, distance·tan(MIN_VERTICAL_FOV/2)), camera height = max(distance, minDistance)/cos(MIN_VERTICAL_FOV/2), floor clamp keeps the play area centered under min distance.
-- New helpers in camera.js: dropShadowCamera → keepCameraInView(box, radius, viewport) + dropDistance(distance, viewport); dropViewProjection → dropViewProjection(box, distance). Shadow FBO and camera state removed.
-- gl.js: createTexture, createRenderTarget, resizeRenderTarget; new FBO format R8 + DEPTH_COMPONENT16 for the AO buffers.
+## Progress (from the diff at this checkpoint)
+- `camera.js`: `createLightViewProjection` removed; `worldZFromDepth(d, box)` and `floorClearDepth(box)` added. `camera.test.js` updated.
+- `gl.js`: render target helpers for R8/RGBA8 color and DEPTH_COMPONENT16.
+- `shaders.js`: AO prepass, GTAO slice-integral pass (XeGTAO convention, 4x4 noise, quadratic sample distribution, z-scaled falloff, horizon clamp), blur, forward pass with AO upsample.
+- Next: `renderer.js` (AO constants, `aoTargetSize`, the passes, shadow removal, resize and context restore, 1x1 white fallback), `renderer.test.js` and the AO tests (source check, JS slice integral), scoped suites, build, browser check.
 
-## Progress
-- camera.js rewritten + tests green (12/12 camera.test.js). gl.js helpers in. shaders.js rewritten: AO prepass, GTAO fragment (XeGTAO slice integral, 4x4 tile jitter, quadratic sample distribution, z-scaled falloff, nAng±π/2 horizon clamp), blur, lit forward sources with AO upsample.
-- Next: rewrite renderer.js (AO constants, aoTargetSize, three-pass draw, drop lighting/shadow uniforms), then renderer.test.js + ao.test.js (source check + JS mirror of the slice integral), scoped suites, build, browser check.
-
-## Verification
-- Pending. Planned: npx vitest run src/render/ + npm run build + headless browser check with --use-angle=swiftshader.
-
-## Assumptions
-- XeGTAO sign convention verified against upstream src/integration/xeGTAO.fs.glsl: side 1 horizon angle is negated (h0 = -acos(horizonCos1)), falloff mul/add = -1/(range·R), (1-range)/range+1; flat floor gives exactly 1.0 visibility, wall-base test uses a 10 mm wall (inside falloff reach; a truly infinite wall is killed by the falloff by design).
-- AO upsample weights are normalized by their sum (spec formula without normalization diverges on open floor).
-- uMinDist texel unit = AO-texture texel (0.2 mm); dice aspect uses DIE_HEIGHT/DIE_WIDTH=0.75.
-- Held-die note: die bottom at 13.86 mm (lift + half die) still shows weak contact shadow per falloff math (~1.4% angle); visually negligible, not worth extra clamping.
-
-## Blockers
-- None.
-
-## Manual checks left to other roles
-- Visual pass on device: AO strength/falloff look, contact darkening under resting dice, die top brightness when held.
+## Assumptions (keep)
+- XeGTAO sign convention checked upstream: side 1 horizon angle negated, falloff mul/add = -1/(range*R) and (1-range)/range+1. A flat floor gives exactly 1.0. The wall-base test uses a 10 mm wall inside the falloff reach, because an infinite wall is cut by the falloff by design.
+- The AO upsample weights are normalized by their sum.

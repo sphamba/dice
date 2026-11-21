@@ -6,7 +6,7 @@ worktree: ""
 issuer: "#31"
 complexity: "moderate"
 shortName: "pile-warm-start-sleep"
-blockedBy: "#33, #37"
+blockedBy: "#37"
 ---
 
 # Summary

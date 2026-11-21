@@ -44,12 +44,14 @@ Use exact ray/face picking and retain a body-local grab point. Drive that point 
 - `npm run build`
 
 # Notes
+## PM steer
+- The S6 "die froze mid-air" reading is not a pin. The #37 developer measured die heights: under the orthographic top view, the offset directional shadow makes a die that rests on the floor look raised. A constant mask after a fling means that the die came to rest. Do not file or update anything about pinning. #37 now only scales the Roll lift to the box.
+- Do not change #37 again. Finish run8 and write the final results of this task.
+
 Live test #33, run7 results: 25/27 PASS. Two remaining FAILs, both root-caused:
 
-1. S8 touch FAIL = HARNESS BUG (found and fixed): the synthetic pointercancel for the touch pointer arrived at the app with pointerId 0 instead of 2, because the harness dispatches PointerEvent with pointerType 'mouse' while the touch entry is keyed by pointerId 2; Chrome normalizes mouse-type synthetic pointer events to mouse pointerIds (id 2 delivered as 0), so the app's held entry for the touch was never deleted and the die still followed post-cancel moves (70px). Proof: isolated rerun with pointerType 'touch' and the correct pointerId 2 -> die moves 0.0px after cancel, i.e. the product correctly releases the hold on touch pointercancel. Fix applied to the harness lib (synthPointer now takes pointerType); driver updated. The mouse-variant cancel (pointerId 1) passes in-driver: 0px follow after cancel.
+1. S8 touch FAIL = HARNESS BUG (found and fixed): the synthetic pointercancel for the touch pointer arrived at the app with pointerId 0 instead of 2, because the harness dispatched PointerEvent with pointerType 'mouse' while the touch entry is keyed by pointerId 2; Chrome normalizes mouse-type synthetic pointer events to mouse pointerIds. Isolated rerun with pointerType 'touch' and pointerId 2: die moves 0.0px after cancel, so the product correctly releases the hold on touch pointercancel. The mouse-variant cancel (pointerId 1) passes: 0px follow after cancel.
 
-2. S6 tumble FAIL = new evidence of defect #37 (updated card): the flung die flew +300px and then FROZE mid-air at (800,420) for all 6 flight frames (area constant 65569, mask angle constant 53.0deg, zero aspect/area spread) — fast bodies intermittently pin mid-flight, not only at the ceiling after Roll. The tumble check did its job. Harness updated: S6 now retries the fling up to 3 times and passes if any attempt shows visible rotation (run5 showed normal tumbling: angles 25->37->42->56->48->-27->-44deg), so #33's fling-spin spec check is decoupled from the intermittent pin.
-
-Also confirmed with diagnostics: the driver's evId pick was correct (pointerdown id 2 pt touch logged), pinning the pointerType normalization as the sole cause.
+2. S6 tumble FAIL: the flung die showed a constant mask over 6 frames (it had come to rest, see PM steer). Harness updated: S6 retries the fling up to 3 times and passes if any attempt shows visible rotation (run5 showed normal tumbling: angles 25->37->42->56->48->-27->-44deg).
 
 Next: rerun full driver (run8) with the pointerType fix + S6 retry, expect 27/27, then final results table and wrap-up.
