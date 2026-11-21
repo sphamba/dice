@@ -1,13 +1,15 @@
 ---
 name: "feat: make dice controls hideable with Roll still available"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "feat/31-hideable-dice-controls"
 issuer: "#8"
 complexity: "moderate"
 shortName: "hideable-dice-controls"
 blockedBy: ""
 splitter: "done"
+changes: "{\"base\":\"main\",\"ins\":227,\"del\":6,\"files\":3}"
+commits: "[{\"hash\":\"ba75a40\",\"subject\":\"feat(ui): hide the dice rows behind a disclosure button\",\"when\":\"2026-11-18T22:44:02+01:00\"}]"
 ---
 
 # Summary
