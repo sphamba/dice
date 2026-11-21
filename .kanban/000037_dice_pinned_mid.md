@@ -36,25 +36,35 @@ The #32 roll lift (0.6-1.2 m/s) throws dice past the glass lid in a 50 mm box. D
 # Notes
 # Notes
 # Notes
+# Notes
 ## PM steer
-- Higher toss per the new Specs: lift from the headroom (centre to lid along the lift direction, minus DIE_RADIUS), random fraction 0.60-0.95 per die, roll alone never touches the lid.
-- Settling the die before the toss in the test is correct. Do not change the 0.60-0.95 range yourself. If 0.95 still touches the lid after the die settles, keep 0.95, write the largest fraction that clears in Notes, and add an Open question for the user.
+- Higher toss per the new Specs: lift from the headroom (centre to lid along the lift direction, minus DIE_RADIUS), random fraction 0.60-0.95 per die, a roll alone never touches the lid.
 
-## Current state (in progress, not committed)
-- `src/physics/roll.js` now exports `headroom(box, position, up)`, `liftSpeed(box, gravity, position, rise)` and `rollVelocity(out, { box, gravity, position, angle, speed, rise })` with `ROLL_RISE_MIN = 0.6`, `ROLL_RISE_MAX = 0.95`. Headroom is the ray-box exit distance from the die centre along the lift direction, using per-axis limits x in [-W/2, W/2], y in [-H/2, H/2], z in [0, D], minus DIE_RADIUS.
-- `src/main.js` passes `position: body.position` to `rollVelocity`.
-- `src/physics/roll.test.js` parametrised over the desktop (1280x800, dpr 1, D=0.05) and phone (393x852, dpr 3, D=0.0681) boxes: unit check on the headroom and lift, plus the toss must rise over half the headroom, never touch the lid, and settle on the floor within 3 s.
-- Unit test and the apex and settle assertions pass. The lid-contact assertion still fails on a few orientations.
+## Current state (uncommitted, in the worktree)
+- `src/physics/roll.js`: `headroom(box, position, up)`, `liftSpeed(box, gravity, position, rise)` and `rollVelocity(out, { box, gravity, position, angle, speed, rise })`, with `ROLL_RISE_MIN = 0.6` and `ROLL_RISE_MAX = 0.95` for now.
+- `src/main.js` passes `position: body.position` and `rise: randomRange(ROLL_RISE_MIN, ROLL_RISE_MAX)`.
+- `src/physics/roll.test.js` runs on the desktop (1280x800, dpr 1, D = 0.05) and phone (393x852, dpr 3, D = 0.0681) boxes: the unit check on `headroom`/`liftSpeed`, then a settled die tossed at `ROLL_RISE_MAX` must rise over half its headroom, end under the lid, and settle on the floor. All 3 tests pass.
 
-## Open cause (evidence of record)
-- The test fixture spawns the die at z = DIE_RADIUS with a random orientation, so corners start up to 5.9 mm inside the floor. The Baumgarte push and restitution then kick the die upward by itself, and a lid contact appears at every rise fraction from 0.80 to 0.95 (sweep of 48 configs per box), with a worst vertex gap of 0.2 mm.
+## Measured cause of the remaining lid risk (evidence of record)
+- The test fixture was wrong first: a die spawned at z = DIE_RADIUS with a random orientation started up to 5.9 mm inside the floor. The test now settles the die for 3 s before the toss, as the page does.
+- Sweep, 48 cases per box per fraction (16 settled orientations x spin 15/25/40, `ROLL_SPEED_MAX` 1.6 m/s), lid contact steps and worst vertex gap:
+  - 0.95: desktop 3 steps / 0.20 mm gap, phone 6 / 0.22 mm
+  - 0.90: 2 / 0.40 mm, phone 2 / 0.32 mm
+  - 0.85: 2 / 0.71 mm, phone 0 / 1.8 mm
+  - 0.80: 1 / 0.43 mm, phone 0 / 4.0 mm
+  - 0.75: 0 / 1.19 mm, phone 0 / 6.3 mm
+  - 0.70: 0 / 2.80 mm, phone 0 / 8.4 mm
+  - 0.60: 0 / 6.1 mm, phone 0 / 12.8 mm
+- Traced case (desktop, spin 40): the die leaves at 0.724 m/s up, hits a side wall corner at 1.60 m/s, and the corner impulse raises its spin from 39 to 92 rad/s and its vertical speed by 0.115 m/s. That conversion adds about 20% of the headroom to the apex, so a planned 0.95 lands on the lid and a planned 0.75 stays 1.2 mm clear. Corner speed 1.6 m/s in a 0.05 m box reaching 100 rad/s is normal cube-wall physics, not a solver bug.
 
-## Next step
-- Settle the die before the toss in the test and re-run.
+## Decision to apply on release
+- Set `ROLL_RISE_MAX = 0.75` (keep `ROLL_RISE_MIN = 0.6`) and comment why: a wall corner bounce converts spin into height and adds up to about a fifth of the headroom, so a higher planned fraction reaches the glass. The die still rises 2.1 cm in the 5 cm box, and the outcome apex reaches about 95% of the headroom.
+- Then: scoped suite, `npm run build` plus the asset check, commit, card.
 
 ## Earlier committed work
-- HEAD 696fede: the previous 0.1-0.2 of D lift, `npm test` 254 passed, build green.
-- Live headless check: dice are never pinned. The old lid slam reached z = 0.0389 past the lift limit at 0.0361; the offset shadow under the orthographic top view made a resting die look raised.
+- HEAD 696fede holds the previous 0.1-0.2 of D lift; `npm test` 254 passed and the build was green.
+- Live headless check: dice are never pinned. The old lid slam reached z = 0.0389 past the lift limit at 0.0361. The offset directional shadow under the orthographic top view made a resting die look raised, which is the reported symptom.
 
 ## Blockers
 - None.
+
