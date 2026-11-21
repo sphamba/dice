@@ -1,11 +1,13 @@
 ---
 name: "fix: make every synthesized impact sound very dry"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/35-dry-impact-sound-decay"
 issuer: "#9"
 complexity: "simple"
 shortName: "dry-impact-sound-decay"
+changes: "{\"base\":\"main\",\"ins\":87,\"del\":5,\"files\":4}"
+commits: "[{\"hash\":\"78d63a4\",\"subject\":\"fix(audio): tune modal decays to dry T60 targets\",\"when\":\"2026-11-21T20:42:10+01:00\"}]"
 ---
 
 # Summary
