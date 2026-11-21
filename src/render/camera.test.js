@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as mat4 from '../math/mat4.js';
-import { CAMERA_MARGIN, createCamera, createLightViewProjection } from './camera.js';
+import { CAMERA_MARGIN, createCamera, floorClearDepth, worldZFromDepth } from './camera.js';
 
 const BOX = { W: 0.4, H: 0.3, D: 0.12 };
 const EPS = 1e-6;
@@ -57,27 +57,20 @@ describe('createCamera', () => {
   });
 });
 
-describe('createLightViewProjection', () => {
-  it('fits the whole box into the light frustum', () => {
-    const light = createLightViewProjection(BOX, [-0.4, -0.3, -0.8660254037844386]);
-    const lightViewProjection = mat4.multiply(mat4.create(), light.projection, light.view);
-    for (const x of [-BOX.W / 2, BOX.W / 2]) {
-      for (const y of [-BOX.H / 2, BOX.H / 2]) {
-        for (const z of [0, BOX.D]) {
-          const ndc = toNdc(lightViewProjection, [x, y, z]);
-          expect(Math.abs(ndc[0])).toBeLessThan(1);
-          expect(Math.abs(ndc[1])).toBeLessThan(1);
-          expect(Math.abs(ndc[2])).toBeLessThan(1);
-        }
-      }
+describe('depth helpers', () => {
+  const camera = createCamera(BOX);
+  const viewProjection = mat4.multiply(mat4.create(), camera.projection, camera.view);
+
+  it('worldZFromDepth inverts the camera window depth', () => {
+    for (const z of [0, BOX.D / 2, BOX.D]) {
+      const ndc = toNdc(viewProjection, [0.03, -0.07, z]);
+      near(worldZFromDepth(depth(ndc[2]), BOX), z, 1e-6);
     }
   });
 
-  it('normalizes the light direction and keeps frustum axes orthogonal', () => {
-    const tilted = createLightViewProjection(BOX, [0, 0, -2]);
-    const straight = createLightViewProjection(BOX, [0, 0, -1]);
-    for (let i = 0; i < 16; i += 1) {
-      expect(Math.abs(tilted.view[i] - straight.view[i])).toBeLessThan(1e-5);
-    }
+  it('floorClearDepth matches the window depth of the floor plane', () => {
+    const ndc = toNdc(viewProjection, [0.07, -0.02, 0]);
+    near(floorClearDepth(BOX), depth(ndc[2]), 1e-6);
+    near(worldZFromDepth(floorClearDepth(BOX), BOX), 0, 1e-9);
   });
 });

@@ -60,10 +60,22 @@ export function deleteVAO(gl, mesh) {
   gl.deleteVertexArray(mesh.vao);
 }
 
-export function createDepthTexture(gl, size) {
+export function createDepthTexture(gl, width, height, format = gl.DEPTH_COMPONENT24) {
   const texture = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, texture);
-  gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, size, size);
+  gl.texStorage2D(gl.TEXTURE_2D, 1, format, width, height);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return texture;
+}
+
+// Render-target color texture: format is an sized internal format (RGBA8, R8, ...).
+export function createColorTexture(gl, width, height, format) {
+  const texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texStorage2D(gl.TEXTURE_2D, 1, format, width, height);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -84,15 +96,22 @@ export function createLabelTexture(gl, canvas) {
   return texture;
 }
 
-export function createDepthFramebuffer(gl, depthTexture) {
+// colors: textures for COLOR_ATTACHMENT0..n; depth: optional DEPTH_ATTACHMENT texture.
+export function createFramebuffer(gl, colors, depth = null) {
   const framebuffer = gl.createFramebuffer();
   gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, depthTexture, 0);
-  gl.drawBuffers([gl.NONE]);
+  colors.forEach((texture, index) => {
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0 + index, gl.TEXTURE_2D, texture, 0);
+  });
+  if (colors.length === 0) gl.drawBuffers([gl.NONE]);
+  if (depth) {
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, depth, 0);
+  }
   const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   if (status !== gl.FRAMEBUFFER_COMPLETE) {
-    throw new Error(`shadow framebuffer incomplete: 0x${status.toString(16)}`);
+    gl.deleteFramebuffer(framebuffer);
+    throw new Error(`framebuffer incomplete: 0x${status.toString(16)}`);
   }
   return framebuffer;
 }

@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { FLOOR_VERTICES } from './renderer.js';
+import { FLOOR_VERTICES, aoTargetSize } from './renderer.js';
+
+describe('aoTargetSize', () => {
+  it('gives the phone-box example size', () => {
+    expect(aoTargetSize({ W: 0.0675, H: 0.1462 }, 1200, 2600)).toEqual([338, 731]);
+  });
+
+  it('never exceeds the backing size and stays at least 1x1', () => {
+    expect(aoTargetSize({ W: 0.5, H: 0.5 }, 100, 100)).toEqual([100, 100]);
+    expect(aoTargetSize({ W: 0.0001, H: 0.0001 }, 10, 10)).toEqual([1, 1]);
+  });
+});
 
 // GL triangle strips emit (v0,v1,v2) then (v2,v1,v3), so the second triangle's
 // winding is reversed by the strip itself. CCW in NDC is front-facing.
