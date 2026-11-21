@@ -1,7 +1,7 @@
 ---
 name: "fix: delete the flaky ten-dice wall-time performance test"
 priority: "medium"
-state: "to-review"
+state: "to-merge"
 worktree: "fix/36-delete-flaky-perf-test"
 issuer: "#34"
 complexity: "trivial"
