@@ -1,7 +1,7 @@
 ---
 name: "fix: drag dice by the grabbed face point with linear and angular damping"
 priority: "high"
-state: "reviewing"
+state: "to-merge"
 worktree: "fix/33-grab-face-point-damping"
 issuer: "#8"
 complexity: "moderate"
@@ -42,11 +42,14 @@ Use exact ray/face picking and retain a body-local grab point. Drive that point 
 - `npm run build`
 
 # Notes
-## Review progress (held at watch checkpoint)
+## Review outcome: approved
 
-- Scope confirmed: single commit `2cef6cc` on `fix/33-grab-face-point-damping`, touching `src/input/pointer.js` (+125/-?) and `src/input/pointer.test.js` (284 insertions, 95 deletions vs `main`).
-- Interfaces verified once: `world.beforeStep` contract and `FIXED_DT` in `src/physics/world.js`, `quat`/`vec3` helpers, `integrator.js` untouched (unheld damping unchanged), `main.js` rollDice wraps `heldBodies()` in a `Set` so duplicate holds stay safe for roll exclusion.
-- Acceptance commands initially failed only because this worktree's copied `node_modules/.bin` shims are dereferenced symlinks (untracked, environment artifact, not work product). Restored the `vitest`/`vite` symlinks locally; then `npx vitest run src/input/pointer.test.js` = 15 passed, `npm run build` = green with the exact asset hashes the developer reported (`index-CG-QCp7E.js`, `index-DasNQWd4.css`).
-- Spec-by-spec code review done: plane-solve + winding containment math derived correct for convex CCW faces; body-local offset conversion, `linearVelocity + omega x rotatedOffset` compensation, hold height `D - 2 * radius`, frame-rate-independent gain `1 - exp(-k dt)` over dt in the fixed-step path, angular decay `1/(1 + k dt)` per fixed step; no new world callback; release/fling/pointercancel untouched; multi-pointer insertion order and last-pointer drive covered by tests; every regression-coverage bullet maps to a test.
-- In progress: one numeric Node probe (`probe.mjs`, untracked, removed after the run) validating the pick against an independent brute-force Moller-Trumbore ray-triangle intersection on tilted real shapes for all six die types, and the full local offset + omega x r compensation through `world.beforeStep` with measured post-decay omega.
-- Remaining: run the probe once, delete it, then write the final review Notes with the outcome. Current leaning: approved, no code fixes needed.
+- Verified commit `2cef6cc` against every spec bullet; no code fixes needed; no state move.
+- Acceptance: `npx vitest run src/input/pointer.test.js` 15 passed; `npm run build` green with identical asset hashes (`index-CG-QCp7E.js`, `index-DasNQWd4.css`). Both commands first failed only because this worktree's copied `node_modules/.bin` shims lost their symlink targets; restored the `vitest`/`vite` symlinks (untracked environment fix, nothing committed).
+- Independent numeric probe (run once, then deleted): for all six die types tilted about (1,2,3) by 0.7 rad, the plane-solve + winding-containment pick matches a brute-force Moller-Trumbore ray-triangle hit, and the drive's `linearVelocity = pull - omega x rWorld` compensation matches with measured post-decay omega within 1e-9.
+- Spec checks: exact face pick, body-local anchor, no center snap (1e-9 one-frame test), settle within 1 mm at 30/60/144 fps, under 2 mm jump overshoot with XY speed at the drag clamp, 60 rad/s to under 0.1 rad/s monotone within 1 s, linear rest without drift, nearest-surface pick over greatest center z, bounding-circle miss holds nothing, duplicate shared holds with last-pointer drive, pointercancel keeps the other grab, release/fling and 3 m/s clamp untouched, no new world callback, integrator damping unchanged, roll exclusion safe via Set in `main.js`.
+- Accepted (developer-documented): velocity-servo drive instead of momentum retention; unexported damping constants with tests asserting thresholds; faceless bodies unpickable; duplicate holds decay spin once per entry.
+- Accepted deviation (found in review, undocumented): the drag clamp now bounds only the XY point pull before spin compensation and the z pull is unclamped, so the initial rise to hold height can transiently exceed 2 m/s (bounded exponential, worst case about 2.8 m/s, no overshoot; anchor XY stays within the clamp). Spec requires no hold-path z clamp.
+- Deferred to live testing: a die grabbed near a face edge or vertex must not slide under the finger; a held fling still spins.
+
+Guidance: in this worktree restore `node_modules/.bin` symlinks before trusting the acceptance commands; validate pick math against ray-triangle brute force, not a re-implementation of the winding test.
