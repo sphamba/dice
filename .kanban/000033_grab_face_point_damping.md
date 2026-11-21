@@ -1,7 +1,7 @@
 ---
 name: "fix: drag dice by the grabbed face point with linear and angular damping"
 priority: "high"
-state: "to-review"
+state: "reviewing"
 worktree: "fix/33-grab-face-point-damping"
 issuer: "#8"
 complexity: "moderate"
