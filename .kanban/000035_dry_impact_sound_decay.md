@@ -37,12 +37,13 @@ T60 is the time to decay by 60 dB. For an exponential mode, `tau = T60 / ln(1000
 - `npm run build`
 
 # Notes
-- Outcome: approved on HEAD 78d63a4, no fixes needed. Worktree clean; single commit over main's 0553e31, touching only src/audio (modes.js, sound.js and both test files).
-- Acceptance verbatim: `npx vitest run src/audio` 30 passed (3 files), exit 0; `npm run build` exit 0.
-- Independent assert-based probe: through the damping law at real box dims 0.1/0.08/0.06 with non-center impact points, slowest-mode T60 is 80.0 ms floor/wall and 200.0 ms lid; all six die types at DIE_RADIUS land at 18.7 to 19.6 ms with implied base tau equal to t60Tau(0.03) within 1e-9; ordering glass > box > every die holds.
-- Probe-rendered buffers at 48 kHz: floor/wall 92.7 ms, lid 231.6 ms, die-die 50 ms (MIN_DURATION floor), all inside the 0.6 s cap, last sample exactly 0, 3 ms and 10 ms tails at 0; the ring decays naturally via the pre-existing 1e-4 per-mode break before the 3 ms end fade, so nothing is truncated at the cap.
-- Regression coverage matches the spec: slowest-mode T60 for box, glass and all six die types (dice at the real DIE_RADIUS from physics/body.js) plus buffer cap, inaudible tail and exact-zero end through createSound.
-- Accepted: the box/glass T60 test asserts at test dims 0.15/0.1 instead of real box dims; probe confirms slowest-mode T60 is geometry-independent (smallest plate frequency is always f11), so the assertion is equivalent. Accepted: material.tau = t60Tau(T)*(1+dampHF), the dampHF factor divided out at the slowest mode, as the reading of the spec's slowest-mode T60 definition.
-- Frequencies, dampHF ratios, per-type die voices, first-gesture unlock, mixing, gain/compressor and voice management untouched; no new dependency, no audio files.
-- Deferred to live-testing: dryness, absence of clicks and preserved material/position/die-type distinctions on real speakers/headphones.
-- Guidance for future reviewers: one damping-law probe at real geometry settles the T60 targets; slowest-mode T60 is geometry-independent, so test-dims assertions are valid.
+Live test in progress (headless Chromium against the real app served from the worktree).
+
+Setup done:
+- Worktree HEAD 78d63a4; project served with `node node_modules/vite/bin/vite.js --port 4617` (all module URLs 200), Playwright found at /home/phamba/repos/dotfiles/pi-agent/skills/web-browser/node_modules/playwright, Chromium smoke probe passed (71 ms launch).
+- Harness in /tmp/dice-lt-audio/: in-page observers written (init.js) — captures every real AudioBuffer the app plays via patched AudioBufferSourceNode.start/connect (samples + gain), logs AudioContext creation/resume, navigator.vibrate, and a one-line observer injected into the served src/audio/sound.js play() via route interception (no code edits) so real impact events {surface, point, speed, impulse, die types} are recorded.
+- In-page analyzer computes per buffer: duration, peak, exact last sample, end-fade jump (click check), tail RMS before fade, windowed T60 fits, FFT lowest peak (material fingerprint), 96-band spectrum (position/type distinction).
+
+Code path read (no edits): src/audio/modes.js (BOX t60Tau(0.08)*(1+0.8), GLASS t60Tau(0.2)*(1+0.45), DIE_TAU t60Tau(0.03), per-mode tau division), src/audio/sound.js (renderModes, MIN_DURATION 0.05, MAX_DURATION 0.6, END_FADE 0.003, per-mode 1e-4 break), src/main.js wiring, event shape from physics (surface floor/wall/lid/die, point, speed, impulse), panel UI (.panel-toggle, .panel-roll, [aria-label="Add d4"]...), first-gesture unlock on global pointerdown/keydown capture.
+
+Planned run (not yet executed): load page; assert pre-gesture floor events happen but no AudioContext and zero buffers (unlock preserved); first click creates running context; add d4/d8/d20 to default 2 d6; Roll for floor/wall/die-die impacts; flip gravity via devicemotion dispatch (tilt flow) to force glass-lid impacts; analyze all captured buffers against targets (box/wall T60 80 ms, lid 200 ms, dice <=30 ms at real DIE_RADIUS; duration <=0.6 s cap and equal to min(0.6, max(0.05, 8*peakTau)); last sample exactly 0; tail below audible before the 3 ms fade, no click; glass > box > die ordering; center-vs-edge position difference via f11 amplitude; per-type die voices via lowest mode). Results and defects to follow on release.
