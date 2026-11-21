@@ -1,11 +1,13 @@
 ---
 name: "fix: delete the flaky ten-dice wall-time performance test"
 priority: "medium"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/36-delete-flaky-perf-test"
 issuer: "#34"
 complexity: "trivial"
 shortName: "delete-flaky-perf-test"
+changes: "{\"base\":\"main\",\"ins\":0,\"del\":18,\"files\":1}"
+commits: "[{\"hash\":\"c229b03\",\"subject\":\"test(physics): delete flaky ten-dice wall-time performance test\",\"when\":\"2026-11-21T21:20:21+01:00\"}]"
 ---
 
 # Summary
