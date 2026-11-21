@@ -2,7 +2,7 @@
 name: "feat: make dice controls hideable with Roll still available"
 priority: "high"
 state: "done"
-worktree: "feat/31-hideable-dice-controls"
+worktree: ""
 issuer: "#8"
 complexity: "moderate"
 shortName: "hideable-dice-controls"
