@@ -1,5 +1,5 @@
 ---
-name: "fix: dice pinned mid-air after Roll, never settle"
+name: "fix: scale the roll lift to the box headroom so rolls never hit the lid"
 priority: "high"
 state: "doing"
 worktree: "fix/37-dice-pinned-mid"
@@ -8,41 +8,37 @@ complexity: "simple"
 ---
 
 # Summary
-After a Roll click, dice are thrown upward with lift 0.6-1.2 m/s in a box only 0.05 m tall, slam into the ceiling, and remain pinned there statically for at least 20 s (measured), never falling back to the floor.
+The #32 roll lift (0.6-1.2 m/s) throws dice past the glass lid in a 50 mm box. Derive the lift from the box so each rolled die rises to 60-95% of its free headroom: high, but a roll never touches the lid. Dice were not really pinned: the offset shadow made a die on the floor look raised.
 
 # Specs
-# User-visible behavior
-After pressing Roll (or Space), dice must receive the roll impulse and then fall and settle on the floor like normal free dice. Dice must not remain floating/static in mid-air for more than a second or so.
+# User decision
+- Keep a high toss: each rolled die rises to a random 60-95% of its headroom. A roll alone never touches the glass lid. Grabs, flings and tilts may still hit the lid (the lid keeps its glass sound).
+- The "pinned mid-air" report came from the offset directional shadow under the orthographic top view (a die on the floor looked raised). No die stays pinned. Do not add any wake or pin logic for it.
 
-# Evidence (live test of #33, headless Chromium, fresh build of 507cf53, viewport 1280x800)
-- Single d6, die at rest. One click on .panel-roll. Then 14 frames sampled over 20 s: die static at (525,334), bbox 348,157-702,511, area ~65790, from t+1.4 s to t+20.6 s. It never falls (screenshot /tmp/dice-lt33/s0*_burst_1.png shows the die floating with its shadow far below).
-- Whole-frame pixel diff between t+1.4 s and t+2.8 s frames: 13 px (noise). The die does not move at all after reaching the top.
-- Same static-after-roll signature appeared in earlier #33 runs: full-scene diff after Roll was 5-13 px in every roll measurement, and earlier "die settled before a slow-moving frame was seen" notes match a die that flew up and pinned rather than settled.
-- Root-cause direction: rollDice (src/main.js:118-136) applies ROLL_LIFT_MIN..MAX = 0.6..1.2 m/s upward vz (src/main.js:17-18, doubled in commit 28db826) in a box only D=0.05 m tall, so every roll slams dice into the ceiling at roughly 3-5 m/s; the body then comes to rest against the ceiling face and never wakes/falls (sleep or contact-wake issue in the fixed-step path). Vertical rise 0.6-1.2 m is physically impossible inside a 0.05 m box; lift should be scaled to the box (or removed) so dice tumble inside, not stick to the ceiling.
+# Behavior
+- Headroom of a die = distance from its current centre to the box boundary along the lift direction (opposite gravity), minus `DIE_RADIUS` (circumradius, so any orientation stays below the lid). With level gravity this is `D - DIE_RADIUS - z`.
+- On Roll or Space, each free die gets a lift speed `sqrt(2 * |g| * f * headroom)` along the lift direction, with `f` uniform random in [0.60, 0.95] per die. If the headroom is zero or negative, the lift is zero.
+- Keep the #32 horizontal speed (0.8-1.6 m/s) and spin (15-40 rad/s) ranges, the gravity-relative lift direction for tilted gravity, the replacement of free-die velocities, and the exclusion of held dice.
+- Keep the roll tuning in one module (`src/physics/roll.js`) that both `src/main.js` and the tests use.
+
+# Tests
+- `src/physics/roll.test.js`: for a die at rest on the floor, in a desktop box (1280x800 viewport) and a phone box (390x844 at DPR 3), over at least 8 orientations and the worst-case horizontal speed and spin:
+  - no lid contact during the roll and no vertex above the box depth,
+  - the centre apex rises at least 0.5 x headroom (proves a high toss),
+  - the die rests on the floor with near-zero linear and angular speed within 3 s.
+- A unit check that the lift is zero for zero or negative headroom.
 
 # Acceptance criteria
-- After one Roll click with dice at rest, every die is visibly tumbling and comes back to rest on the floor within about 3 s.
-- Long-interval frame sampling (e.g. 1 Hz for 10 s) after a roll shows the die height returning to floor level (die bbox y within ~60 px of its resting bbox y).
-- No die remains static at a raised height for more than ~1 s after a roll.
+- `npx vitest run src/physics/roll.test.js`
+- `npm test`
+- `npm run build`
 
 # Notes
 # Notes
-Deliverable
-- The roll lift is now derived from the box: `sqrt(2 g rise D)` with `rise` a random fraction 0.1-0.2 of the box depth (`src/physics/roll.js`), so a toss apex is 5-10 mm instead of 0.6-1.2 m/s of upward speed in a 0.05 m box.
-- `src/main.js` rollDice uses `rollVelocity`, which keeps the gravity-relative lift for tilted-gravity input. The roll tuning constants moved to `src/physics/roll.js` so one source feeds both the page and the test.
-- Regression test `src/physics/roll.test.js`: 8 orientations, worst-case speed and spin, asserts zero lid contacts, no vertex above the box depth, a real lift, and a floor rest with near-zero linear and angular speed after 3 s. Red on the old 1.2 m/s lift (3 lid steps), green on the fix.
+## PM steer
+- The user wants a higher toss than 0.1-0.2 of D. Read the new Specs: lift from the headroom (centre to lid along the lift direction, minus DIE_RADIUS), with a random fraction 0.60-0.95 per die. A roll alone must never touch the lid.
+- Change `src/physics/roll.js`, `src/main.js` and `src/physics/roll.test.js` to match. The test must also prove a high toss (apex at least 0.5 x headroom) on desktop and phone boxes.
 
-Verification
-- HEAD 696fede. `npm test -- src/physics/roll.test.js`: 2 passed. `npm run build`: built, asset check `src="./assets/index-DedBZjTA.js"`.
-- Clean room from `git archive HEAD`: `npm ci` exit 0, `npm test` 254 passed in 24 files, `npm run build` built.
-- Live headless Chromium (dev server, viewport 1280x800, one d6): after Roll the die centre reached z=0.0126 (before the fix: 0.0389, past the lid at 0.0361) and settled on the floor at z=0.008 in about 0.5 s, with lateral travel over 0.9 s. No die above floor level after that.
-
-Assumptions
-- The die height, not its screen position, decides "pinned": the camera is an orthographic top view, so a floating die and a grounded die share a screen bbox. The spec's bbox-y criterion cannot fail in this projection, and the earlier "static at a raised height" reading came from a die resting on the floor (its offset shadow, light direction -0.4,-0.3,-0.866, reads as a gap under the die).
-- "Rise" is measured against the box depth D, the smallest edge, so the bound holds for any gravity direction from the motion input (gravity magnitude up to 4 g is included in the formula).
-
-Blockers
-- None.
-
-Manual checks left to other roles
-- Live look on a real browser at default 1280x800 and at a phone viewport: press Roll and confirm the dice tumble inside the box without a ceiling slam.
+## Earlier progress (fraction 0.1-0.2 of D, now replaced)
+- Lift was `sqrt(2 g rise D)` with rise 0.1-0.2 of D in `src/physics/roll.js`. `rollDice` in `src/main.js` uses `rollVelocity`. Regression test `src/physics/roll.test.js` with 8 orientations. HEAD 696fede, `npm test` 254 passed, build green.
+- Live headless check: before the fix the die centre reached z=0.0389, past the lid limit at 0.0361. Dice were never pinned: the offset shadow made a resting die look raised.
