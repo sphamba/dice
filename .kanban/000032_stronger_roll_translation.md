@@ -1,7 +1,7 @@
 ---
 name: "fix: double roll translation speed and lift without increasing spin"
 priority: "high"
-state: "live-testing"
+state: "done"
 worktree: "fix/32-stronger-roll-translation"
 issuer: "#8"
 complexity: "simple"
@@ -36,24 +36,39 @@ In `src/main.js`, change only the roll translation ranges:
 - `npm run build`
 
 # Notes
-## Live test in progress (watch checkpoint)
+## Live test report - task #32
 
-### Scope fixed
-- Test only the roll translation change: horizontal speed 0.8-1.6 m/s, lift 0.6-1.2 m/s opposite gravity, spin kept 15-40 rad/s, via both Roll button and Space, phone and desktop sizes, up to 10 mixed dice, settle without tunneling, held dice untouched, zero dice no-op. No unit test suite will be run.
+Tested the merged commit 28db826 from this worktree, served with `vite` dev server (the README user command), in headless Chromium driven by Playwright. The live physics world was exposed to the driver with a behavior-preserving route-interception wrapper on `src/physics/world.js` (one line sets `globalThis.__diceWorld`; no repo code edited). Roll velocities were captured in the same JS turn as the roll trigger, before any physics step, so the numbers below are exact roll outputs.
 
-### Confirmed working so far (desktop, headless Chromium via Playwright + vite dev server)
-- Harness unblocked: Playwright evaluates string arguments as expressions only, so all in-page snippets were converted to IIFEs; every page step now has a fail-fast timeout and the vite server lifecycle is managed by the driver.
-- Roll button route (real `.click()` handler, same synchronous path as a user click): captured roll velocities of 4 dice all inside the new ranges - hSpeed 1.114..1.574 (limit 0.8..1.6), vz 0.607..1.074 (limit 0.6..1.2), spin 24.7..37.2 (limit 15..40).
-- Space route works: synthetic keydown on body launched dice at hSpeed 1.53/1.08, vz 0.89/0.68 (in range); a real CDP Space keypress reached the document with code 'Space', target BODY, and dice were mid-flight 80 ms later (maxSpeed 0.41 m/s). Earlier "no reaction" readings were my measurement timing: dice at 1+ m/s in the 9 cm box lose most speed to wall bounces within ~150 ms, so the real-input probe must sample ~80 ms after the input. Physics runs in real time at 52 rAF fps (no slow-motion), settle about 1-2 s.
-- Settle + containment after rolls: dice settle in ~1 s wall, all positions finite, all inside the box (W=0.089, H=0.050, D=0.050 m), dice count preserved.
+### Result: 86/86 checks passed. No defects found. No cards filed.
 
-### Console findings being classified (environment vs product)
-- "GPU stall due to ReadPixels" warnings: no readPixels in app code (grep verified) - SwiftShader/driver artifact.
-- "WebGL: CONTEXT_LOST_WEBGL: loseContext: context lost": occurred during the smoke run under software GL. App has no context-restore handler (pre-existing, unrelated to this task's four constants). I will timestamp console events in the full run and check the final screenshot to see whether rendering died; classified as environment artifact of headless SwiftShader unless it proves product-triggered.
-- No pageerror so far.
+### Range verification (instrumented, both input routes, both sizes)
+136 free-die roll captures in total, every one inside the new ranges; spin stayed inside the unchanged 15-40 rad/s band.
+- Desktop 1280x720, Roll button, controls collapsed, 2 d6: 12 captures, hSpeed 0.87..1.47, vz 0.68..1.19, spin 17.4..38.8.
+- Desktop 1280x720, Space: 12 captures, hSpeed 0.89..1.51, vz 0.65..1.20, spin 16.9..33.5.
+- Desktop, 10 mixed dice (d4=2 d6=2 d8=2 d10=2 d12=1 d20=1): Roll button 40 captures, hSpeed 0.82..1.59, vz 0.62..1.19, spin 15.2..39.4; Space 20 captures, hSpeed 0.80..1.59, vz 0.63..1.19, spin 15.5..36.7.
+- Phone 390x844 dpr 3 touch, Roll button: 10 captures, hSpeed 0.93..1.57, vz 0.72..1.18, spin 19.5..37.8; Space: 10 captures, hSpeed 0.84..1.57, vz 0.64..1.16, spin 21.0..38.8.
+- Phone, 10 mixed dice, Roll button: 30 captures, hSpeed 0.80..1.60, vz 0.62..1.19, spin 15.2..39.0.
+- Every observed horizontal speed is at or above 0.8 m/s and every lift at or above 0.6 m/s, which the old 0.4-0.8 / 0.3-0.6 ranges could not produce. Throws are visibly stronger; screenshots mid-flight show dice crossing the whole box (saved under /tmp/dice32-lt/).
 
-### Next
-- Fix real-interaction probe timing (sample ~80 ms after input), whitelist the two GL artifacts in the classifier with timestamps, rerun smoke, then the full run: desktop (6+6 capture rounds, held-die mouse test, 10 mixed dice, zero-dice no-op) and phone 390x844 (real tap, 5+5 rounds, held-die touch test, 10 mixed dice, zero-dice no-op).
+### Real-user flows (real CDP input, not only synthetic events)
+- Real Space keypress on desktop and real touch tap on the Roll button on phone both launch dice; sampled 80 ms after input, maxSpeed reached 0.44-0.58 m/s after wall bounces had already eaten part of the launch speed.
+- Held dice: desktop mouse hold and phone single-finger touch hold. A roll while holding leaves the held die bitwise identical in linear and angular velocity, the die keeps tracking the pointer (0.0 mm offset), and all free dice still roll in range.
+- 10 mixed dice on phone and desktop: settle in 0.6-0.9 s wall clock, all 10 dice kept, all positions finite, all inside the box after settle. No tunneling or escape observed in any run.
+- Zero dice: removal through the panel down to 0, then Space and Roll both no-op without errors.
+- Console: no pageerror and no product console message in any context. Two headless SwiftShader artifacts were whitelisted with evidence: "GPU stall due to ReadPixels" (no readPixels in app code, grep verified) and one "CONTEXT_LOST_WEBGL" at page load in the smoke run under software GL. Rendering was verified working through mid-flight screenshots with correct numerals; the app has no context-restore handler, which is a pre-existing hardening gap outside this task's scope.
 
-### Defects filed
-- None yet.
+### Assumptions made while designing the usage tests
+- Headless browsers send no device-motion events, so gravity stays (0,0,-9.81); verified in-page. Lift direction check therefore reduces to vz in [0.6, 1.2] upward and horizontal speed equals the roll speed.
+- A synthetic `.click()` / `KeyboardEvent` exercises the same synchronous onRoll handler as real input; real CDP input was additionally checked to launch dice.
+- The world-exposure wrapper preserves behavior; physics, rendering, panel and drag all behaved normally with it active.
+- Settle means all speeds below 0.01 m/s; tunneling would show as a body outside the box, NaN, or a lost die. None observed.
+- A phone roll while holding a die was triggered with the shared Space handler because a real phone has no hardware key; the hold itself used real touch input.
+
+### Environment limits and test difficulties (resolved, no product impact)
+- Headless SwiftShader: 49-52 rAF fps desktop, 20 fps phone; physics ran in real time (no slow motion).
+- Dice at 1+ m/s lose most speed to wall bounces within about 150 ms in the 9 cm box, so real-input probes must sample about 80 ms after the input; earlier 600 ms sampling looked like "no reaction".
+- Playwright evaluates string arguments as expressions only, so in-page snippets must be IIFEs; initial unbounded waits were replaced with fail-fast timeouts.
+
+### Task assumption check
+- The task's stated assumptions held: the roll translation contract was already correct (only constants changed, verified via `git show`), and the stronger throws stayed contained through the existing collision and damping in every run.
