@@ -36,6 +36,11 @@ In `src/main.js`, change only the roll translation ranges:
 - `npm run build`
 
 # Notes
+## PM steer
+- This change is four constants. Keep the live test small: one desktop and one phone context, Roll button and Space, one held-die check, one 10-dice settle check.
+- If the `world.js` route-interception wrapper fails again, stop using it. Use a simpler approach (for example, read velocities through an existing debug path or record the visible motion only) and state the limit in Notes.
+- Put a timeout on every `waitForFunction` and every page step so that a hang fails fast with a message.
+
 ## Live test in progress (watch checkpoint)
 
 ### Scope fixed

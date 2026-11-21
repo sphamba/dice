@@ -1,13 +1,15 @@
 ---
 name: "fix: drag dice by the grabbed face point with linear and angular damping"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/33-grab-face-point-damping"
 issuer: "#8"
 complexity: "moderate"
 shortName: "grab-face-point-damping"
 blockedBy: ""
 splitter: "done"
+changes: "{\"base\":\"main\",\"ins\":284,\"del\":95,\"files\":2}"
+commits: "[{\"hash\":\"507cf53\",\"subject\":\"fix(input): grab the exact face point under the pointer with held damping\",\"when\":\"2026-11-18T23:02:40+01:00\"}]"
 ---
 
 # Summary
