@@ -1,7 +1,7 @@
 ---
 name: "fix: reduce box and die friction and clamp diagonal friction correctly"
 priority: "high"
-state: "to-merge"
+state: "merging"
 worktree: "fix/34-low-everywhere-friction"
 issuer: "#8"
 complexity: "simple"
