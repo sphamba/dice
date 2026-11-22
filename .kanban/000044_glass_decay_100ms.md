@@ -1,11 +1,13 @@
 ---
 name: "fix: shorten the glass lid ring to a 100 ms decay"
 priority: "medium"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/44-glass-decay-100ms"
 issuer: "user"
 complexity: "simple"
 shortName: "glass-decay-100ms"
+changes: "{\"base\":\"main\",\"ins\":2,\"del\":2,\"files\":2}"
+commits: "[{\"hash\":\"16595ab\",\"subject\":\"fix(audio): shorten the glass lid T60 to 100 ms\",\"when\":\"2026-11-22T11:30:37+01:00\"}]"
 ---
 
 # Summary
