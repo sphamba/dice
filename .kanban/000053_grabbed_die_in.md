@@ -30,11 +30,28 @@ When a grabbed die is held in the air with no contact (clearance > 0), the physi
 - `npm test`
 
 # Notes
-## PM hint
-- This task changes tests only. Keep the live check to the two holds (open floor and wall lean) plus release. Budget 10 minutes, then the results table. File no card for a wall lean.
+## Live test progress (checkpoint 2)
 
-## Progress
-- Harness /tmp/dice-lt53-live (port 8801), viewport 1100x1100 = 63.5 mm box, hold z 41.33 mm. No checks run yet.
+Harness /tmp/dice-lt53-live (port 8801, viewport 1100x1100 = 63.5 mm cube box, hold z 41.33 mm).
+
+### Env probe: 7/7 PASS
+Box matches source scale (63.5 mm), sample schema complete, canvas backing 1100x1100 = client * dpr, sim clock advances, fps 30, event injection works, no console errors.
+
+### First full run: 26/31 checks passed
+- Free hang (open floor): all substance PASS. Grab point held at pointer (err 0.19 mm), CoM xy settles 0.02 mm below pointer (< 2 mm gate, unit test uses 1 mm), |w| and |v| calm to 0.0000, hangs in the air (4.1 mm min all-plane clearance), release drops the die (vz -0.326 m/s), settles contained and finite, world sleeps again.
+- Wall hold: grab holds (0.19 mm), held stable (|v|, |w| = 0.0000), not dropped and not snapped upright (CoM z 32.4 mm through hold), release drops, settles, sleeps. All PASS.
+
+### The 5 failures are my test setup, not the app
+- Freehang: my zero-fling drop after dragging to center bounced the die 24 mm off center, so the press landed 12.6 mm from a wall (< my 15 mm no-contact premise gate). Behavior itself stayed clean (no contact happened).
+- Wall: my rest-position gate wrongly allowed the die to stop 20 mm short of the wall; it stopped 14 mm short, press landed 27 mm from the wall, so the hanging die (extent 6.4-11.1 mm) could never touch the wall: clearance 11.85 mm, CoM offset 0.01 mm. The wall lean was never exercised in this run.
+- No product defect observed so far; no cards filed.
+
+### Fixes applied to the driver (not yet re-run)
+- Freehang: grab the die and drag it to the box center while held (no intermediate drop); press xy is (0,0) by construction, so the no-contact premise is guaranteed.
+- Wall: retry loop (3 attempts, zero-fling releases at 5/4/3 mm from the wall) until the die rests touching the wall (|gap| <= 2 mm), then press 1.5-5 mm from the wall (guaranteed >= 0.4 mm hang penetration against the >= 6.4 mm inradius extent).
+
+### Still to do after release
+Re-run freehang + wall phases, then the release checks; results table; final Notes rewrite. The wall-lean acceptance is the one manual check not yet demonstrated.
 
 # Open questions
 
