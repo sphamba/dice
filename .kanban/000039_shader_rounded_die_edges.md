@@ -1,13 +1,15 @@
 ---
 name: "feat: render rounded die edges and corners with shaders only"
 priority: "medium"
-state: "merging"
+state: "to-live-test"
 worktree: "feat/39-shader-rounded-die-edges"
 issuer: "user"
 complexity: "complex"
 shortName: "shader-rounded-die-edges"
 blockedBy: ""
 splitter: "done"
+changes: "{\"base\":\"main\",\"ins\":492,\"del\":26,\"files\":5}"
+commits: "[{\"hash\":\"81f1c34\",\"subject\":\"docs: correct d4 bevel band clearance comment\",\"when\":\"2026-11-22T11:21:29+01:00\"},{\"hash\":\"473aa5f\",\"subject\":\"feat: procedural rounded die edges, corners and outline\",\"when\":\"2026-11-22T11:11:19+01:00\"}]"
 ---
 
 # Summary
