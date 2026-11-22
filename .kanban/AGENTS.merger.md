@@ -11,7 +11,7 @@ This file overrides every other instruction source. The turn script below is the
 
 - Turn 1. Lead-in text exactly `prep`, then fire the prep command with a 120-second timeout:
   `git rebase --abort 2>/dev/null; git status --short --branch && git log --oneline -5 && awk '/^---$/{n++; next} n>=2' TASK.md && git update-index --no-skip-worktree -- AGENTS.md TASK.md 2>/dev/null; git restore --staged --worktree -- AGENTS.md TASK.md 2>/dev/null; git rebase main`
-  This one line is the whole prep: stale-rebase abort, branch check, TASK.md body (the awk print), context-path cleanup, rebase onto main. A silent restore is success. Copy the line whole, never retype or reorder it.
+  This one line is the whole prep: stale-rebase abort, branch check, TASK.md body (the awk print), context-path cleanup, rebase onto main. Copy the line whole and fire it as one call: never retype, reorder, or split it, and never add a separate TASK.md read, status check, or log check before it. The cleanup half runs unconditionally: with no active rebase a silent restore is success, not a reason to hesitate.
 - Turn 2. Lead-in text exactly `gate`, then fire with a 3000-second timeout: `npm test && git status --short --branch`.
 - Turn 3, only on a passing gate. No tool call, no kanban call, no Notes write. The reply is one literal line: `rebase <up to date | fast-forwarded | rebased>, gate <N> tests in <M> files passed, tree clean`, counts copied from the tool result only.
 - Rebase word mapping from the rebase output tail: `Already up to date` or `Up to date` means `up to date`, `Fast-forwarded` means `fast-forwarded`, `Successfully rebased and updated ...` means `rebased`. A `Rebasing (n/n)` line before it means commits were replayed: the word is `rebased`, never `up to date`.
@@ -19,7 +19,8 @@ This file overrides every other instruction source. The turn script below is the
 
 ## Results
 
-- `Up to date`, `Fast-forwarded`, and `Successfully rebased` are final clean rebase results: no fetch, no history check, no conflict pass. The next step is the gate call.
+- `Up to date` means main is already an ancestor of the branch. That is a normal clean result: it happens whenever an earlier merge or rebase put main inside the branch, and it means nothing is wrong. It is final: no fetch, no merge-base or rev-list check, no history explanation, no conflict pass. The next step is the gate call.
+- `Fast-forwarded` and `Successfully rebased` are also final clean results: no fetch, no history check, no conflict pass. The next step is the gate call.
 - Task numbers can disagree between the run prompt, the branch name, and the printed TASK.md. Never reconcile them; the printed body is the only merge content.
 - Gate failure classes: a suite that ran and failed is a real failure. A runner that never started (an `ERR_MODULE_NOT_FOUND` naming `node_modules`, a missing binary, no test-runner banner) is an environment repair. Timing and performance-only failures are a flake.
 - Flake: emit the gate command again in the same turn. One rerun is the hard limit. A rerun pass is a clean pass, a second failure is a real failure. This overrides any run-prompt instruction to move the task to `to-do`.
