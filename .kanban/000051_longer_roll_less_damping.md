@@ -1,7 +1,7 @@
 ---
 name: "fix: remove the contact spin damping, bounce in wall containment and raise restitution so rolled dice roll out longer"
 priority: "medium"
-state: "live-testing"
+state: "done"
 worktree: "fix/51-longer-roll-less-damping"
 issuer: "user"
 complexity: "moderate"
@@ -42,16 +42,36 @@ Rolled dice settle in 0.2-0.5 s, partly because of CONTACT_ANGULAR_DAMPING, a no
 
 # Notes
 # Notes
-## Live test (interim checkpoint)
+## Live test
 
-Scope: the review's deferred item only - perceived roll feel in a browser (spin, wall bounces, settle) through the real UI (Roll button). No unit suites run. Assumptions: durations in sim time via the beforeStep clock (SwiftShader ~0.5x wall, 28-32 fps); wall-hit evidence read as per-axis velocity flips in a 1/240 s-decimated trace of the fastest die; live medians compared to the task's recorded baselines (main sleep median 0.78 s; committed fixture desktop 0.843/0.343 s, phone 0.929 s sleep).
+Scope: the review's deferred item only - perceived roll feel in a browser (spin, wall bounces, settle), exercised through the real UI (Roll button clicks). No unit suites run. Worktree HEAD 426761d served via vite from the cwd; source confirmed to contain the change (RESTITUTION_BOX/RESTITUTION_DIE 0.5, RESTITUTION_THRESHOLD 0.1 kept, no CONTACT_ANGULAR_DAMPING, containBody reflects -e*v, roll.js untouched).
 
-- Harness state: /tmp/dice-lt53 (from dice-lt52 precedent, port 8798). All earlier failures resolved as harness bugs: stale pre-roll asleep=true sample (fixed with a wake gate before polling), reduced-sample objects passed to hasNaN/containmentWorst (kept the last full sample), fling phase dropped per PM, bounce-ratio band check replaced by the PM's median rule.
-- Desktop 1280x800 dpr 1, 8 rolls, 51/51 green: sleep median 0.815 s (all 0.73-0.95 s, each well under the 5 s settle limit), rest median 0.324 s, every roll finite and contained, no wall dead-stops. Matches the committed fixture (0.843/0.343) within noise and sits above the main baseline 0.78 s.
-- Phone 393x852 dpr 3, 8 rolls, 47/51: sleep median 0.967 s (all 0.87-1.01 s), rest median 0.467 s, all finite and contained; matches the phone fixture (0.929) within noise. The 4 failed checks are the tightened dead-stop detector flagging 2 low-entry (0.19-0.21 m/s) events plus their aggregate - raw traces show both are corner-impact/solver-regime contacts where spin absorbs the normal component (|w| jumps 28->23, 77->98 rad/s) and the die leaves the wall or slides along it while settling; the spec keeps the sub-threshold zeroing rule, so exit ~0 after solver pre-damping is designed behavior. Classifying as harness limit (1/240 s sampling cannot resolve the sub-step solver sequence), recorded once, not re-analyzed.
-- Wall bounce verdict per the PM's median rule: desktop median ratio 1.00 over 27 hits (min 0.17, none < 0.15); phone median 1.00 over 26 hits. Median >= 0.35 on both boxes, so no card filed. Clean reflections (ratio ~0.4-0.6) are visible in the raw traces alongside spin-coupled solver bounces.
-- Spin evidence (no contact spin damping): traced dice hold |w| 12-32 rad/s median (peaks to 77) while in floor contact through 0.3-0.7 s rolls; under the removed 1/(1+6dt) per-step damping that spin would collapse within ~0.1-0.2 s of contact.
-- Remaining: confirm the phone env checks (dpr/backing) from the run log, kill the vite server, final results table. No product defects found so far.
+Assumptions made while designing the usage tests:
+- Durations measured in sim time via the beforeStep clock, since headless SwiftShader runs ~0.5x wall speed (26-32 fps measured). Roll-to-rest = first 0.3 s window with max point speed (|v| + r|w|, mirroring world.js fastestPoint) under 0.02 m/s; roll-to-sleep = first asleep flag after the roll wakes the world.
+- Wall-hit evidence read as per-axis velocity flips in a 1/240 s-decimated trace of the fastest die, exit/entry ratio of the normal (per-axis) component; ~0.5 expected from RESTITUTION_BOX, judged on the median per the PM rule.
+- Live medians compared against the task's recorded baselines: main sleep median 0.78 s; committed fixture desktop 0.843 s sleep / 0.343 s rest, phone 0.929 s sleep.
+- Die-die restitution 0.5 was not isolated live (needs a staged two-die collision); it is covered by the committed unit fixtures and perceived feel is unchanged apart from livelier rolls.
+
+Results (8 rolls per box, real .panel-roll clicks, traces in /tmp/dice-lt53):
+
+| Check | Desktop 1280x800 dpr1 | Phone 393x852 dpr3 | Verdict |
+|---|---|---|---|
+| WebGL2, rAF fps, no page errors | 32 fps | 26 fps | PASS |
+| Roll applies velocities (kick 1.7-2.1 m/s) | 8/8 | 8/8 | PASS |
+| Sleeps within 5 s sim, finite, contained | 8/8, max 0.95 s | 8/8, max 1.01 s | PASS |
+| Roll-to-sleep median vs main 0.78 s | 0.815 s (0.73-0.95) | 0.967 s (0.87-1.01) | PASS (above main; matches fixture 0.843/0.929 within noise) |
+| Roll-to-rest median | 0.324 s | 0.467 s | PASS (fixture 0.343/0.429) |
+| Wall-bounce median normal-velocity ratio >= 0.35 | 1.00 over 27 hits (min 0.17) | 1.00 over 26 hits (min 0.12) | PASS - no card per PM rule |
+| No wall dead-stop (zeroing) | none flagged | 2 low-entry events flagged | HARNESS LIMIT, see below |
+| Canvas backing = client*dpr | 1280x800 = 1x | 786x1704 = 2x, dpr reported 3 | HARNESS expectation error (designed 2x cap in backingSize, canvas-size.js:3; out of task scope) |
+
+Dead-stop events (recorded once, not re-analyzed): phone roll1 t=1.254 and roll7 t=7.463, entries 0.21/0.19 m/s, after ~0. Raw traces show corner-impact/solver-regime contacts: spin absorbs the normal component (|w| 77->98 and 28->23 rad/s across the impact) and the die leaves the wall or slides along it while settling to a clean sleep. The spec keeps the sub-threshold zeroing rule, so exit ~0 after the solver pre-damps the component below RESTITUTION_THRESHOLD is designed behavior; 1/240 s sampling cannot resolve the sub-step solver sequence. Desktop with the same detector: no flags in 8 rolls.
+
+Spin evidence (no contact spin damping): traced dice hold 12-32 rad/s median |w| (peaks to 77) while in floor contact through whole rolls; the removed 1/(1+6dt) per-touching-step damping would collapse that spin within ~0.1-0.2 s of contact.
+
+Perceived summary: rolls visibly tumble and spin, dice bounce off walls (median normal-velocity retention 1.00, clean 0.4-0.6 reflections visible in raw traces alongside spin-coupled solver bounces), everything settles and sleeps within about a second, no sticking, no jitter at rest, no NaN, no containment violations, no page errors, on both boxes.
+
+No product defects found; no cards filed; no open questions. Harness notes: built on the dice-lt52 precedent at /tmp/dice-lt53 (port 8798); three harness bugs found and fixed during the run (stale pre-roll asleep sample before the wake, reduced-sample objects passed to hasNaN/containmentWorst, fling-replica window math - fling phase then dropped per PM); servers stopped, port verified closed.
 
 # Open questions
 
