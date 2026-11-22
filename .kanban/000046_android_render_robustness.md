@@ -1,11 +1,12 @@
 ---
 name: "fix: restore rendering on Android and show render errors on the page"
 priority: "critical"
-state: "to-do"
-worktree: ""
+state: "doing"
+worktree: "fix/46-android-render-robustness"
 issuer: "#39"
 complexity: "moderate"
 shortName: "android-render-robustness"
+splitter: "done"
 ---
 
 # Summary
