@@ -55,8 +55,22 @@ Make every die look like it has rounded edges and corners (fillet radius 1.0 mm)
 - Live check (browser): no console or GL errors. Every die type shows a lighter or darker shaded band along every edge and smooth corners. The outline corners of a d6 resting on a face are rounded, not square. The numbers and pips stay readable, and the d4 corner numbers are not covered by the bevel band. Picking and drag still work on the full sharp shape.
 
 # Notes
-- State: planning done, implementation not started. Read batch complete (labels.js, shapes.js, renderer.js, shaders.js, gl.js, renderer.test.js, body.js, main.js); all specs mapped to concrete edits.
-- Plan: (1) tests first — append faceInsetData describe to src/dice/labels.test.js (inset on face plane within 1e-9, CCW, strictly inside, padding to 5, all 6 types) and new src/render/bevel.test.js (JS mirror of shader normal: mid-face -> face normal, edge midpoint -> bisector of the two face normals within 1e-6, both faces agree at the shared edge; hull helper: d6 resting flat -> inset top square, distance 0 inside / positive outside). (2) labels.js: export faceFrame/toFace2D, add BEVEL_RADIUS = 0.001 and faceInsetData(shape, r) returning per face { right, face2D, inset(5 padded points), scale }. (3) renderer.js: convexHull2D (monotone chain CCW), pointHullDistance2D, projectedInsetHull(shape, model, s); buildDieMesh adds attributes loc 3 face2D vec2, loc 4 tangent vec3, loc 5-7 inset 3x vec4; per-body uHull[20]/uHullCount upload in drawDicePass and AO prepass; SAMPLE_ALPHA_TO_COVERAGE around the forward dice draw. (4) shaders.js: shared bevel GLSL chunk (5-edge closest-point loop with max(dot(e,e),1e-12) guard, q zero inside, nts = normalize(vec3(q, r)), world n via T/B = cross(N,T)/N); litColor(base, n) param; hemisphere ambient mix(GROUND, SKY, n.z*0.5+0.5); Schlick rim pow(1-n.z,5) small strength; dice FS alpha = clamp((r-d)/fwidth(d)+0.5,0,1); AO prepass reuses the dice vertex source, writes the bevel normal and discards when d > r.
-- Verified: DIE_RADIUS = 0.016*sqrt(3)/2 ~= 13.86 mm, so r = 1 mm keeps d4 corner numbers ~2 mm inside the flat region and d6 pips clear of the bevel band. main.js uses canvas.getContext('webgl2') default attrs -> antialias true, so alpha-to-coverage has samples; drawing buffer alpha is default true, premultiplied composite — watch for outline halos in the live check, fallback is alpha:false or alpha 1 on covered samples.
-- Fake-GL wiring tests draw empty body lists, so new per-body uniform calls (incl. uniform2fv, absent from the fake) stay out of their path.
-- Assumptions: BEVEL_RADIUS constant lives in labels.js next to the inset data; rim strength starts at 0.3, tuned live; outColor alpha carries the A2C alpha as spec formula states.
+# Deliverable
+- Procedural rounded edges, corners and outline for all six dice. Per-face 5-point inset polygon (labels.faceInsetData, BEVEL_RADIUS = 1 mm) + model-space vertex hull feed a shared GLSL bevel chunk (insetOffset / bevelNormal / hullDistance). Dice FS: normal tilts face->bisector across the band, hemisphere ambient + Schlick rim in litColor(base, n), outline alpha = clamp((r-d)/fwidth(d)+0.5) with SAMPLE_ALPHA_TO_COVERAGE around the dice pass. AO prepass reuses the dice vertex stage, encodes bevel normals, discards past the rounded outline. New attributes loc 3-7, uniforms uHull[20]/uHullCount/uBevelRadius. Mesh geometry, physics, picking untouched. aoPrepassVertexSource removed (renderer uses diceVertexSource).
+- HEAD a25104c.
+
+# Verification
+- npx vitest run src/dice/labels.test.js src/render -> 38 passed. New: faceInsetData plane (1e-9), CCW, strictly-inside, padding, right-axis; bevel.test.js JS mirror: mid-face = face normal, edge midpoint = bisector from both faces (1e-6), d6 flat hull = inset top square, hull distance 0 inside / segment distance outside, collinear points dropped.
+- Probe before pinning tolerances: bisector property holds for all types incl. d10 kites (max dev 2.6e-15).
+- npm run build green; asset check src="./assets/index-CPgIQv3j.js".
+- Test-only pitfall found: vec3/mat4 state is Float32Array - test mirrors must use float64 plain-array math and float32-scale tolerances for mat4-sourced coordinates.
+
+# Assumptions
+- Rim strength 0.3 and hemi ground tint (0.5, 0.45, 0.4) are inline constants, tuned live.
+- Dice FS writes partial alpha at the outline; compositing over the near-identical page background assumed fine (live check confirms; fallback: alpha:false context).
+
+# Blockers
+- none
+
+# Manual checks left to other roles
+- Live browser check in flight (subagent): all six dice render, console clean, rounded outline/corners visible, no AO halos.
