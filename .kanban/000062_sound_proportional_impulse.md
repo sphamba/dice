@@ -47,10 +47,19 @@ In `resume()` in `src/audio/sound.js`, replace it with this chain: voices -> `ma
 - Record the measured peaks and the voice count in Notes. A listening test is not part of this check.
 
 # Notes
-- Reviewed at HEAD c2b2da2, worktree clean, base main; diff touches src/audio/sound.js and src/audio/sound.test.js only.
-- Code change 1 verified: every voice gain is `gainValue * LIMITER_CEILING` (sound.js:157); `voiceScale`, `scaleMeasured`, `peakOf`, `LIMITER_THRESHOLD_DB` have zero references across src/.
-- Code change 2 verified: `resume()` builds voices -> `master` (gain `1 / CLIPPER_RANGE`) -> WaveShaper -> `context.destination` (sound.js:173-179); curve is 4097 float32 points, `s = x * 4`, linear at and below the ceiling, tanh soft clip above, matching the Spec formula.
-- Tests updated per Spec: mock counts compressors and the suite asserts 0 created; curve asserted identity at and below the ceiling, odd, and every magnitude below 1. Reviewer runs: `npx vitest run src/audio src/physics` 168 passed, `npm test` 382 passed, `npm run build` green.
-- Accepted deviation: `oversample` is `'none'`, not the Spec's `'4x'`: `'4x'` measured a 1.011 peak in 4 of 10 mixes, which breaks the hard requirement that output magnitude stays below 1; Notes record a PM steer for `'none'`. Fold this decision into the Specs text when the card closes.
-- Accepted test adaptation: whole-curve monotonicity is asserted as non-decreasing with strict increase only in the linear part; float32 spacing (~6e-8) exceeds the tanh-tail step (~2e-9) near the top, so ties are unavoidable, and the curve top is clamped to `1 - 2 ** -24` as documented.
-- Browser evidence accepted as recorded: `gain / event.impulse` = 47.1964 = `LIMITER_CEILING / MAX_IMPULSE` over 2 loads (295/294 unclamped voices, 0 clamped), separate-render peak ratio 2.0 within 1%, and 10-Roll deterministic offline replay through the real chain max peak 0.9996 <= 1.0 with per-Roll peaks and voice counts in Notes. Listening test deferred to the live tester.
+Live test of #62 at HEAD c2b2da2, in progress at the watch checkpoint. No verdict yet; no defects filed so far.
+
+## Plan (committed before the run)
+- Run the app as a user from the merged worktree: vite dev server on localhost:4647 (page, sound.js, main.js all HTTP 200), Chromium via Playwright, viewport 1280x800.
+- Harness in /tmp/dice-lt62 adapted from the proven /tmp/dice-lt64 audio live-test harness, retargeted from the old compressor chain to the new voices -> master (0.25) -> WaveShaper -> destination chain. In-page spies only (no repo edits): voice gain+buffer capture at source.start, analyser tap inserted between WaveShaper and destination, navigator.vibrate wrapper, route-patch observer on play()/voices.push().
+- Phases mapped to the Specs checks: env (app loads, no page errors) -> unlock (silence before context exists, unlock on first gesture, chain wired: master 0.25, curve 4097 points, oversample none) -> ratio (one voice at impulse I and I/2 through the real chain rendered separately via OfflineAudioContext, output peak ratio 2 within 1%; plus clamp case at 0.02) -> session (10 Rolls of 10 dice - 6 d6 + 4 d10 via panel, continuous 40 ms analyser monitor after the WaveShaper, per-Roll peak <= 1.0, gain/impulse spy) -> analyze (ratio = 47.2 within 1% per load, voice cap 12, durations, pitch/brightness from captured buffers, haptics 5..20 ms) -> reload (second page load repeats the gain/impulse ratio).
+- Constants from source: LIMITER_CEILING = 10**(-3/20) = 0.7079457843841379, CLIPPER_RANGE = 4, MAX_IMPULSE = 0.015, MIN_IMPULSE = 1e-4, MAX_VOICES = 12, MIN_EVENT_SPEED = 0.15, duration bounds [0.05, 0.6] s, FULL_BRIGHTNESS_SPEED = 2, haptics MIN_SPEED 0.8 / 5..20 ms / GAP 60 ms. Expected unclamped ratio 47.19638562560919. AudioParam gains stored float32, so gain expectations use fround with eps 1e-9. Analyser window 8192 samples @ 48 kHz = 171 ms, monitor period 40 ms, so burst onsets are covered.
+
+## Assumptions
+- "Browser check" items in the Specs are executed by instrumenting the real app in a real browser (in-page measurement code only, established by the recorded #62 evidence and the #64 live-test precedent); the unit suites and npm test/build are excluded for the live test.
+- The ratio-2 check uses the app's own sound.js module and a real OfflineAudioContext render through the real resume() chain, since real rolls cannot control impulses.
+- "10 Rolls of 10 dice": 10 dice spawned via the panel (6 d6 + 4 d10, mixed types so pitch selection has data), all rolled each time.
+- Brightness/pitch regression checks are weak-signal (zero-crossing-rate proxies on captured voice buffers): brightness gates on positive Spearman(speed, ZCR), pitch on distinct ZCR between d6 and d10 groups; if signals are too weak they are reported as harness limits, not defects.
+
+## Status
+- Worktree clean at c2b2da2; harness and driver written; node --check and the smoke launch not yet run (checkpoint arrived first). Next: check-in ladder, smoke run (PHASES=env,ratio), then the full run.
