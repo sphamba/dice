@@ -43,10 +43,44 @@ In `src/physics/contacts.test.js`:
 - `npm run build` passes.
 
 # Notes
-- Live test of #63, full run complete (results /tmp/dice63-lt/out/results-full1-EUDLS.json, run-full1.log). All task-relevant gates GREEN; one harness-side FAIL under classification.
-- E env: HTTP 200 (/, main.js, world.js); world spy alive; default set spawns 2 d6; sim-rate ratio 0.508; event field shape exactly {a,b,impulse,point,speed,surface} (scope limit holds); 25 spawn events all finite impulse >= 0; render screenshot /tmp/dice63-lt/out/env-view.png healthy (two settled d6, panel + roll UI); console clean.
-- U real-UI flow: rest after spawn emits ZERO events over 1.2 sim s (no phantom crackle); panel + spawns a die (28 impact events, finite); panel Roll emits a 63-event impulse burst, all finite, impulse >= 0, speed > EVENT_MIN_SPEED; rest after roll zero events; console clean.
-- D fresh flat d6 drop at 2 m/s: impulse = m(1+e)*speed with the event's own speed to rel -0.00% (7.6253e-3 vs 7.6253e-3 N*s, m = 2.5166e-3 kg measured live). Fresh pairs keep warmNormal 0, so the fix leaves them unchanged - confirmed.
-- L loaded pair (B resting flush on A, kick -0.3 m/s while world awake and warm): exactly one die-pair event, impulse 7.6012e-4 vs new-impulse-only m*0.3 = 7.5497e-4 (rel +0.68%, gate 3%) and hard-bounded below m*0.31; old semantics would read m*(0.3+g*dt) = 8.0641e-4 (+6.8%) - excluded. Rest of the kick window silent; zero events while the loaded pair rests.
-- The one FAIL is my own expectation formula, not a task gate: event.speed for the warmed kick read 0.29999 m/s where I predicted 0.3 + g*dt = 0.32044 (delta exactly g*dt); the fresh drop's speed read 2.0200 vs predicted 2.02044 (delta 0.00044). Speed semantics are not part of this change (haptics consume it, untouched). One probe planned (in-page beforeStep velocity trace around the kick) to classify wrong-expectation vs app behavior before wrap-up; impulse verdicts are unaffected.
-- No defects filed so far; task state untouched.
+# Live test report (#63)
+
+## Scope and method
+Tested the merged commit 0496435 in the worktree via headless Chromium (Playwright, software WebGL) against the vite dev server. Physics was exercised through the real app: the world spy exposes the real `world`, events, and step counter; every scenario places drives-to-target UI d6 and lets the real solver and the real event emission run. No audio output was gated (AudioContext headless); the impulse-to-gain mapping belongs to the parallel audio subtask. Event shape was asserted key-exact. Evidence: /tmp/dice63-lt/out/results-full1-EUDLS.{json,md}, run-full1.log, env-view.png, probe trace (kick step 1940, entry v=-0.3, event on that step).
+
+## Setup facts (measured live, not from source alone)
+- Event field shape exactly `{a,b,impulse,point,speed,surface}` at every step of the full run; scope limit holds.
+- Die mass m = 2.5166e-3 kg (1/invMass measured through the spy); floor events surface "floor", die-pair events surface "die".
+- Event growth and window gates used `EVENT_MIN_SPEED = 0.05` from source; impact burst windows sized from the measured sim-rate ratio 0.508.
+
+## Results
+| Check | Result |
+| --- | --- |
+| E: page and modules serve HTTP 200; world spy alive | PASS |
+| E: default set spawns 2 d6; sim-rate ratio 0.508 | PASS |
+| E: 25 spawn events, all finite impulse >= 0 | PASS |
+| E: render screenshot healthy (settled d6, panel + Roll UI); console clean | PASS |
+| U: rest after spawn emits ZERO events over 1.2 sim s (no phantom crackle from warm load) | PASS |
+| U: panel + spawns a die (28 impact events, finite) | PASS |
+| U: panel Roll emits a 63-event impulse burst, all finite, impulse >= 0, speed > EVENT_MIN_SPEED | PASS |
+| U: rest after roll emits zero events; console clean | PASS |
+| D: fresh flat d6 drop at 2 m/s: impulse = m(1+e)*speed, rel -0.00% (7.6253e-3 N*s) | PASS |
+| D: impact speed sanity (2.0200 m/s = (2 + g*dt) with damping) | PASS |
+| L: kick (-0.3 m/s) on loaded pair B-on-A fires exactly one die-pair event while awake and warm | PASS |
+| L: impulse 7.6012e-4 vs new-impulse-only m*0.3 = 7.5497e-4 (rel +0.68%, gate 3%) | PASS |
+| L: hard bound excludes warm load (below m*0.31; old semantics m*(0.3+g*dt) = +6.8% excluded) | PASS |
+| L: pre-kick rest silence; kick window silent elsewhere; B resumes resting on A (no drift) | PASS |
+| S: console clean at end of run | PASS |
+| harness: my warmed-kick speed expectation (see below) | FAIL - classified harness limit, not a defect |
+
+## Assumptions
+- Verified through emitted physics events; sound output not gated (parallel audio subtask owns gain mapping).
+- Unit fixtures' relations (fresh drop = m(1+e)v; loaded pair = new impulse only) are the intended live-observable behavior; live tolerances loosened from unit 1% to 2-3% (frame batching, spin residuals).
+- Placement through the world spy (drive-to-target) is acceptable setup; impacts still run the real solver and emission.
+- Headless: no device motion, gravity stays 9.81; AudioContext blocked (whitelisted).
+
+## Environment problem
+Playwright browser revision mismatch against the global install; resolved by importing playwright-core from a repo-local install (/home/phamba/repos/tarot/app/node_modules). No project action needed.
+
+## Harness limit (not a defect)
+My expectation formula for `event.speed` on a warmed contact was wrong: live reads 0.29999 m/s for a -0.3 m/s kick (approach measured over the warm start, plus contact-point spin), while a fresh drop reads impact + g*dt with damping (2.0200). Raw trace: kick effective at step 1940 entry (v=-0.3), event emitted on that step. `event.speed` is untouched by this change (the diff only records warmNormal and changes the impulse lines), haptics consume it unchanged, and no task gate depends on it. Observation for the audio subtask: on warmed pairs event.speed reads the post-warm approach (about the kick speed), on fresh contacts it includes in-step gravity.
