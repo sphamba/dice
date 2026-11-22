@@ -131,7 +131,10 @@ vec2 insetOffset(vec2 p) {
 vec3 bevelNormal(vec3 n, vec2 q) {
   vec3 t = normalize(vTangent);
   vec3 b = cross(n, t);
-  vec3 nts = normalize(vec3(q, uBevelRadius));
+  // Beyond the band the direction freezes at the rim: fragments there belong
+  // to the neighbouring face's band or to the outline, never to this arc.
+  vec2 qc = q * min(1.0, uBevelRadius * inversesqrt(max(dot(q, q), 1e-12)));
+  vec3 nts = normalize(vec3(qc, uBevelRadius));
   return normalize(t * nts.x + b * nts.y + n * nts.z);
 }
 
@@ -187,7 +190,6 @@ ${BEVEL_FRAG}
 void main() {
   if (hullDistance(vWorldPos.xy) > uBevelRadius) discard;
   vec2 q = insetOffset(vFacePos);
-  if (dot(q, q) > uBevelRadius * uBevelRadius) discard;
   vec3 nGeo = normalize(vNormal);
   vec3 surface = roundedSurface(vWorldPos, nGeo, q);
   gl_FragDepth = surfaceDepth(surface);
@@ -350,7 +352,6 @@ void main() {
   // transparent outline.
   vec3 surface = roundedSurface(vWorldPos, nGeo, q);
   gl_FragDepth = surfaceDepth(surface);
-  if (dot(q, q) > uBevelRadius * uBevelRadius) discard;
   vec3 n = bevelNormal(nGeo, q);
   vec4 label = texture(uAtlas, vUV);
   vec4 carve = texture(uCarve, vUV);

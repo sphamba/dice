@@ -177,10 +177,11 @@ function bevelDrop(q, r) {
 }
 
 describe('rounded surface depth (emulated displacement)', () => {
-  it('drops 0 at |q| = 0 and r at |q| = r', () => {
+  it('drops 0 at |q| = 0, r at |q| = r, and clamps to r beyond the band', () => {
     expect(bevelDrop([0, 0], BEVEL_RADIUS)).toBe(0);
     expect(bevelDrop([BEVEL_RADIUS, 0], BEVEL_RADIUS)).toBeCloseTo(BEVEL_RADIUS, 15);
     expect(bevelDrop([0, BEVEL_RADIUS], BEVEL_RADIUS)).toBeCloseTo(BEVEL_RADIUS, 15);
+    expect(bevelDrop([2 * BEVEL_RADIUS, 0], BEVEL_RADIUS)).toBeCloseTo(BEVEL_RADIUS, 15);
   });
 
   it('follows the tangent sphere in between', () => {
@@ -188,16 +189,21 @@ describe('rounded surface depth (emulated displacement)', () => {
     expect(bevelDrop([half, 0], BEVEL_RADIUS)).toBeCloseTo(BEVEL_RADIUS * (1 - Math.sqrt(3) / 2), 15);
   });
 
-  it('writes the rounded depth and discards beyond the band in both programs', () => {
+  it('writes the rounded depth, clamps the band, and never discards band fragments', () => {
     for (const [name, source] of [
       ['dice', diceFragmentSource],
       ['aoPrepass', aoPrepassFragmentSource],
     ]) {
       expect(source, name).toContain('gl_FragDepth =');
       expect(source, name).toContain('bevelDrop(q)');
-      expect(source, name).toContain('if (dot(q, q) > uBevelRadius * uBevelRadius) discard;');
+      expect(source, name).not.toContain('dot(q, q) > uBevelRadius');
       expect(source, name).toContain('sqrt(max(');
+      expect(source, name).toContain('min(1.0, uBevelRadius * inversesqrt(max(dot(q, q), 1e-12)))');
     }
+    // The hull outline stays the only transparency test: the sharp mesh covers
+    // every interior pixel exactly once, so a band discard punches holes.
+    expect(aoPrepassFragmentSource).toContain('if (hullDistance(vWorldPos.xy) > uBevelRadius) discard;');
+    expect(diceFragmentSource).not.toContain('discard;');
   });
 });
 
