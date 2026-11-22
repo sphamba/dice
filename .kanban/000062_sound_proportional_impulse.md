@@ -53,13 +53,18 @@ In `resume()` in `src/audio/sound.js`, replace it with this chain: voices -> `ma
 - Report brightness and pitch proxies only if they work at once. Do not spend time on them, because the unit suites cover them.
 - Time budget from now: 15 minutes. Kill the dev server on port 4647 when you finish.
 
-Live test of #62 at HEAD c2b2da2, in progress at the watch checkpoint. No verdict yet; no defects filed so far.
+Live test of #62 at HEAD c2b2da2, second watch checkpoint. No app defects found so far; two harness bugs (my glue) found and fixed. A stale r1 driver process (PID 822836) may still be running; it will be killed before the clean re-run.
 
-## Plan
-- Run the app as a user from the merged worktree: vite dev server on localhost:4647, Chromium via Playwright, viewport 1280x800.
-- Harness in /tmp/dice-lt62 adapted from /tmp/dice-lt64, retargeted to the chain voices -> master (0.25) -> WaveShaper -> destination. In-page spies only (no repo edits): voice gain+buffer capture at source.start, navigator.vibrate wrapper, route-patch observer on play()/voices.push().
-- Phases: env (app loads, no page errors) -> unlock (silence before context exists, unlock on first gesture, chain wired: master 0.25, curve 4097 points, oversample none) -> ratio (one voice at impulse I and I/2 through the real chain rendered separately via OfflineAudioContext, output peak ratio 2 within 1%; plus clamp case at 0.02) -> session (10 Rolls of 10 dice, 6 d6 + 4 d10 via panel, gain/impulse spy, offline mix peak per Roll) -> analyze (ratio = 47.2 within 1% per load, voice cap 12, durations, haptics 5..20 ms) -> reload (second page load repeats the gain/impulse ratio).
-- Constants from source: LIMITER_CEILING = 10**(-3/20) = 0.7079457843841379, CLIPPER_RANGE = 4, MAX_IMPULSE = 0.015, MIN_IMPULSE = 1e-4, MAX_VOICES = 12, MIN_EVENT_SPEED = 0.15, duration bounds [0.05, 0.6] s, FULL_BRIGHTNESS_SPEED = 2, haptics MIN_SPEED 0.8 / 5..20 ms / GAP 60 ms. Expected unclamped ratio 47.19638562560919. AudioParam gains stored float32, so gain expectations use fround with eps 1e-9.
+## Results so far (valid gates)
+- Smoke run (PHASES=env,ratio) and first full run (r1): all env, unlock and ratio gates PASS.
+  - env: page loads, no #unsupported, no page errors, observer patch applied.
+  - unlock: 29 impact events occur before any gesture while ctx=null and 0 voices (silence before the context exists); first gesture (panel toggle) creates the context, state running; chain wired (shaper connected to destination); master gain exactly 0.25; WaveShaper curve 4097 points, oversample 'none'; context clock advances.
+  - ratio (Spec: one voice at impulse I and one at I/2 through the real chain, rendered separately): peaks 0.318735 vs 0.159368, ratio 1.9999970 (within 1% of 2). Full-clamp case (impulse 0.02, gainValue 1): rendered peak 0.478102 <= 1. Chain math exact: rendered peak == bufferPeak * fround(gain) * 0.25 * 4 - the curve's linear region outputs x * CLIPPER_RANGE, so the single-voice chain gain is unity and stays far below the 0.177 clipper input knee.
+- Session replays (PM-steer method) in the r1 run: per-Roll replay peaks through the real chain 0.3446, 0.8041, 0.9305, 0.8977, 0.9752, 0.9837, 0.9918 for rolls 0..6, all <= 1.0 (7 of 10 rolls done at the checkpoint). Same mix without the clipper peaks 0.086..0.332 (recorded, no gate).
 
-## Status
-- Worktree clean at c2b2da2; harness and driver written; node --check and the smoke launch not yet run. Next: smoke run (PHASES=env,ratio), then the full run.
+## Harness bugs found and fixed (glue, not app)
+- Reload phase mis-sliced the voice list after page reload (capture store resets); fixed.
+- The offline replay helper's own source.start() calls re-triggered my voice capture hook, so per-Roll voice counts grew exponentially (93, 249, 551, ...) and replay inputs and voice/capture pairing were polluted; the r1 session/analyze numbers are therefore invalid as recorded data (the peak gates happened to pass but on polluted mixes). Fixed with a replaying guard in init.js. The r1 ratio/unlock results are unaffected.
+
+## Next after release
+- node --check, kill stale r1 driver, one clean full re-run (env,unlock,ratio,session,analyze,reload) producing the single clean results file; then report Notes with measured peaks, voice counts, cap/duration/haptics results and file any defects. Server on port 4647 will be killed at wrap-up.
