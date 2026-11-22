@@ -1,13 +1,15 @@
 ---
 name: "feat: icon buttons in the corners for Roll and Show controls"
 priority: "medium"
-state: "merging"
+state: "to-live-test"
 worktree: "feat/58-corner-icon-buttons"
 issuer: "user"
 complexity: "moderate"
 shortName: "corner-icon-buttons"
 splitter: "done"
 blockedBy: ""
+changes: "{\"base\":\"main\",\"ins\":106,\"del\":21,\"files\":3}"
+commits: "[{\"hash\":\"0ed5dc4\",\"subject\":\"feat: move Roll and Show controls into corner icon buttons\",\"when\":\"2026-11-22T15:20:08+01:00\"}]"
 ---
 
 # Summary
