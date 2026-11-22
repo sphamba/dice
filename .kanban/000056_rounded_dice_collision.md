@@ -42,14 +42,31 @@ Collision uses the sharp vertices today. Collide each die as its rounded shape s
 - `npm run build`
 
 # Notes
-## PM hint
-- These Notes did not change since the last checkpoint. Apply fixes 1-4 now, run the full suite, commit step 2, and update these Notes.
-- Fix 3 is right: the depth must be the rounded gap (2r minus the core distance) on every die-die path, never the raw SAT overlap.
+# Notes
 
-## Progress
-- Commit 1 (7d79485): coreVertices on the cached shape. shapes 52/52.
-- Step 2 uncommitted: collision.js on cores. 26 failed / 336 passed before fixes.
-- Fixes queued: (1) test fixtures use DIE_RADIUS dice and a direct half-angle quat, (2) SAT edge score = max(overlap, 0) x EDGE_BIAS, (3) edge depth = 2r - |ca - cb| with a SLOP + closing*dt window, (4) world.test.js cornerDown quat.
+## Deliverable (in progress)
+Rounded-contact detection for dice. Committed so far: 7d79485 (rounded core polyhedron in shapes). Current work: collision.js edge/corner contact path + test fixtures.
+
+## State
+- collision.js `separatingAxis` rewritten twice; current design: classic min-overlap SAT for face axes; edge-pair scan computes exact core segment-segment distances; selection = edge wins only when its distance beats the face axis separation; empty-clip fallback for offset poses kept.
+- NEW this round: added vertex-vertex (64 pairs) and vertex-edge (192 pairs) candidates to the scan — oracle showed closest core features at generic crossing poses are corner-involving; edge×edge-only scan overstated core distance (3.1075e-3 vs true 2.654e-3 at probe pose).
+- collision.test.js now 14/15 pass; only failing = 'gives one edge contact for two crossing cubes' (obsolete pose: was analytic for sharp dice; rounded cores at that pose are >RECESS+SLOP apart, correctly no contact).
+- Suite dice are R=0.01 d6 (file-level const), H=R/sqrt(3); earlier probe confusion resolved: I had probed with DIE_RADIUS dice, different geometry. Fixed earlier: flush-twist, stacked, overlap depth expectations (0.16H coincides exactly with RECESS-coreGap), floor corner contact, containment.
+- Remaining defect found by oracle probe: code reports dist 3.1075e-3 at crossing pose shift 1.5e-3 while analytic-direction support separation = 2.654e-3; missing candidate type = vertex-face (separated corner against other core's face with interior foot). Face path cannot own this case: its findFace(incident) picks a face far from the contact when cores are separated (clip empty). Fix: add vertex-face candidates to corner scan (8×6×2 point-in-polygon, dist>0 only; penetrating corners stay with face path). Then re-pin crossing test pose+expectations by probe (shift along analytic normal, assert depth vs measured, normal within ~0.6 rad tie arc or per-measured, faceAligned false, exactly 1 contact).
+
+## Verification
+- npx vitest run src/physics/collision.test.js: 14 passed | 1 failed.
+- Full suite still red from earlier triage: world.e2e (pile settle timeouts 5.99s, mixed/toss/containment/rebound/sleep-wake) — not yet re-run after scan rewrite; next after crossing test green.
+
+## Assumptions
+- Depth semantics for corner path: RECESS − coreDistance, gate RECESS+SLOP+closing·dt, contact point = midpoint of closest core points, normal oriented b→a — same contract as edge path (contacts.js treats depth<0 as speculative cap).
+- Normal direction at degenerate (tied) closest features is arbitrary within tie arc; tests must not pin 1e-12 on analytic normal for rounded cores.
+
+## Blockers
+- None technical; run order: add vertex-face candidates → re-pin crossing test → full suite triage → commit.
+
+## Manual checks left to other roles
+- Browser pile-drop visual sanity after merge (rounding visible, no interpenetration flicker).
 
 # Open questions
 
