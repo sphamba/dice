@@ -1,7 +1,7 @@
 ---
 name: "fix: restore rendering on Android and show render errors on the page"
 priority: "critical"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "#39"
 complexity: "moderate"

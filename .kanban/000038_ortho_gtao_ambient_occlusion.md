@@ -90,21 +90,13 @@ Remove the directional shadow map and add a custom screen-space GTAO pass in raw
 # Notes
 # Notes
 # Notes
-Live-testing #38 (ortho GTAO AO), worktree feat/38-ortho-gtao-ambient-occlusion. Harness /tmp/dice-lt38/, vite :8841.
+## PM steer
+- Stop thread 2. The AO acceptance of this task already passed (symmetric contact rings, seam darkening, height fade, rolls, drags, context restore, driver4 11/11). Do not run more AO grids.
+- Thread 1: run probe16f once to capture the live values (innerWidth, innerHeight, box) of a collapsed-box page. Then file one defect card with `kanban_create`, issuer "#38": a zero-size viewport during load gives a 0 box and freezes the dice half-buried at (0,0,0). Put the repro, the values and the fix direction in it (skip or clamp a 0 viewport in `applySize`/`boxFromViewport`, apply the next valid size).
+- Then write the final results table in these Notes, stop the servers and finish.
 
-STATUS: core AO acceptance verified earlier (symmetric contact rings, seam darkening, height fade at holds, rolls/drags/restore, 11/11 driver4). Since then the session went down a defect-triage rabbit hole. Current state of the two open threads:
-
-THREAD 1 - COLLAPSED-BOX FLAKE (product defect, card pending). Evidence chain:
-- probe8/probe9/probe9b (3 pages): both dice frozen at exactly (0,0,0), z=0 (half-buried), asleep, real random orientations; state survives Roll (orientation integrates, position does not) and drag-grab. Render matches world (dice drawn at canvas centre).
-- Mechanism derived from source: applySize (main.js:147) rebuilds the box from live innerWidth/innerHeight on every resize; boxFromViewport (box.js) returns W=H=D=0 exactly when shortest<=0 (the MIN_BOX_EDGE guard requires shortest>0). With a 0-box, containBody (world.js:57) drives every body coordinate to 0 (push = -2*p per axis) and zeroes opposing velocity, so the sleep gate (fastestPoint < SLEEP_SPEED) legally freezes the dice half-buried at (0,0,0); step() early-returns while asleep && !moving, so containBody can never lift them; Roll writes velocities but the observed position never integrates (only orientations changed in probe9b phase B).
-- probe16d2/16d3: a healthy-looking page had a catastrophically wrong box by evaluate time (grid coordinate math exploded to ~1e10 px; RangeError inside the probe), consistent with a 0/tiny box dimension; 2/2 reproductions of that probe, 0/11 in sibling probes with identical page setup.
-- probe16e (3 pages, no grid): all healthy (box 67.5x146.2x67.5mm, dice rest z=8). The flake is timing-dependent, roughly 3-5 of ~25 pages this session.
-- Fix direction: guard applySize/boxFromViewport against a 0-sized viewport (skip setBox/resize when innerWidth||innerHeight is 0, or clamp to MIN_BOX_EDGE), and re-run applySize on the next valid resize. Acceptance: resize storms during load never leave a 0 box; dice never rest at (0,0,0); a Roll recovers nothing because the state must not be enterable.
-
-THREAD 2 - CONTACT-AO PRESENCE (investigation, instrument bugs found first):
-- probe16a (3 pages, 5-patch rAF readback, valid): dieCentre 255/100/255 (dice render), ring at 10mm lateral read open (49.3-50.1) on all sides except the wall side on pages 0/2 (38.2/34.4; those dice sat 11.2mm from a wall). Far floor 50.1, glErr 0, console clean.
-- CAVEAT FOUND: 10mm patches are inside a tilted die's max silhouette reach (11.3mm circumradius), so those open readings may be contaminated; not yet conclusive.
-- probe16b grids invalid (145 readPixels calls per rAF produced partial-zero reads - preserveDrawingBuffer=false means reads are only valid inside the render rAF; single small reads OK, 145-call batches produced garbage rectangles). probe16c confirmed: off-rAF reads return black (all 5 probes zero) - my __measure rAF path remains the only valid sampler.
-- probe16d grid had a harness scale bug (used device ratio s=2 instead of world-to-CSS 5.78px/mm; grid sat entirely on the die) - fixed; reruns then crashed on the collapsed-box page (thread 1).
-- NEXT: probe16f (written, not yet run) wraps the grid math in-page with a full value dump (box, innerWidth, s, pxmm, cw/chh before and after the rAF) to (a) capture the collapsed-box live values for the card and (b) get one clean 12x12 grid around a wall-distant die to settle whether the contact ring is present on post-commit builds. Then file cards, final results table, kill servers.
-Screenshots saved: /tmp/dice-lt38/p16a-{0,1,2}.png (page 1 shows wall bands but no visible contact halo around an axis-aligned resting die at 2mm off-face scale), p16e-{0,1,2}.png healthy.
+## Results
+- Core AO acceptance verified: symmetric contact rings around resting dice, seam darkening between dice, fade with height on held dice, rolls, drags and context restore with GL error 0, console clean. driver4 11/11.
+- Thread 1 (product defect candidate): in probe8, probe9 and probe9b, both dice froze at exactly (0,0,0), half-buried and asleep. The state survived Roll and drag. Mechanism from the source: `applySize` (`main.js:147`) rebuilds the box from the live `innerWidth`/`innerHeight`. `boxFromViewport` returns W=H=D=0 when the shortest side is 0. `containBody` then drives every body to 0, and the world sleeps. About 3-5 of ~25 pages, timing dependent.
+- Harness limits found: readPixels is valid only inside the render rAF (`preserveDrawingBuffer` false). 10 mm patches can fall inside a tilted die's silhouette.
+- Screenshots: /tmp/dice-lt38/p16a-{0,1,2}.png, p16e-{0,1,2}.png.
