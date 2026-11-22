@@ -82,18 +82,14 @@ Remove the directional shadow map and add a custom screen-space GTAO pass in raw
 # Notes
 # Notes
 # Notes
+## PM steer
+- You are the developer of this task. The dead AO path is a bug in your own diff: fix it now, do not only report it.
+- Call `buildAoSetup()` when the renderer is built and again on context restore (after `buildResources()`), then create the size-dependent targets from the current viewport and box. Catch a throw and keep the 1x1 white fallback, as the Specs say.
+- Add a node test that fails when the AO setup is never built (for example, a renderer built with a fake GL records that the GTAO program is compiled and its framebuffers are created).
+- Then rerun the live checks: contact darkening, held die, resize, context loss.
 
-Deliverable
-- GTAO screen-space AO pass replacing directional shadows (src/render/renderer.js, src/render/shaders.js).
-
-Verification (live browser acceptance, in progress)
-- Environment: vite dev on :4177 OK; full Chromium failed at launch (as AGENTS.md predicted) → chrome-headless-shell fallback worked. WebGL2 via SwiftShader, gl.getError()=0 at boot, no console/page errors so far.
-- Setup verified: panel DOM buttons (aria-label "Remove d6") reduced 2 d6 → 1 d6; die blob detected via readPixels inside rAF (full-buffer read in page context); box from boxFromViewport matches spec (67.5 × 146.2 mm at dpr 1.7325, 0.1 mm/CSS px).
-- FINDING (likely blocker): sampled floor luminance at 2 mm outside the die silhouette matches a computed no-AO background model EXACTLY in 4/4 directions (e.g. left 47.33 vs predicted 47.2, right 53.67 vs 53.7, top 55.67 vs 55.6, bottom 46.56 vs 46.3) → AO contribution ≡ 1.0 everywhere. Root cause evidence: in src/render/renderer.js `buildAoSetup()` (line 157) is never invoked — `aoSetup` stays null (declared line 108, only re-nulled at 193), so `drawAoPasses` never runs, `resize()` early-returns at `if (!aoSetup)`, and the forward pass silently binds the 1×1 white fallback texture (ao = 1). GTAO pass appears to be dead code; contact darkening cannot pass as shipped.
-- Check 2 (contact darkening): FAIL on first data — raw numbers confounded by a broad specular gradient on the floor (refs 40.7–61.9 across the box), but per-point background-model match above isolates it: darkening ≈ 0, not ≥ 2–3 units.
-- Check 3 (held die): not darker than open floor — but vacuous while AO is dead (nothing darkens whether held or settled). Raw near(3mm) ≈ 59.7–66.4 vs refs 46–55.7, deltas +8…+14.7 (specular gradient), all ≥ −2.
-- Check 4 (resize) and Check 5 (context loss) not yet run: first run aborted at page.setViewportSize (headless-shell window was maximized; will relaunch with --window-size and rerun remaining checks).
-- Next: rerun v2 script (reordered: hold check before roll stress; floor-background via local plane fit over clean-floor grid to separate AO from the specular gradient; resize via setViewportSize with large --window-size; then context-loss check), then final PASS/FAIL report with numbers.
-
-Blockers
-- none
+Verification so far (live browser, before the fix)
+- vite dev on :4177; full Chromium failed at launch, chrome-headless-shell works. WebGL2 via SwiftShader, gl.getError()=0 at boot, no console or page errors.
+- Floor luminance 2 mm outside a single d6 matched a no-AO model in 4/4 directions, so AO was 1.0 everywhere. Cause: `buildAoSetup()` in `src/render/renderer.js` is never invoked, `aoSetup` stays null, `drawAoPasses` never runs, `resize()` returns early, and the forward pass binds the white fallback.
+- The floor has a broad specular gradient (refs 40.7-61.9 across the box). Measure AO against a local plane fit over clean floor.
+- Resize check: launch headless-shell with a large `--window-size` before `page.setViewportSize`.
