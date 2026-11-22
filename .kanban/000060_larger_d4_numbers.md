@@ -1,7 +1,7 @@
 ---
 name: "fix: enlarge the d4 numbers"
 priority: "medium"
-state: "reviewing"
+state: "to-merge"
 worktree: "fix/60-larger-d4-numbers"
 issuer: "user"
 complexity: "simple"
@@ -40,26 +40,12 @@ Calculated result with the test glyph box (0.56 em by 0.71 em): em 2.149 mm to 3
 
 # Notes
 # Notes
+# Notes
 
-## Deliverable
-- `src/dice/labels.js`: `D4_LABEL_CENTER` 0.32 -> 0.21, `D4_MAX_WIDTH` 0.125 -> 0.19, `D4_MAX_HEIGHT` 0.146 -> 0.24. No other die, carve or geometry code touched.
-- `src/dice/labels.test.js`: the d4 flat-face fit loop moved into one `measureD4()` helper; the existing 0.3 mm margin and zero-overlap assertions are unchanged, and two guards were added: the neighbouring-number gap (>= 0.2 mm, quad-to-quad distance) and a legibility floor (em >= 3.5 mm). The em-floor test is red on the old values (0.00215 m) and green on the new ones.
-
-## Verification
-- Probe with the test's own transform helpers on DIE_RADIUS: old 2.149 mm em / 0.388 mm margin, new 3.533 mm em / 0.382 mm margin, 0.64 mm number gap. The spec table matches (2.149 -> 3.533 mm, 0.382 mm margin).
-- `npx vitest run src/dice`: 3 files, 84 tests passed.
-- `npm test`: 28 files, 367 tests passed.
-- `npm run build`: green, asset `index-DMC1bYI6.js`; the served asset hash matched the local build on port 4319.
-- Live check on the built app: one d4 roll gives a flat-on face with 4, 3 and 1 all legible, clear gaps between the digits and an obvious margin to the rounded bevel, no contact anywhere. Best frame `/tmp/bigzoom-1.png`.
-- HEAD `96a4148`.
-
-## Assumptions
-- The spec's "gap between numbers 0.554 mm" uses a different measure from the Euclidean quad-to-quad distance in the test (0.64 mm). Both stay well above the 0.2 mm limit, so no value was reduced.
-- The 3.5 mm em floor comes from the spec's 3.533 mm result and is asserted with the test's 0.56 em by 0.71 em glyph box, not a real font measurement.
-- The camera is fixed orthographic top-down and a canvas drag flings the die instead of orbiting, so the live check judged one flat-on roll rather than orbited views.
-
-## Blockers
-- None.
-
-## Manual checks left to other roles
-- None.
+## Review (approved)
+- Spec values verified in `src/dice/labels.js:25-27` (0.21 / 0.19 / 0.24); no leftover old literals (0.32 / 0.125 / 0.146) anywhere in `src/dice`; diff touches only `labels.js` and `labels.test.js`, so other dice, carve and geometry are untouched.
+- Margin and overlap tests not weakened: `D4_MARGIN` stays 0.0003, the >= 0.3 mm margin and zero-overlap assertions are verbatim; the fit loop is a faithful refactor into `measureD4()` plus two new guards (quad-to-quad gap >= 0.2 mm, em >= 3.5 mm) matching the spec constraints.
+- A/B check: with main's constants the new em-floor test fails (1 failed / 14 passed), with HEAD it passes, so the new test covers the change.
+- Evidence: `npx vitest run src/dice` 3 files / 84 tests green; `npm test` 28 files / 367 green; `npm run build` green, asset `index-DMC1bYI6.js`. HEAD 96a4148, tree clean.
+- Accepted stated assumptions: the spec's 0.554 mm gap uses a different measure than the test's Euclidean 0.64 mm (both above the 0.2 mm limit, values unchanged); the 3.5 mm em floor uses the test glyph box (0.56 x 0.71 em), not real font metrics.
+- Deferred to live-tester: browser screenshot of a d4 face showing three legible numbers with no contact (developer reports flat-on face 4/3/1 legible with clear margins; frame /tmp/bigzoom-1.png).

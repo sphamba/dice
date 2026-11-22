@@ -56,6 +56,13 @@ Collision uses the sharp vertices today. Collide each die as its rounded shape s
 # Notes
 # Notes
 # Notes
+## PM steer (read first)
+- Do not ignore the drop failure. Find which of these two cases applies, with a time budget of 10 minutes from now.
+- Case A, staging: the trace shows that the falling die hit off center, hit on an edge or corner, or hit the floor. Energy then goes into spin or to another contact, so the predicted rise does not apply.
+- Case B, defect: stage one centered, flat, face-on drop with zero spin, by setting the body state directly in the page. This phase does not need the pointer. Use horizontal offset below 0.5 mm and tilt below 1 degree. If the rise is below the gate 0.4 x (0.5*approach)^2/2g in this staging, file a finding task with the trace values and issuer "#56".
+- If the centered drop passes the gate, record the drop phase as PASS and record the first run as an off-center staging result.
+- Then run the final console-error sweep, write the results table, and finish. Do not do a full clean re-run.
+
 ## Live test in progress (watch checkpoint write 2)
 
 Scope: browser live test of the rounded-collision change and the speculative-contact restitution fix, desktop only. Real UI flows only (panel Add/Remove/Roll, grab-drag-fling pointer).
@@ -76,7 +83,7 @@ Scope: browser live test of the rounded-collision change and the speculative-con
 - Desktop viewport, default d6 set; BEVEL_RADIUS 1.6 mm, d6 rho 6.4 mm, SLOP 1e-4, RESTITUTION 0.5/THRESHOLD 0.1 from source.
 - Gates: settle <= 5 s, rest height 6.4 +/- 0.5 mm, core pair distance >= -0.5 mm sustained, wall e median in [0.3, 0.7] over >= 3 gated flings, drop rebound rise >= 0.4x (0.5*approach)^2/2g.
 
-Still to run: drop-phase verdict (staging inspection first), final console-error sweep, full clean re-run, results table. No product defects filed so far.
+Still to run: drop-phase verdict (centered staging), final console-error sweep, results table. No product defects filed so far.
 
 # Open questions
 
