@@ -2,7 +2,7 @@
 name: "feat: let a held die hang from the grabbed point under gravity"
 priority: "medium"
 state: "done"
-worktree: "feat/45-held-die-hangs-from-point"
+worktree: ""
 issuer: "user"
 complexity: "moderate"
 shortName: "held-die-hangs-from-point"
