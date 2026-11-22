@@ -47,11 +47,24 @@ In `src/audio/sound.test.js`:
 - `npm run build` passes.
 
 # Notes
-- Review outcome: approved, no fixes needed (HEAD 6474470, clean tree, diff = sound.js + sound.test.js only).
-- Spec 1 gain: `gainForImpulse` = `min(1, impulse / MAX_IMPULSE)` with 0 at/below `MIN_IMPULSE = 1e-4`, `MAX_IMPULSE = 0.015`; exported and covered by linear-ratio, clamp and silence tests.
-- Spec 2 pair gate: `play()` picks the strongest event per `pairKey` before the voice loop, skips non-strongest; slot is written only after `playVoice` returns true; open-slot replay needs `impulse >= 1.5 * slot.impulse` (`SLOT_OVERRIDE`), slot impulse records the played event so it stays the strongest played. All three behaviors have tests (strongest-of-batch wins, 1.5x override, silent event does not take the slot).
-- Spec 3 limiter: compressor configured threshold -3 dB, knee 0, ratio 20, attack 0.003 s, release 0.1 s, asserted per parameter; one constant `voiceScale` from the first measured buffer peak multiplies every voice. The developer-stated assumption stands: later buffers with a higher waveform peak are not re-measured; the ratio-20 limiter is the backstop, accepted.
-- Spec 4 kept behaviors: mode/pitch selection, speed brightness, voice cap, unlock gesture, pre-context silence untouched; existing tests still pass. Haptics still read `event.speed`; no volume/mute control added; no src/physics changes.
-- Edge noted, accepted: strongest-of-batch is picked before the speed gate, so a sub-gate strongest silences faster weaker siblings of the same pair in one batch; real events from contacts.js are always well-formed objects, no impact on direction.
-- Evidence: `npx vitest run src/audio` 38/38 passed, `npm test` 375/375 passed (28 files), `npm run build` passed.
-- Manual checks left to other roles: audibility of faint versus hard hits, absence of clipping on loud overlaps in a real browser.
+Live test in progress (watch checkpoint).
+
+## Progress so far
+- Read TASK.md, sound.js, main.js, pointer.js, panel.js, world.js/box.js/roll.js; harvested precedent /tmp/dice-lt-audio (proven method: route-patch sound.js in-browser to inject __onPlay/__onVoice observers; init.js wraps AudioBufferSourceNode.start to capture per-voice gain + buffer, AudioContext lifecycle; no repo code edits).
+- Constants table from source: MIN_EVENT_SPEED 0.15 m/s (sound.js:3), PAIR_GAP 0.04 s (:5), SLOT_OVERRIDE 1.5 (:7), MAX_VOICES 12 (:9), MIN_IMPULSE 1e-4 N*s (:15), MAX_IMPULSE 0.015 N*s (:17), LIMITER_THRESHOLD_DB -3 (:19), LIMITER_CEILING 0.70795 (:20).
+- Harness: /tmp/dice-lt64/init.js written (precedent init + compressor node capture, analyser tapped compressor->destination for real output peaks, per-event pairKey tagging, __readOut output-peak sampler). Driver next, then vite serve on port 4619.
+
+## Planned checks (each maps to a spec)
+- C1 (spec 4): pre-gesture floor-impact events occur but no AudioContext, no voices (silence before context); first click creates + resumes context.
+- C2 (spec 3): compressor params threshold -3, knee 0, ratio 20, attack 0.003, release 0.1.
+- C3 (spec 1): played voice gain == min(1, impulse/MAX_IMPULSE)*voiceScale exactly; gain/impulse ratio constant below clamp; sub-MIN_IMPULSE events never play.
+- C4 (spec 2): per batch per pair, only the strongest event plays.
+- C5 (spec 2): pair whose batch-strongest is silent (impulse <= MIN_IMPULSE) takes no slot; a later batch within 40 ms still plays.
+- C6 (spec 2): open-slot replay only at impulse >= 1.5x slot impulse (data-driven from real rolls; if no natural case, recorded as harness limit, unit-covered).
+- C7 (spec 3): single voiceScale constant across session; real output peaks never reach 1.0 (no clipping); loud-overlap output peaks stay near single-voice peaks (limiter flat), compressor reduction < 0 during overlaps.
+- C8 (spec 4 kept): <= 12 concurrent voices, buffer durations within [50, 600] ms.
+
+## Assumptions/limits so far
+- Pointer fling phase dropped: MAX_FLING_SPEED = 3 m/s over an 80 ms sample window cannot exceed roll impacts (rise speeds ~3.8 m/s; measured roll peaks 1.17e-2 per task Facts), and synthetic pointer events would fail setPointerCapture. Rolls + spawn drops are the real-usage impact generators.
+- Live data may never reach the gain = 1 clamp (roll peaks 1.17e-2 < MAX_IMPULSE 1.5e-2): clamp covered by unit tests; live evidence limited to the linear range if so.
+- No live runs yet, no defects found yet.
