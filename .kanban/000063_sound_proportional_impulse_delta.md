@@ -1,11 +1,13 @@
 ---
 name: "feat: emit impact impulse as the delta over the warm start"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "feat/63-sound-proportional-impulse-delta"
 issuer: "#62"
 complexity: "simple"
 shortName: "sound-proportional-impulse-delta"
+changes: "{\"base\":\"main\",\"ins\":113,\"del\":2,\"files\":2}"
+commits: "[{\"hash\":\"0496435\",\"subject\":\"feat: emit the impact impulse as the delta over the warm start\",\"when\":\"2026-11-22T22:16:23+01:00\"}]"
 ---
 
 # Summary
