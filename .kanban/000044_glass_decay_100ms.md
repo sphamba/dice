@@ -1,7 +1,7 @@
 ---
 name: "fix: shorten the glass lid ring to a 100 ms decay"
 priority: "medium"
-state: "doing"
+state: "to-review"
 worktree: "fix/44-glass-decay-100ms"
 issuer: "user"
 complexity: "simple"
@@ -32,3 +32,8 @@ The glass lid impact rings too long. Set the slowest glass mode T60 from 200 ms 
 - `npm run build`
 
 # Notes
+- Deliverable: `GLASS.tau` in `src/audio/modes.js` is now `t60Tau(0.1) * (1 + GLASS_DAMP_HF)`, so the glass lid slowest mode T60 is 100 ms. Box stays 80 ms, die modes 30 ms or less, pitch, per-mode HF damping, positions and gains unchanged.
+- Verification: HEAD 16595ab. `npx vitest run src/audio` 30 passed, `npm test` 300 passed, `npm run build` green with the dist asset check showing both script and stylesheet links.
+- Assumptions: the test file `src/audio/modes.test.js` is the pinned place for the T60 target; no other module hardcodes the glass decay, so the single constant change suffices.
+- Blockers: none.
+- Manual checks left to other roles: listen to a lid impact to confirm the ring is 100 ms in the live page.
