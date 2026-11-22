@@ -45,9 +45,17 @@ Do not change the collision, the bevel radius, the die size, the AO strength or 
 - Attach one zoomed corner screenshot before the fix and one after the fix to the task Notes as file paths.
 
 # Notes
+## PM steer (read first)
+- The defect shows only when the buffer has no samples. The developer measured a clean baseline with `gl.SAMPLES = 4` and a leak with `gl.SAMPLES = 0`.
+- Run the baseline and the merged build in two contexts: the default context, and a context forced to `antialias: false` through an init script that wraps `HTMLCanvasElement.prototype.getContext`. Report `gl.SAMPLES` for each run.
+- Expected result: the baseline fails the outside check only with `gl.SAMPLES = 0`. The merged build passes in both contexts. If the baseline passes in both contexts, the harness does not detect the defect: fix the harness before you give a verdict.
+- Take the before and after corner screenshots from the `antialias: false` context.
+- Time budget from now: 15 minutes.
+
+## Live test progress
 - Live test in progress, held at watch checkpoint. No defects filed yet.
 - Read task + merged diff (1f22e07: forward dice shader computes d/alpha before roundedSurface/gl_FragDepth and adds `if (alpha <= 0.0) discard;`; bevel.test.js now requires exactly one silhouette-form discard). No code edited.
 - Setup done: vite serves the merged worktree (cwd, :4621) and a pre-fix baseline checkout (.worktrees/lt-baseline-59 at parent commit 7a82756, :4622, created only for the required before-fix screenshot and to prove the pixel check detects the defect); both serve HTTP 200. Playwright-core 1.59.0 resolved from /home/phamba/repos/tarot/app/node_modules, chromium-1217 in ~/.cache/ms-playwright. Harness in /tmp/lt-59/.
 - Test design (usage-level, browser only, no unit suites): real UI panel clicks add exactly one d4/d6/d20; flat pose = die settled via the running simulation; tilted pose = frozen mid-air spawn (the state users see during every roll), verified tilted from the captured model matrix. A two-tick in-page capture freezes the app clock and grabs frame A (dice drawn) and frame B (same frozen inputs, forward dice draw calls skipped, AO passes intact = same AO texture). Pixels are classified against the exact hull silhouette mirrored from src/render/renderer.js pointHullDistance2D using hull/bevelRadius/halfExtents captured from the live GL uniform uploads. Checks per pose: outside-silhouette (d > r + 1 px) frame diff <= 2/255; no holes inside (d <= r - 2 px, diff <= 2/255 vs floor-only frame); non-degeneracy guards (die visibly present, outside region non-empty); gl.SAMPLES and contextAttributes().antialias reported; zoomed corner screenshots before (baseline) and after (merged).
 - Assumptions: tilted pose as frozen mid-air spawn is user-visible equivalent to mid-roll; headless Chromium + SwiftShader context is the environment under test (measured, not assumed); the 1-2 px antialiased band (r - 2 px < d <= r + 1 px) is excluded from both checks per the acceptance wording.
-- Remaining: node --check + smoke run, baseline validation run (expected outside-diff FAIL there), full merged run (6 pose captures + screenshots), then report + cleanup (kill servers, remove baseline worktree).
+- Remaining: node --check + smoke run, baseline validation run in both contexts, full merged run in both contexts (6 pose captures each + screenshots), then report + cleanup (kill servers, remove baseline worktree).

@@ -43,11 +43,15 @@ Calculated result with the test glyph box (0.56 em by 0.71 em): em 2.149 mm to 3
 # Notes
 # Notes
 # Notes
+# Notes
 
-## Review (approved)
-- Spec values verified in `src/dice/labels.js:25-27` (0.21 / 0.19 / 0.24); no leftover old literals (0.32 / 0.125 / 0.146) anywhere in `src/dice`; diff touches only `labels.js` and `labels.test.js`, so other dice, carve and geometry are untouched.
-- Margin and overlap tests not weakened: `D4_MARGIN` stays 0.0003, the >= 0.3 mm margin and zero-overlap assertions are verbatim; the fit loop is a faithful refactor into `measureD4()` plus two new guards (quad-to-quad gap >= 0.2 mm, em >= 3.5 mm) matching the spec constraints.
-- A/B check: with main's constants the new em-floor test fails (1 failed / 14 passed), with HEAD it passes, so the new test covers the change.
-- Evidence: `npx vitest run src/dice` 3 files / 84 tests green; `npm test` 28 files / 367 green; `npm run build` green, asset `index-DMC1bYI6.js`. HEAD 96a4148, tree clean.
-- Accepted stated assumptions: the spec's 0.554 mm gap uses a different measure than the test's Euclidean 0.64 mm (both above the 0.2 mm limit, values unchanged); the 3.5 mm em floor uses the test glyph box (0.56 x 0.71 em), not real font metrics.
-- Deferred to live-tester: browser screenshot of a d4 face showing three legible numbers with no contact (developer reports flat-on face 4/3/1 legible with clear margins; frame /tmp/bigzoom-1.png).
+## Live test in progress (run id lt60/lt60s, harness /tmp/dice-lt60)
+
+Setup: served this worktree with vite on :8944, Playwright Chromium 1.59 with SwiftShader WebGL, desktop 1280x800 dpr1. User flow: expand panel, remove 2 d6, add 1 d4, collapse panel, press Roll. No app code edited; no repo test suites run.
+
+Findings so far:
+- Setup flows work: default set is 2 d6; +/- buttons adjust; exactly one d4 spawns. Console clean (0 product errors in every phase so far).
+- Settled top view (the user's primary view), 3 rolls: the d4 rests apex-up and shows its three side faces with numbers. All visible numbers legible (r1: 2,3,4,3; r2: 2,3,2,4,4,3; r3: 3,1,2,3,4,3,1,2), sitting clear of the rounded edges with visible margins, no contact between numbers. Scene settles (AE=0) after every roll. Evidence: /tmp/dice-lt60/lt60-settled-crop-r1..r3.png.
+- Acceptance wants a flat-on face (all three numbers of one face). A resting d4 shows only foreshortened side faces under the fixed top-down ortho camera (src/render/camera.js), so a flat-on view exists only transiently mid-tumble. Capture attempts: full-viewport screenshot burst is 3.6 s/frame under SwiftShader and misses the ~1-2 s flight; CDP Page.startScreencast yields only 3 stalled frames per 4.5 s roll (all pre-roll). Both miss the flight, so the flat-on capture is currently a harness/environment limit (software rasterizer frame rate), not an app defect. Next: fast small-clip screenshot polling during flight; if that also fails I record the limit and judge the face-on criteria from the settled view plus zoomed crops.
+- Die silhouette measures ~240 px wide at 1280x800 dpr1, consistent with DIE_RADIUS = 0.0128*sqrt(3)/2 m and METERS_PER_DEVICE_PIXEL = 0.0254/440 m (my initial 481 px estimate used a wrong radius; measured and derived now agree within ~10%).
+- Gates green so far: setup, settle AE=0 (4/4 rolls), die visible in tray, carved ink present, console clean. No product defects found yet.
