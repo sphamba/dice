@@ -1,7 +1,7 @@
 ---
 name: "fix: warm-start the contact solver for resting piles"
 priority: "medium"
-state: "doing"
+state: "to-review"
 worktree: "fix/41-pile-warm-starting"
 issuer: "#40"
 complexity: "moderate"
@@ -37,3 +37,23 @@ Persist solved contact impulses across steps and reuse them to warm start the so
 - `npx vitest run src/physics`
 
 # Notes
+## Deliverable
+- `src/physics/contacts.js`: `solveContacts` caches the prepared contacts with their solved impulses in `world.contactCache` and clears it on a step without contacts. Each new contact warm starts from the cached contact with the same body pair and surface, point within `WARM_START_DISTANCE` (1 mm) and normal dot above `WARM_START_NORMAL_DOT` (0.99): the normal impulse starts at the old value and is applied before the iterations, the old friction impulse is projected onto the new tangents and clamped to the friction disk of that normal impulse.
+- `warmStartImpulses` is exported as the pure matching and clamping decision so the tests can assert the starting values.
+- No change to friction, restitution, Baumgarte, `SOLVER_ITERATIONS`, `FIXED_DT`, `world.js` or `src/input/*`. No module-level mutable state.
+
+## Verification
+- HEAD `147d43a`; `npx vitest run src/physics` → 8 files, 80 tests passed.
+- `npm run build` green; `dist/index.html` references `./assets/index-BIsGiyBQ.js` and `./assets/index-DA_12YQk.css`.
+- Probe, 10 mixed dice, 20 degrees tilted gravity, 5 s, max angular speed: HEAD 0.082 / 0.112 / 1.347 rad/s at 3 / 4 / 5 s, with the change 0.019 / 0.020 / 0.016 rad/s. The reported rocking is gone and the pile stays settled.
+
+## Assumptions
+- The cache holds the step's prepared contact objects, so the cached shape is `{a, b, surface, point, normal: {direction, impulse}, tangents: [{direction, impulse}]}`.
+- The restitution target is computed before the warm start is applied, so the approach speed of the step is unchanged by warm starting.
+- Matching reads the new contact normal for its tangent basis, which agrees with the prepared tangent directions.
+
+## Blockers
+- None.
+
+## Manual checks left to other roles
+- Live feel of the tilted pile in the browser.

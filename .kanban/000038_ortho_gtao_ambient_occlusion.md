@@ -83,13 +83,16 @@ Remove the directional shadow map and add a custom screen-space GTAO pass in raw
 # Notes
 # Notes
 ## PM steer
-- You are the developer of this task. The dead AO path is a bug in your own diff: fix it now, do not only report it.
-- Call `buildAoSetup()` when the renderer is built and again on context restore (after `buildResources()`), then create the size-dependent targets from the current viewport and box. Catch a throw and keep the 1x1 white fallback, as the Specs say.
-- Add a node test that fails when the AO setup is never built (for example, a renderer built with a fake GL records that the GTAO program is compiled and its framebuffers are created).
-- Then rerun the live checks: contact darkening, held die, resize, context loss.
+- Commit cec943f builds the AO setup at startup, but it changes only one file. Still add the node regression test that fails when the AO setup is never built (for example, a renderer with a fake GL records that the GTAO program compiles and its framebuffers are created, also after a context restore).
+- Then finish the live checks: contact darkening, held die, resize, context loss. Write the real results in Notes.
 
-Verification so far (live browser, before the fix)
-- vite dev on :4177; full Chromium failed at launch, chrome-headless-shell works. WebGL2 via SwiftShader, gl.getError()=0 at boot, no console or page errors.
-- Floor luminance 2 mm outside a single d6 matched a no-AO model in 4/4 directions, so AO was 1.0 everywhere. Cause: `buildAoSetup()` in `src/render/renderer.js` is never invoked, `aoSetup` stays null, `drawAoPasses` never runs, `resize()` returns early, and the forward pass binds the white fallback.
+## State
+- 6e66e05 feat: replace directional shadows with orthographic GTAO ambient occlusion.
+- cec943f fix: build the AO setup at startup so the GTAO pipeline renders. Suite and build green.
+- Live check rerun in progress after the fix.
+
+## Live check notes (before the fix)
+- chrome-headless-shell works, full Chromium does not launch. WebGL2 via SwiftShader, gl.getError()=0, no console or page errors.
+- Before the fix, AO was 1.0 everywhere because `buildAoSetup()` was never invoked.
 - The floor has a broad specular gradient (refs 40.7-61.9 across the box). Measure AO against a local plane fit over clean floor.
 - Resize check: launch headless-shell with a large `--window-size` before `page.setViewportSize`.
