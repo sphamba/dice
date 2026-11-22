@@ -1,5 +1,5 @@
 ---
-name: "fix: grabbed die in free hang can rest with CoM ~9 mm sideways of the grab point"
+name: "fix: grabbed die in free hang can rest with its centre of mass up to 9 mm to the side of the grab point"
 priority: "medium"
 state: "doing"
 worktree: "fix/53-grabbed-die-in"
@@ -11,10 +11,26 @@ complexity: "simple"
 When a grabbed die is held in the air with no contact (clearance > 0), the physics constraint can hold a tilted orientation in which the CoM rests 6-9.3 mm horizontally off the grab point instead of swinging directly below it. Intermittent: depends on the die's orientation at grab.
 
 # Specs
-Evidence (live-test #50, run4, harness /tmp/dice-lt50): while held at (pointer, D-2R) with lowest vertex 24-33 mm clear of the floor, the d8 rested with CoM xy 5.96 mm from the pointer (sample series stable: 5.6, 6.0, 6.0, 6.0, ... over 1.6 s, not swinging) and the d12 with 9.28 mm (9.2, 9.3, 9.3, ...). A free-hanging rigid body pinned at one surface point must put its CoM directly below the pin (pendulum rest). Same run, d4/d6/d10/d20 converged to 0.0-0.95 mm. Rerun (run5) passed 83/83 with d8 at 0.17 mm and d12 at 1.29 mm, so the defect is orientation-dependent and intermittent.
+# Evidence (live test #50, run 4, harness /tmp/dice-lt50)
+- Held at (pointer, D - 2R), lowest vertex 24-33 mm above the floor, no contact: the d8 rested with its CoM 5.96 mm in xy from the pointer, and the d12 with 9.28 mm. The series stayed constant for 1.6 s (no swing).
+- d4, d6, d10, d20 converged to 0.0-0.95 mm. Run 5 passed (d8 0.17 mm, d12 1.29 mm). The defect is intermittent and depends on the orientation at grab.
 
-Root cause direction: the pointer constraint in src/physics/body.js (constraint creation around the grab/lift path, see src/input/pointer.js hold logic) does not resolve the rotation DOF of the held body to the pendulum rest; the solver keeps the tilted quasi-equilibrium it was in when the swing damped. Fix direction: add rotational righting torque while held (proportional to the horizontal offset between the grabbed point's vertical axis and the CoM), or pin the grab point to a point directly above the CoM once the body is slow, letting the orientation settle.
+# Analysis
+- With a point constraint at the grab point and no contact, gravity gives a torque about the grab point while the CoM is off the vertical. Swing damping opposes only motion, so it cannot hold a static offset. A constant tilted rest needs a second cause. Find it before you change code. Candidates:
+  1. The world was asleep during the hold. Check that the run-4 build included #52 (no sleep while held). If it did not, reproduce on main. If main does not reproduce, close the task with that evidence and change no code.
+  2. The point-constraint drive in `src/input/pointer.js` gives a torque about the grab point (for example a target velocity computed at the CoM, a gain on the grab-point offset that is not rotated by the body quat, or an angular term).
+  3. A sleep or speed gate that zeroes a slow angular velocity.
 
-Reproduction: grab any die during its initial damped swing, hold 2 s, read body p vs pointer xy via the state sample; a stable xy offset near the circumradius with clearance > 0 is the defect.
+# Change
+- Fix the root cause found above with the smallest change. Do not add a righting torque and do not force any orientation (the #45 rule). Gravity alone must bring the CoM below the grab point.
+
+# Tests (`src/input/pointer.test.js`, no contacts)
+- For each die type, grab at 20 or more different surface points and initial orientations (fixed seed). Hold the pointer still for 3 s of simulated time. Then the CoM xy is within 1 mm of the grab point and |w| < 0.1 rad/s for every case.
+- The #45 and #52 hold tests stay green.
+
+# Acceptance criteria
+- `npx vitest run src/input src/physics`
+- `npm test`
+- `npm run build`
 
 # Notes
