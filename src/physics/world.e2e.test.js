@@ -194,8 +194,12 @@ describe('tilted gravity', () => {
 describe('die against die', () => {
   it('lets two stacked d6 rest without mutual penetration', () => {
     const world = createWorld(BOX);
+    const shape = createShape('d6', DIE_RADIUS);
+    const [a, b] = shape.edges[0];
+    const edge = Math.hypot(...shape.vertices[a].map((c, k) => c - shape.vertices[b][k]));
     const lower = dropBody('d6', [0, 0, BOX.D / 2 - 0.02]);
-    const upper = dropBody('d6', [0, 0, BOX.D / 2 + 0.02]);
+    // 2.5 edge heights between the centers: the previous absolute 0.04 m gap, made die-relative.
+    const upper = dropBody('d6', [0, 0, BOX.D / 2 - 0.02 + 2.5 * edge]);
     world.addBody(lower);
     world.addBody(upper);
 

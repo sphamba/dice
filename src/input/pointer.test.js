@@ -7,7 +7,7 @@ import {
   flingVelocity,
 } from './pointer.js';
 import { createWorld } from '../physics/world.js';
-import { createBody } from '../physics/body.js';
+import { DIE_RADIUS, createBody } from '../physics/body.js';
 import { DICE_TYPES, createShape } from '../dice/shapes.js';
 import * as quat from '../math/quat.js';
 import * as vec3 from '../math/vec3.js';
@@ -15,8 +15,6 @@ import * as vec3 from '../math/vec3.js';
 const near = (actual, expected, eps = 1e-9) => expect(Math.abs(actual - expected)).toBeLessThan(eps);
 
 const BOX = { W: 0.0681, H: 0.1476, D: 0.0681 };
-
-const DIE_RADIUS = 0.0139;
 
 // Circumradius over root three: the d6 face is a square of this half-edge at this height.
 const FACE_HALF = DIE_RADIUS / Math.sqrt(3);
@@ -180,21 +178,22 @@ describe('hanging', () => {
     const { world, canvas } = scene([body]);
     pressWorld(canvas, 1, 0, 0);
     run(world, 60, 1.5);
-    moveWorld(canvas, 1, 0.02, 0, 2000);
+    // The tall axis: 20 mm of swing room, farther than the die reaches from any wall.
+    moveWorld(canvas, 1, 0, 0.02, 2000);
     let previous = 0;
     let crossings = 0;
     for (let frame = 0; frame < 90; frame += 1) {
       world.update(1 / 60);
-      const offsetX = -grabbedPoint(body, grabbed).lever[0];
-      if (previous !== 0 && offsetX !== 0 && Math.sign(offsetX) !== Math.sign(previous)) {
+      const offsetY = -grabbedPoint(body, grabbed).lever[1];
+      if (previous !== 0 && offsetY !== 0 && Math.sign(offsetY) !== Math.sign(previous)) {
         crossings += 1;
       }
-      previous = offsetX;
+      previous = offsetY;
     }
     expect(crossings).toBeGreaterThanOrEqual(1);
     const { lever, point, spin } = grabbedPoint(body, grabbed);
     expect(Math.hypot(lever[0], lever[1])).toBeLessThan(0.001);
-    expect(Math.hypot(point[0] - 0.02, point[1])).toBeLessThan(0.001);
+    expect(Math.hypot(point[0], point[1] - 0.02)).toBeLessThan(0.001);
     expect(Math.abs(point[2] - holdHeight(body))).toBeLessThan(0.001);
     expect(spin).toBeLessThan(0.1);
   });
@@ -261,7 +260,7 @@ describe('hanging', () => {
 
 describe('release', () => {
   it('shares one die between two pointers in insertion order and releases each grab alone', () => {
-    const body = makeDie({ position: [0, 0, 0.0139] });
+    const body = makeDie({ position: [0, 0, DIE_RADIUS] });
     const grabbed = [0, 0, FACE_HALF];
     const { world, canvas, pointer } = scene([body]);
     const pointVelocity = (axis) => {
@@ -294,7 +293,7 @@ describe('release', () => {
   });
 
   it('releases with the pointer velocity and lets go of the die', () => {
-    const body = makeDie({ position: [0, 0, 0.014] });
+    const body = makeDie({ position: [0, 0, DIE_RADIUS] });
     const { canvas, pointer } = scene([body]);
     pressWorld(canvas, 1, 0, 0);
     canvas.fire('pointermove', { pointerId: 1, clientX: 10, clientY: 0, timeStamp: 40 });

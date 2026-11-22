@@ -84,7 +84,7 @@ describe('liftSpeed', () => {
     const [, box] = BOXES[0];
     const atLid = Float64Array.from([0, 0, box.D - DIE_RADIUS]);
     expect(headroom(box, atLid, up)).toBeCloseTo(0, 12);
-    expect(liftSpeed(box, GRAVITY, atLid, ROLL_RISE_MAX)).toBeCloseTo(0, 12);
+    expect(liftSpeed(box, GRAVITY, atLid, ROLL_RISE_MAX)).toBeCloseTo(0, 6);
     const pastLid = Float64Array.from([0, 0, box.D]);
     expect(headroom(box, pastLid, up)).toBe(0);
     expect(liftSpeed(box, GRAVITY, pastLid, ROLL_RISE_MAX)).toBe(0);

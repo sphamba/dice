@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as mat3 from '../math/mat3.js';
 import * as vec3 from '../math/vec3.js';
-import { createBody } from './body.js';
+import { DIE_RADIUS, createBody } from './body.js';
 import {
   BAUMGARTE,
   EVENT_MIN_SPEED,
@@ -22,7 +22,7 @@ const nearRel = (actual, expected, eps = 1e-9) =>
   expect(Math.abs(actual - expected)).toBeLessThan(eps * Math.max(Math.abs(expected), 1e-12));
 
 const SHAPE = {
-  radius: 0.0139,
+  radius: DIE_RADIUS,
   volume: 4.096e-6,
   inertia: mat3.fromDiagonal(new Float64Array(9), 2e-5, 3e-5, 4e-5),
 };
@@ -197,7 +197,7 @@ describe('incline', () => {
 describe('accumulated impulses', () => {
   it('keeps a resting contact stable over many iterations', () => {
     const depth = 0.0005;
-    const body = makeBody([0, 0, 0.0139]);
+    const body = makeBody([0, 0, DIE_RADIUS]);
     const world = makeWorld(floorContact(body, { depth }));
     const target = biasSpeed(depth);
 
@@ -213,7 +213,7 @@ describe('accumulated impulses', () => {
   });
 
   it('never lets the normal impulse go negative', () => {
-    const body = makeBody([0, 0, 0.0139], [0, 0, 0.02]);
+    const body = makeBody([0, 0, DIE_RADIUS], [0, 0, 0.02]);
     const world = makeWorld(floorContact(body));
     solveContacts(world, FIXED_DT);
     expect(body.linearVelocity[2]).toBe(0.02);
@@ -292,7 +292,7 @@ describe('warm start ordering', () => {
 
 describe('settling', () => {
   it('damps the spin of a body in contact', () => {
-    const body = makeBody([0, 0, 0.0139]);
+    const body = makeBody([0, 0, DIE_RADIUS]);
     vec3.set(body.angularVelocity, 0, 0, 5);
     solveContacts(makeWorld(floorContact(body)), FIXED_DT);
     expect(body.angularVelocity[2]).toBeGreaterThan(4);
@@ -311,7 +311,7 @@ describe('warm starting', () => {
   const NORMAL = Float64Array.from([0, 0, 1]);
   const TANGENT_Y = Float64Array.from([0, 1, 0]);
   const TANGENT_NEGATIVE_X = Float64Array.from([-1, 0, 0]);
-  const POINT = Float64Array.from([0, 0, 0.0139]);
+  const POINT = Float64Array.from([0, 0, DIE_RADIUS]);
 
   const cachedContact = (body, normalImpulse, frictionImpulses = [0, 0]) => ({
     a: body,
@@ -334,7 +334,7 @@ describe('warm starting', () => {
   });
 
   it('starts a matched contact at the old normal impulse', () => {
-    const body = makeBody([0, 0, 0.0139]);
+    const body = makeBody([0, 0, DIE_RADIUS]);
     const warm = warmStartImpulses(
       [cachedContact(body, 0.02, [0.001, 0])],
       freshContact(body),
@@ -346,8 +346,8 @@ describe('warm starting', () => {
   });
 
   it('starts an unmatched contact at zero', () => {
-    const body = makeBody([0, 0, 0.0139]);
-    const far = Float64Array.from([WARM_START_DISTANCE * 2, 0, 0.0139]);
+    const body = makeBody([0, 0, DIE_RADIUS]);
+    const far = Float64Array.from([WARM_START_DISTANCE * 2, 0, DIE_RADIUS]);
     const warm = warmStartImpulses(
       [cachedContact(body, 0.02, [0.001, 0])],
       freshContact(body, far),
@@ -359,7 +359,7 @@ describe('warm starting', () => {
   });
 
   it('starts at zero when the cached normal disagrees', () => {
-    const body = makeBody([0, 0, 0.0139]);
+    const body = makeBody([0, 0, DIE_RADIUS]);
     const cached = cachedContact(body, 0.02, [0.001, 0]);
     cached.normal = { direction: Float64Array.from([1, 0, 0]), impulse: 0.02 };
     const warm = warmStartImpulses([cached], freshContact(body), FRICTION_FLOOR);
@@ -369,7 +369,7 @@ describe('warm starting', () => {
   });
 
   it('clamps the warm-started friction impulse to the friction disk', () => {
-    const body = makeBody([0, 0, 0.0139]);
+    const body = makeBody([0, 0, DIE_RADIUS]);
     const warm = warmStartImpulses(
       [cachedContact(body, 0.02, [1, 0])],
       freshContact(body),
@@ -400,7 +400,7 @@ describe('impact events', () => {
   it('pushes one event per pair and step with the summed normal impulse', () => {
     const body = makeBody([0, 0, 0.01], [0, 0, -1]);
     const corner = (x) =>
-      floorContact(body, { point: [x, 0, 0.0139], depth: 0 });
+      floorContact(body, { point: [x, 0, DIE_RADIUS], depth: 0 });
     const world = makeWorld(corner(0.005), corner(-0.005));
 
     solveContacts(world, FIXED_DT);
@@ -424,7 +424,7 @@ describe('impact events', () => {
   });
 
   it('pushes no event for a resting contact', () => {
-    const body = makeBody([0, 0, 0.0139]);
+    const body = makeBody([0, 0, DIE_RADIUS]);
     const world = makeWorld(floorContact(body, { depth: SLOP }));
     solveContacts(world, FIXED_DT);
     expect(world.events).toEqual([]);

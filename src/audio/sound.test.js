@@ -8,10 +8,11 @@ import {
   PAIR_GAP,
   createSound,
 } from './sound.js';
+import { DIE_RADIUS } from '../physics/body.js';
 
 const BOX = { W: 0.1, H: 0.08, D: 0.06 };
 
-const die = () => ({ shape: { type: 'd6', radius: 0.0139 } });
+const die = () => ({ shape: { type: 'd6', radius: DIE_RADIUS } });
 
 const impact = (overrides = {}) => ({
   a: die(),

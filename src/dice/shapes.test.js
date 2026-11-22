@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DICE_TYPES, createShape } from './shapes.js';
+import { DIE_RADIUS } from '../physics/body.js';
 
 const RADIUS = 0.75;
 const EPS = 1e-6;
@@ -263,5 +264,21 @@ describe('createShape', () => {
     expect(Object.isFrozen(shape.edges)).toBe(true);
     expect(Object.isFrozen(shape.edgeDirs)).toBe(true);
     expect(Object.isFrozen(shape.inertia)).toBe(true);
+  });
+});
+
+describe('app die size', () => {
+  it('gives the d6 a 12.8 mm edge at DIE_RADIUS', () => {
+    const shape = createShape('d6', DIE_RADIUS);
+    const [i, j] = shape.edges[0];
+    const edge = len(sub(shape.vertices[i], shape.vertices[j]));
+    expect(edge * 1000).toBeCloseTo(12.8, 9);
+  });
+
+  it('puts every shape exactly on the circumsphere of DIE_RADIUS', () => {
+    for (const type of DICE_TYPES) {
+      const shape = createShape(type, DIE_RADIUS);
+      expect(Math.max(...shape.vertices.map(len)), type).toBeCloseTo(DIE_RADIUS, 9);
+    }
   });
 });

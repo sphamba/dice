@@ -167,7 +167,7 @@ describe('dieModes', () => {
 
   it('gives every die type a distinct voice', () => {
     const types = ['d4', 'd6', 'd8', 'd10', 'd12', 'd20'];
-    const appRadius = (0.016 * Math.sqrt(3)) / 2;
+    const appRadius = DIE_RADIUS;
     for (const radius of [DIE_REFERENCE_RADIUS, appRadius]) {
       const voices = types.map((type) =>
         JSON.stringify(dieModes(type, radius).map((mode) => mode.f)),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DIE_DENSITY, applyImpulse, createBody, updateDerived } from './body.js';
+import { DIE_DENSITY, DIE_RADIUS, applyImpulse, createBody, updateDerived } from './body.js';
 import * as mat3 from '../math/mat3.js';
 import * as quat from '../math/quat.js';
 import { createShape } from '../dice/shapes.js';
@@ -13,7 +13,7 @@ const nearRel = (actual, expected, eps = 1e-12) =>
 const tensor = (x, y, z) => mat3.fromDiagonal(new Float64Array(9), x, y, z);
 
 const makeShape = ({ inertia = tensor(2e-5, 3e-5, 4e-5) } = {}) => ({
-  radius: 0.0139,
+  radius: DIE_RADIUS,
   volume: 4.096e-6,
   inertia,
 });
@@ -25,7 +25,7 @@ describe('createBody', () => {
     const shape = makeShape();
     const body = createBody(shape);
     expect(body.shape).toBe(shape);
-    expect(body.radius).toBe(0.0139);
+    expect(body.radius).toBe(DIE_RADIUS);
     nearRel(body.invMass, 1 / massOf(shape));
     expect(Array.from(body.position)).toEqual([0, 0, 0]);
     expect(Array.from(body.orientation)).toEqual([0, 0, 0, 1]);
@@ -53,7 +53,7 @@ describe('createBody', () => {
   });
 
   it('uses the absolute tensor of a real dice shape', () => {
-    const shape = createShape('d6', 0.0139);
+    const shape = createShape('d6', DIE_RADIUS);
     const [a, b] = shape.edges[0];
     const edge = Math.hypot(
       shape.vertices[a][0] - shape.vertices[b][0],

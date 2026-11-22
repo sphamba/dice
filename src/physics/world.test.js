@@ -21,7 +21,7 @@ const BOX = { W: 0.0681, H: 0.1476, D: 0.0681 };
 const makeBody = (position = [0, 0, 0.034]) =>
   createBody(
     {
-      radius: 0.0139,
+      radius: DIE_RADIUS,
       volume: 4.096e-6,
       inertia: mat3.fromDiagonal(new Float64Array(9), 2e-5, 3e-5, 4e-5),
     },
@@ -132,7 +132,7 @@ describe('beforeStep', () => {
 describe('falling dice', () => {
   it('rests a dropped die on the floor of the box', () => {
     const world = createWorld(BOX);
-    const body = createBody(createShape('d6', 0.0139), { position: [0, 0, BOX.H / 2] });
+    const body = createBody(createShape('d6', DIE_RADIUS), { position: [0, 0, BOX.H / 2] });
     world.addBody(body);
 
     for (let i = 0; i < 480; i += 1) world.step(FIXED_DT);

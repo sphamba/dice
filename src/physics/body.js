@@ -4,7 +4,7 @@ import * as vec3 from '../math/vec3.js';
 
 export const DIE_DENSITY = 1200;
 
-export const DIE_RADIUS = 0.016 * Math.sqrt(3) / 2;
+export const DIE_RADIUS = 0.0128 * Math.sqrt(3) / 2;
 
 const vec = () => new Float64Array(3);
 const mat = () => new Float64Array(9);
