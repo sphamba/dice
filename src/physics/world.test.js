@@ -171,6 +171,19 @@ describe('setBox', () => {
     expect(Array.from(body.position)).toEqual([0.01, 0.02, 0.03]);
     for (let index = 0; index < STEPS_PER_SECOND; index += 1) world.step(FIXED_DT);
     expect(body.position[2]).toBeGreaterThan(0);
+
+    world.setBox({ W: 0.05, H: 0.05, D: 0.05 });
+    expect(world.box).toEqual({ W: 0.05, H: 0.05, D: 0.05 });
+    for (let index = 0; index < STEPS_PER_SECOND; index += 1) world.step(FIXED_DT);
+    expect(body.position[2]).toBeGreaterThan(0);
+  });
+
+  it('ignores a non-finite box and keeps the last valid one', () => {
+    const world = createWorld(BOX);
+
+    world.setBox({ W: Number.NaN, H: 0.05, D: 0.05 });
+
+    expect(world.box).toEqual(BOX);
   });
 
   it('leaves a body inside the new box alone', () => {
@@ -187,6 +200,21 @@ describe('setBox', () => {
 });
 
 const STEPS_PER_SECOND = Math.round(1 / FIXED_DT);
+
+// A page loaded while the viewport reports 0x0 spawns dice into a 0 box; the first
+// valid resize must lift them out of the crushed state at the box centre.
+it('heals a world created on a zero-sized viewport at the first valid setBox', () => {
+  const world = createWorld({ W: 0, H: 0, D: 0 });
+  const body = createBody(createShape('d6', DIE_RADIUS), { position: [0, 0, 0] });
+  world.addBody(body);
+
+  for (let index = 0; index < STEPS_PER_SECOND; index += 1) world.step(FIXED_DT);
+  expect(body.position[2]).toBeCloseTo(0, 2);
+
+  world.setBox(BOX);
+  for (let index = 0; index < STEPS_PER_SECOND; index += 1) world.step(FIXED_DT);
+  expect(body.position[2]).toBeGreaterThan(0);
+});
 
 // A die dropped from mid-box, left long enough to settle and fall asleep.
 const restingWorld = () => {
