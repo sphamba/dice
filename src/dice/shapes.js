@@ -1,4 +1,5 @@
 import { cross, dot, length, normalize, scale, sub } from '../math/vec3.js';
+import { BEVEL_RADIUS } from '../physics/body.js';
 
 const PHI = (1 + Math.sqrt(5)) / 2;
 
@@ -280,6 +281,7 @@ function assemble(type, radius) {
 
 function freezeShape(shape) {
   for (const vertex of shape.vertices) Object.freeze(vertex);
+  for (const vertex of shape.coreVertices) Object.freeze(vertex);
   for (const face of shape.faces) {
     Object.freeze(face.indices);
     Object.freeze(face.normal);
@@ -288,6 +290,7 @@ function freezeShape(shape) {
   for (const edge of shape.edges) Object.freeze(edge);
   for (const dir of shape.edgeDirs) Object.freeze(dir);
   Object.freeze(shape.vertices);
+  Object.freeze(shape.coreVertices);
   Object.freeze(shape.faces);
   Object.freeze(shape.edges);
   Object.freeze(shape.edgeDirs);
@@ -306,10 +309,15 @@ export function createShape(type, radius) {
 
   const { shapeFaces, vertices, mass, vertexValues } = assemble(type, radius);
   const edges = buildEdges(shapeFaces);
+  // Inset core used by the collision and containment code: the same s * P the
+  // renderer bevels, so contacts track the drawn rounded solid.
+  const rho = dot(shapeFaces[0].normal, vertices[shapeFaces[0].indices[0]]);
+  const inset = 1 - BEVEL_RADIUS / rho;
   const shape = {
     type,
     radius,
     vertices,
+    coreVertices: vertices.map((vertex) => mul3(vertex, inset)),
     faces: shapeFaces,
     edges,
     edgeDirs: buildEdgeDirs(edges, vertices),

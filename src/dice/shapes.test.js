@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DICE_TYPES, createShape } from './shapes.js';
-import { DIE_RADIUS } from '../physics/body.js';
+import { BEVEL_RADIUS, DIE_RADIUS } from '../physics/body.js';
 
 const RADIUS = 0.75;
 const EPS = 1e-6;
@@ -280,5 +280,27 @@ describe('app die size', () => {
       const shape = createShape(type, DIE_RADIUS);
       expect(Math.max(...shape.vertices.map(len)), type).toBeCloseTo(DIE_RADIUS, 9);
     }
+  });
+});
+
+describe('coreVertices', () => {
+  it('insets every vertex by the renderer bevel scale 1 - BEVEL_RADIUS / rho', () => {
+    for (const type of DICE_TYPES) {
+      const shape = createShape(type, DIE_RADIUS);
+      const rho = dot(shape.faces[0].normal, shape.vertices[shape.faces[0].indices[0]]);
+      const inset = 1 - BEVEL_RADIUS / rho;
+      expect(shape.coreVertices, type).toHaveLength(shape.vertices.length);
+      shape.vertices.forEach((vertex, i) => {
+        expect(shape.coreVertices[i][0], type).toBeCloseTo(vertex[0] * inset, 12);
+        expect(shape.coreVertices[i][1], type).toBeCloseTo(vertex[1] * inset, 12);
+        expect(shape.coreVertices[i][2], type).toBeCloseTo(vertex[2] * inset, 12);
+      });
+    }
+  });
+
+  it('freezes the core vertices with the shape', () => {
+    const shape = createShape('d8', 1);
+    expect(Object.isFrozen(shape.coreVertices)).toBe(true);
+    expect(Object.isFrozen(shape.coreVertices[0])).toBe(true);
   });
 });
