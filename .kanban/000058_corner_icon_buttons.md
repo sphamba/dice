@@ -1,7 +1,7 @@
 ---
 name: "feat: icon buttons in the corners for Roll and Show controls"
 priority: "medium"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "user"
 complexity: "moderate"
