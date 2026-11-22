@@ -34,13 +34,11 @@ Verify warm starting (#41) and whole-world sleep (#42) end to end, and fix the p
 - `npm run build`
 
 # Notes
-## PM steer
-- The physics fix is in scope for this task now (see Specs, "Known defect to fix"). Fix the d4 corner spin at its root, add its regression test, then write the e2e suite.
-
-## Measured on HEAD bdf6809 (before any fix)
-- 10 mixed dice in `boxFromViewport(390, 844, 3)`, seeds 20240601/7/99/1234/55, 6 s budget, criterion all |v| < 0.005 and |w| < 0.1 sustained.
-- Level floor: 0.37-0.60 s for all seeds, both axes.
-- 15 degree tilt: 0.49-3.07 s (one seed over 3 s).
-- 30 degree tilt: x axis seed 20240601 never settles, y axis seed 1234 never settles, y axis seed 55 takes 5.89 s.
-- One d4 in a box corner (wall + floor) keeps spinning at 1.6-7.5 rad/s with zero active contact impulse read back from `world.contacts`. Angular velocity jumps by up to 13 rad/s inside one step. Warm start off: all 30 degree x-axis seeds settle, y-axis seed 1234 still never. Clearing `world.contactCache` in `sleep()` changes nothing.
-- Assumption: tilt = gravity rotated 15/30 degrees about either horizontal axis with `world.setGravity`, friction 0.10.
+- Plan per PM steer: fix the d4 corner spin at its root, add its regression test, then write the e2e suite.
+- Deliverable state: `src/physics/world.e2e.test.js` still lacks the 10-dice 3 s settle under 15/30 degree tilt, the level-floor 10-dice case, and the grab-wakes / re-settle / inert-while-asleep / stale-warm-start cross checks. Not written yet.
+- Root cause named by measurement (instrumented overlay of `prepare`/`solveContacts`, 10 mixed dice, x axis, 30 degrees, seed 20240601, watched d4, 1 s window, sum of |angularVelocity| change per source): warm start +2518.6, solver -2483.7, angular damping -27.9, net +7.0 rad/s. Warm start replays the previous step's impulse and the 10-iteration solver cancels almost all of it but not all, so the residual keeps one light die spinning at 3-20 rad/s. A replay impulse reached 14.6x the impulse the current constraint needs. Levers are plausible: 88 warm-start events in 24 steps, 1.43 overall replay/need ratio.
+- Ruled out by overlay probes (each on the full seed matrix x/y at 0/15/30 degrees, seeds 20240601/7/99/1234/55): body mass, inertia and vertex centroids are correct for every shape (d4 mass 1.64e-3 kg, isotropic invInertia 2.38e7); 40 solver iterations still fails, so it is not solver non-convergence; clearing `world.contactCache` in `sleep()` changes nothing; skipping impact-step replays (`cached.approach > RESTITUTION_THRESHOLD`) is worse; tightening `WARM_START_DISTANCE` to 0.1 mm is mixed; friction-only warm start (normal replay off) settles every seed but discards the #41 feature; normal replay at 0.5 settles all but one seed at 3.36 s; match-quality weighted replay (distance and normal-dot interpolation) is mixed. Single-die, all-d4 and d4+d6 minimal repros all settle, so the spin needs the loaded mixed pile.
+- Constraint honoured so far: friction 0.10, restitution, Baumgarte, SOLVER_ITERATIONS and FIXED_DT untouched in the worktree; all variants live only in `/tmp/ab40*` throwaway overlays.
+- Assumption: tilt = gravity rotated 15/30 degrees about either horizontal axis through `world.setGravity`; the e2e fixture spawns 10 mixed dice across the box at random orientations with a fixed seed, no initial velocity.
+- Next: choose the root fix for the replay residual, land it with the failing-seed regression test, then the e2e suite and the three acceptance commands.
+- Manual checks left to other roles: none.
