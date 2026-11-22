@@ -1,7 +1,7 @@
 ---
 name: "feat: make impact sound intensity proportional to the impulse"
 priority: "high"
-state: "reviewing"
+state: "to-do"
 worktree: "feat/62-sound-proportional-impulse"
 issuer: "user"
 complexity: "simple"
@@ -45,12 +45,7 @@ In `resume()` in `src/audio/sound.js`, replace it with this chain: voices -> `ma
 - Record the measured peaks and the voice count in Notes. A listening test is not part of this check.
 
 # Notes
-- Verification only: no source change, worktree HEAD 0496435, tree clean, no commit.
-- `npx vitest run src/audio src/physics`: 11 files, 165 tests pass. `npm test`: 28 files, 379 tests pass. `npm run build`: pass (dist/assets/index-Bv4ZQ0HW.js).
-- PASS proportionality, live Chromium, real Rolls: 6 d6 over 8 Rolls gives gain/impulse = 66.6666677 with zero spread in the unambiguous sample; 1 d6 over 10 Rolls gives 18 pairs, spread 7.4e-8, mean 66.6666665. Implied voice scale 1.0, so gain is linear in the delta impulse within 1e-6.
-- FAIL clipping, live Chromium, 10 d6 over 5 Rolls: peak after the limiter 1.351606 (float samples, 127 analyser frames), max live voices 12. The spec band is at most 1.0.
-- Cause: the compressor has a 3 ms attack, so the onset of a full 12-voice overlap passes above unity before the gain reduction settles. A second contributor is the voice scale, latched from the first rendered buffer and therefore 1 whenever that buffer peak sits below -3 dBFS.
-- Measured fix options (experiment reverted, not applied): a tanh clipper after a 1/4 master gain with the curve bounded below 1 gives 0.999992 with `oversample: 'none'` (pass), 1.009410 and 1.093174 with `'4x'` (fail, resampler ringing overshoots the curve), and 0.947469 with `'4x'` and the shoulder capped at 0.9 (pass).
-- Other spec checks hold: no audio context before the first gesture (23 pre-gesture batches played zero voices), mode and pitch selection, pair gate, speed brightness, voice cap and the climb-to-silence buffer covered by the passing `src/audio` suites (38 tests); haptics read `event.speed` and are not observable headless, so that pair with `event.impulse` is unchecked in the browser.
-- Assumption: proportionality is measured on batches that carry exactly one event and one unclamped voice, the only unambiguous pairing.
-- Blocker: the peak above 1.0 needs a change in `src/audio/sound.js`, which is out of this task's scope; it belongs to #64. #62 stays open until that limiter fix lands and the 10-dice peak is re-measured.
+- Violation: the Specs require two code changes in this task, but the worktree has none: HEAD 0496435 equals main, tree clean, `git diff main...HEAD` is empty. Neither change exists: `voiceScale`, `scaleMeasured`, `peakOf` and the `DynamicsCompressor` are still in `src/audio/sound.js`; there is no `master` GainNode + WaveShaper chain, no `CLIPPER_RANGE`, no curve builder, and `LIMITER_THRESHOLD_DB` is still used.
+- Subtasks #63 and #64 are done and on main. A prior verification run at this HEAD measured proportionality PASS (gain/impulse constant within 1e-6) and clipping FAIL (peak 1.351606 over 10 d6, max 12 voices); the PM folded the limiter fix into this task's Specs and no developer run has implemented it since.
+- Remaining work: code change 1 (voice gain `gainValue * LIMITER_CEILING`, delete `voiceScale`/`scaleMeasured`/`peakOf`), code change 2 (compressor replaced by `master` gain `1 / CLIPPER_RANGE` -> WaveShaper -> destination, 4097-point tanh curve with `CLIPPER_RANGE = 4`, `oversample = '4x'`, output bounded below 1, delete `LIMITER_THRESHOLD_DB` if unused, export the curve builder only if tests need it), test and audio-mock updates with the specified assertions, then the browser checks with recorded peaks and voice count in Notes.
+- No suites run in this review: the recorded diff is empty, so there is no changed code to test. Guidance: implement exactly the two Spec changes, nothing else, and pair the fix with the Spec's browser measurements before returning to review.
