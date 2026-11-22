@@ -2,7 +2,7 @@
 name: "fix: world sleeps while a die is held still, and release does not wake it, freezing the die at hang height"
 priority: "high"
 state: "done"
-worktree: "fix/52-held-die-sleep-freeze"
+worktree: ""
 issuer: "#45"
 complexity: "simple"
 shortName: "held-die-sleep-freeze"
