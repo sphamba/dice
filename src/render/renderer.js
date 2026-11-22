@@ -217,19 +217,21 @@ export function createRenderer(gl) {
   }
 
   resources = buildResources();
+  try {
+    aoSetup = buildAoSetup();
+  } catch {
+    aoSetup = null;
+  }
 
   const canvas = gl.canvas;
   const handleContextLost = (event) => event.preventDefault();
   const handleContextRestored = () => {
     resources = buildResources();
-    if (aoSetup) {
-      try {
-        aoSetup.targets = null;
-        aoSetup.size = null;
-        if (box) ensureAoTargets(aoTargetSize(box, viewport[0], viewport[1]));
-      } catch {
-        destroyAoSetup();
-      }
+    try {
+      aoSetup = buildAoSetup();
+      if (box) ensureAoTargets(aoTargetSize(box, viewport[0], viewport[1]));
+    } catch {
+      aoSetup = null;
     }
   };
   canvas.addEventListener('webglcontextlost', handleContextLost);
