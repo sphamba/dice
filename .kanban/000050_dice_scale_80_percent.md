@@ -1,11 +1,12 @@
 ---
 name: "feat: shrink every die to 80% of its current size"
 priority: "medium"
-state: "to-do"
-worktree: ""
+state: "doing"
+worktree: "feat/50-dice-scale-80-percent"
 issuer: "user"
 complexity: "complex"
 shortName: "dice-scale-80-percent"
+splitter: "done"
 ---
 
 # Summary
