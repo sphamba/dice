@@ -2,7 +2,7 @@
 name: "fix: carve bake writes flat normals where signedDistance returns NaN"
 priority: "high"
 state: "done"
-worktree: "fix/54-carve-sdf-nan-flat-glyphs"
+worktree: ""
 issuer: "#49"
 complexity: "moderate"
 shortName: "carve-sdf-nan-flat-glyphs"
