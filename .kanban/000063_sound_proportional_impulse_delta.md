@@ -41,3 +41,11 @@ In `src/physics/contacts.test.js`:
 - `npm run build` passes.
 
 # Notes
+- `src/physics/contacts.js`: each prepared contact records `warmNormal` where the warm start replays the cached normal impulse; `event.impulse` is now the sum over the pair's contacts of `max(0, normal.impulse - warmNormal)`.
+- Solver untouched: warm-start application, accumulators, restitution and body motion are identical. The seeded-state test pins that.
+- Tests added in `src/physics/contacts.test.js` (describe `impact impulse`), written first and seen red for the delta semantics: fresh flat drop at 2 m/s emits `m(1+e)v` within 1%; a resting contact under 30 m/s^2 (approach g*dt = 0.0625, above EVENT_MIN_SPEED, so the pair emits) carries its full load in the accumulator but emits below 1e-6 of it; a loaded die pair (warm load 5e-4) emits only the new impulse, with the accumulated 4.9152e-3 unchanged; a seeded 3-die run of 0.5 s pins body positions and velocities.
+- Assumption: `warmNormal` stays 0 for a fresh contact, so a fresh impact keeps its full impulse.
+- Assumption: a warmed pair whose solver impulse does not grow now emits 0, so `gainForImpulse` in `src/audio/sound.js` reads 0 there. Untouched, per specs; the audio subtask owns the new gain curve.
+- Assumption: the resting-contact check needs the higher gravity because EVENT_MIN_SPEED suppresses the event below 0.05 m/s of approach.
+- Verification at HEAD 0ae92be: `npx vitest run src/physics` 127 passed, `npm test` 371 passed, `npm run build` built 30 modules.
+- No live check run here: the change is pure physics state, no UI path, and impact loudness is verified by the audio subtask and the live-tester role.

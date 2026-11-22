@@ -45,13 +45,11 @@ In `src/audio/sound.test.js`:
 - `npm run build` passes.
 
 # Notes
-- `src/audio/sound.js`: `gainForImpulse` is now linear, `min(1, impulse / MAX_IMPULSE)` from 0.015 N*s, and 0 at or below `MIN_IMPULSE = 1e-4`. It is exported for the unit tests.
-- `play()` keeps only the strongest event per pair per batch, takes the 40 ms slot after `playVoice` returns true, and lets a later event into an open slot only when its impulse is at least 1.5 times the impulse that played (`SLOT_OVERRIDE`).
-- The compressor is a peak limiter: threshold -3 dB, knee 0, ratio 20, attack 0.003 s, release 0.1 s. One constant voice scale (`LIMITER_CEILING / peak`) is measured on the first rendered buffer and applied to every voice.
-- Assumptions:
-  - The one limiter scale is calibrated on the first rendered voice buffer; a later buffer with a higher waveform peak is not re-measured.
-  - `event.impulse` in N*s is delivered by the parallel `src/physics/contacts.js` subtask; the audio module only reads it.
-  - Mode and pitch selection, speed brightness, voice cap, unlock gesture and pre-context silence are unchanged.
-- Verification: scoped `npx vitest run src/audio` 38 passed; `npm test` 375 passed; `npm run build` passed. HEAD 6474470.
-- Blockers: none.
-- Manual checks left to other roles: audibility of faint versus hard hits and absence of clipping on loud overlaps in a real browser.
+- Review outcome: approved, no fixes needed (HEAD 6474470, clean tree, diff = sound.js + sound.test.js only).
+- Spec 1 gain: `gainForImpulse` = `min(1, impulse / MAX_IMPULSE)` with 0 at/below `MIN_IMPULSE = 1e-4`, `MAX_IMPULSE = 0.015`; exported and covered by linear-ratio, clamp and silence tests.
+- Spec 2 pair gate: `play()` picks the strongest event per `pairKey` before the voice loop, skips non-strongest; slot is written only after `playVoice` returns true; open-slot replay needs `impulse >= 1.5 * slot.impulse` (`SLOT_OVERRIDE`), slot impulse records the played event so it stays the strongest played. All three behaviors have tests (strongest-of-batch wins, 1.5x override, silent event does not take the slot).
+- Spec 3 limiter: compressor configured threshold -3 dB, knee 0, ratio 20, attack 0.003 s, release 0.1 s, asserted per parameter; one constant `voiceScale` from the first measured buffer peak multiplies every voice. The developer-stated assumption stands: later buffers with a higher waveform peak are not re-measured; the ratio-20 limiter is the backstop, accepted.
+- Spec 4 kept behaviors: mode/pitch selection, speed brightness, voice cap, unlock gesture, pre-context silence untouched; existing tests still pass. Haptics still read `event.speed`; no volume/mute control added; no src/physics changes.
+- Edge noted, accepted: strongest-of-batch is picked before the speed gate, so a sub-gate strongest silences faster weaker siblings of the same pair in one batch; real events from contacts.js are always well-formed objects, no impact on direction.
+- Evidence: `npx vitest run src/audio` 38/38 passed, `npm test` 375/375 passed (28 files), `npm run build` passed.
+- Manual checks left to other roles: audibility of faint versus hard hits, absence of clipping on loud overlaps in a real browser.
