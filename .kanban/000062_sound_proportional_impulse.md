@@ -47,19 +47,19 @@ In `resume()` in `src/audio/sound.js`, replace it with this chain: voices -> `ma
 - Record the measured peaks and the voice count in Notes. A listening test is not part of this check.
 
 # Notes
+## PM steer (read first)
+- Do not use the real-time `AnalyserNode` monitor for the peak check. In headless Chromium it read only 0.0003 to 0.0012 during real Rolls, while the same buffers render at 0.618 offline.
+- Use this method: record every voice (buffer, gain, start time) of 10 Rolls of 10 dice. For each Roll, replay all voices at their recorded start times through the real chain (gain 0.25, same curve, same `oversample` value as the source) in one `OfflineAudioContext`, and read the peak of the rendered samples. Pass: at most 1.0 in all 10 Rolls. Record also the peak of the same mix without the clipper.
+- Report brightness and pitch proxies only if they work at once. Do not spend time on them, because the unit suites cover them.
+- Time budget from now: 15 minutes. Kill the dev server on port 4647 when you finish.
+
 Live test of #62 at HEAD c2b2da2, in progress at the watch checkpoint. No verdict yet; no defects filed so far.
 
-## Plan (committed before the run)
-- Run the app as a user from the merged worktree: vite dev server on localhost:4647 (page, sound.js, main.js all HTTP 200), Chromium via Playwright, viewport 1280x800.
-- Harness in /tmp/dice-lt62 adapted from the proven /tmp/dice-lt64 audio live-test harness, retargeted from the old compressor chain to the new voices -> master (0.25) -> WaveShaper -> destination chain. In-page spies only (no repo edits): voice gain+buffer capture at source.start, analyser tap inserted between WaveShaper and destination, navigator.vibrate wrapper, route-patch observer on play()/voices.push().
-- Phases mapped to the Specs checks: env (app loads, no page errors) -> unlock (silence before context exists, unlock on first gesture, chain wired: master 0.25, curve 4097 points, oversample none) -> ratio (one voice at impulse I and I/2 through the real chain rendered separately via OfflineAudioContext, output peak ratio 2 within 1%; plus clamp case at 0.02) -> session (10 Rolls of 10 dice - 6 d6 + 4 d10 via panel, continuous 40 ms analyser monitor after the WaveShaper, per-Roll peak <= 1.0, gain/impulse spy) -> analyze (ratio = 47.2 within 1% per load, voice cap 12, durations, pitch/brightness from captured buffers, haptics 5..20 ms) -> reload (second page load repeats the gain/impulse ratio).
-- Constants from source: LIMITER_CEILING = 10**(-3/20) = 0.7079457843841379, CLIPPER_RANGE = 4, MAX_IMPULSE = 0.015, MIN_IMPULSE = 1e-4, MAX_VOICES = 12, MIN_EVENT_SPEED = 0.15, duration bounds [0.05, 0.6] s, FULL_BRIGHTNESS_SPEED = 2, haptics MIN_SPEED 0.8 / 5..20 ms / GAP 60 ms. Expected unclamped ratio 47.19638562560919. AudioParam gains stored float32, so gain expectations use fround with eps 1e-9. Analyser window 8192 samples @ 48 kHz = 171 ms, monitor period 40 ms, so burst onsets are covered.
-
-## Assumptions
-- "Browser check" items in the Specs are executed by instrumenting the real app in a real browser (in-page measurement code only, established by the recorded #62 evidence and the #64 live-test precedent); the unit suites and npm test/build are excluded for the live test.
-- The ratio-2 check uses the app's own sound.js module and a real OfflineAudioContext render through the real resume() chain, since real rolls cannot control impulses.
-- "10 Rolls of 10 dice": 10 dice spawned via the panel (6 d6 + 4 d10, mixed types so pitch selection has data), all rolled each time.
-- Brightness/pitch regression checks are weak-signal (zero-crossing-rate proxies on captured voice buffers): brightness gates on positive Spearman(speed, ZCR), pitch on distinct ZCR between d6 and d10 groups; if signals are too weak they are reported as harness limits, not defects.
+## Plan
+- Run the app as a user from the merged worktree: vite dev server on localhost:4647, Chromium via Playwright, viewport 1280x800.
+- Harness in /tmp/dice-lt62 adapted from /tmp/dice-lt64, retargeted to the chain voices -> master (0.25) -> WaveShaper -> destination. In-page spies only (no repo edits): voice gain+buffer capture at source.start, navigator.vibrate wrapper, route-patch observer on play()/voices.push().
+- Phases: env (app loads, no page errors) -> unlock (silence before context exists, unlock on first gesture, chain wired: master 0.25, curve 4097 points, oversample none) -> ratio (one voice at impulse I and I/2 through the real chain rendered separately via OfflineAudioContext, output peak ratio 2 within 1%; plus clamp case at 0.02) -> session (10 Rolls of 10 dice, 6 d6 + 4 d10 via panel, gain/impulse spy, offline mix peak per Roll) -> analyze (ratio = 47.2 within 1% per load, voice cap 12, durations, haptics 5..20 ms) -> reload (second page load repeats the gain/impulse ratio).
+- Constants from source: LIMITER_CEILING = 10**(-3/20) = 0.7079457843841379, CLIPPER_RANGE = 4, MAX_IMPULSE = 0.015, MIN_IMPULSE = 1e-4, MAX_VOICES = 12, MIN_EVENT_SPEED = 0.15, duration bounds [0.05, 0.6] s, FULL_BRIGHTNESS_SPEED = 2, haptics MIN_SPEED 0.8 / 5..20 ms / GAP 60 ms. Expected unclamped ratio 47.19638562560919. AudioParam gains stored float32, so gain expectations use fround with eps 1e-9.
 
 ## Status
-- Worktree clean at c2b2da2; harness and driver written; node --check and the smoke launch not yet run (checkpoint arrived first). Next: check-in ladder, smoke run (PHASES=env,ratio), then the full run.
+- Worktree clean at c2b2da2; harness and driver written; node --check and the smoke launch not yet run. Next: smoke run (PHASES=env,ratio), then the full run.
