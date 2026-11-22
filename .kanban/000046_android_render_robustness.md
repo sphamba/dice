@@ -1,7 +1,7 @@
 ---
 name: "fix: restore rendering on Android and show render errors on the page"
 priority: "critical"
-state: "reviewing"
+state: "to-merge"
 worktree: "fix/46-android-render-robustness"
 issuer: "#39"
 complexity: "moderate"
@@ -48,25 +48,10 @@ Since the GTAO (#38) and rounded-edge (#39) merges, the canvas is black on the u
 - Manual check left to the user: open the deployed page on the Android phone in Chrome and Firefox. The scene renders, or the overlay shows the exact error.
 
 # Notes
-## Deliverable
-- `src/render/shaders.js`: `hullDistance` walks a constant `for (int k = 0; k < 20; k++)` with `if (k >= uHullCount) break;` and the wrap index `k + 1 < uHullCount ? k + 1 : 0`; `insetOffset` reads the flat inset varyings through `insetPoint(int)` instead of a dynamically indexed local array; no `%` and no uniform-bounded loop remains in any program; the dice outline alpha divides by `max(fwidth(d), 1e-7)`.
-- `src/main.js`: `getContext('webgl2', { alpha: false })` (antialias untouched), renderer creation wrapped in `tryCreateRenderer`, `error` and `unhandledrejection` listeners registered; all failures go to one `<p id="unsupported" role="alert">` through the new `showMessage` export in `src/ui/panel.js` (style.css widens it, scrolls it and enables pointer events for long info logs).
-- `src/render/renderer.js`: `createRenderer(gl, { onError })`; a failed rebuild on `webglcontextrestored` reports through `onError` and keeps the old resources out of use; the three former empty catches around the AO setup, the AO restore and the AO target resize now `console.error` and keep their fallbacks.
+## Review outcome: fixed
 
-## Verification
-- HEAD `e9287af`: `npx vitest run src/render src/ui` 54 passed (7 files); `npm test` 311 passed (27 files); `npm run build` green (`✓ built in 70ms`), `dist/index.html` references its hashed js and css.
-- `glslangValidator` on the 9 extracted sources (ES 3.00): 9/9 compile, 5/5 program pairs link, 0 failures.
-- New coverage: `src/render/robustness.test.js` (no `%`, constant loop bounds, hull bound and break, guarded fwidth, `alpha: false`, try/catch + listener wiring, no empty catch in `src/render/`), fake-GL failure cases in `renderer.test.js` (creation throws with the info log, restore failure reaches `onError`), `showMessage` in `panel.test.js`.
-- Live headless (Chromium + swiftshader on :5199, server killed and port free afterwards): live WebGL2 context with `alpha: false, antialias: true`; center crop 1301 distinct colors, red dice with white pips on the dark floor, `gl.getError()` 0; no overlay on the healthy load; a forced dice-fragment syntax error shows a visible overlay reading `fragment shader compile failed: ERROR: 0:132: 'syntax_error_here' : undeclared identifier`.
-
-## Assumptions
-- A renderer creation failure is fatal: the overlay replaces the panel and the scene, rather than a renderer-less panel over a black canvas.
-- The WebGL2-unsupported text and every render error share the existing `#unsupported` element and style.
-- The `uHull[20]` uniform array stays big enough: the largest shape (d12, 20 vertices) projects to at most 20 hull points.
-
-## Blockers
-- None.
-
-## Manual checks left to other roles
-- Open the deployed page on the Android phone in Chrome and Firefox: the scene renders, or the overlay shows the exact error.
-- The desktop live run logs one Chromium policy warning (`Blocked call to navigator.vibrate because user hasn't tapped on the frame` in `src/audio/haptics.js`). It predates this card and is unrelated to rendering.
+- All Spec changes verified in the diff and green: constant hull loop with count break and wrap ternary, insetPoint-based insetOffset (no dynamic local array, no `%` — none anywhere in shaders.js), guarded fwidth division, `alpha: false` with antialias untouched, try/catch + `error`/`unhandledrejection` listeners routed to one `#unsupported[role=alert]` overlay, all silent catches replaced with logged fallbacks, restore failure reported through `onError`.
+- Findings list mapped every Spec bullet to diff or test evidence; the recorded assumptions (fatal creation failure replaces the panel, shared `#unsupported` element, uHull[20] sizing) are all stated and sound.
+- One fix committed (4652e66): the failed-restore catch left `resources` pointing at dead pre-loss GL handles, and `draw()` (past its `isContextLost()` check after restore) kept issuing calls with them — contradicted the deliverable claim "keeps the old resources out of use". Now nulls `resources` so draw is inert; the restore-failure test gained an assertion that no framebuffer binds after a failed restore, A/B-verified against the pre-fix source.
+- Evidence: `npx vitest run src/render src/ui` 54/54 (7 files); `npm test` 311/311 (27 files); `npm run build` green; probe — max shape vertex count is 20 (d12), so `uHull[20]` fits; glslangValidator ES 300: 8/8 sources compile, 5/5 pairs link, 0 failures.
+- Deferred to the live-tester role: desktop headless render + forced-error overlay check, and the Android Chrome/Firefox manual check.
