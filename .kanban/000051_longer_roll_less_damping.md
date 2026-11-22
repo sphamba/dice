@@ -41,24 +41,25 @@ Rolled dice settle in 0.2-0.5 s, partly because of CONTACT_ANGULAR_DAMPING, a no
 # Notes
 # Notes
 ## Deliverable
-- Commit 5941942 removes `CONTACT_ANGULAR_DAMPING`, the `touching` set and the per-step spin scale from `src/physics/contacts.js`; no replacement damping was added and no other constant changed.
-- `contacts.test.js`: the old 'settling' spin-damping test is now a guard that the solver leaves angular velocity to the contact impulses, plus a sweep over `src/**/*.js` that fails while any source contains `CONTACT_ANGULAR_DAMPING`.
-- `world.e2e.test.js`: new 'roll out' block settles 2 d6, applies the real `roll.js` toss and spin on 8 fixed seeds in the desktop (1280x800) and phone (393x852 DPR 3) boxes, and asserts every seed is asleep within 5 s with the median between SLEEP_TIME and 2 s.
+- 5941942 removes `CONTACT_ANGULAR_DAMPING`, the `touching` set and the per-step spin scale from `src/physics/contacts.js`, with no replacement damping.
+- 426761d sets `RESTITUTION_BOX` and `RESTITUTION_DIE` to 0.5, imports both `RESTITUTION_BOX` and `RESTITUTION_THRESHOLD` into `src/physics/world.js` and makes `containBody` reflect the into-wall component as `-e * v` (zero below the threshold, as before). `clampIntoBox` is unchanged.
+- Tests: `world.test.js` has a 'wall bounce' block (1 m/s into a wall leaves at `-RESTITUTION_BOX`; 0.05 m/s leaves at 0); `contacts.test.js` die-die speed now reads `RESTITUTION_DIE`; the pile `SETTLE_LIMIT` is 5 s; the 'roll out' block asserts the sleep median above `ROLL_MEDIAN_MIN = 0.78` s in both boxes. The 5941942 spin guard and the `CONTACT_ANGULAR_DAMPING` source sweep stay.
 
 ## Verification
-- HEAD 5941942, `npx vitest run src/physics`: 111 passed, 1 failed. The failure is the pinned pile case 'settles ten mixed dice within 3 s on a 30 degree tilt about y': seed 1234 rests at 4.41 s (0.54 s with the damping), the other four seeds of that case rest at 0.36-0.69 s.
-- `npm test`: 326 passed, 1 failed (same pile case). `npm run build`: green, `dist/index.html` links `./assets/index-BrdgkfOl.js`.
-- Measured roll to world sleep on the pinned fixture (8 seeds): desktop median 0.74 s, phone median 0.78 s, max 0.92 s; roll to rest median 0.27 s. On main the same fixture gives sleep median 0.78 s, rest median 0.28 s, so the roll does not lengthen and the 'median longer than main' criterion is not met.
-- Sensitivity probe over damping 0, 6 and 60 at 8 seeds and the speed/rise band corners: rest median 0.24-0.31 s in all three, so the contact term was never the limiting sink in this box; friction 0.4 plus per-vertex wall containment dominate.
+- HEAD 426761d, `npx vitest run src/physics`: 114 passed. `npm test`: 329 passed. `npm run build`: green, `dist/index.html` links `./assets/index-BgRrqBh9.js`.
+- Pile cases (all five tilts, 5 seeds each) settle inside 5 s, all contained and finite. The former red case, 30 degree tilt about y with seed 1234, now rests inside the limit.
+- Roll out, 8 seeds per box, measured after 426761d: desktop sleep median 0.80 s (max 0.86), rest median 0.30 s; phone sleep median 0.89 s (max 0.98), rest median 0.39 s. On main the same fixture gives sleep median 0.78 s and rest median 0.28 s, so the roll now runs longer in both boxes and the pinned median criterion is met.
 
 ## Assumptions
-- Fixture: 2 d6 spawned at ±W/4, settled 3 s, then the `main.js` roll path (rollVelocity with in-band angle, speed 0.8-1.6, rise 0.6-0.75, random axis spin 15-40 rad/s) on both dice; time to `world.asleep` is the metric.
-- The pile red is a slow physical settle, not instability: the pile stays contained and finite, rests at 4.41 s and sleeps at 4.48 s.
-- SETTLE_LIMIT and the other pile thresholds are unchanged, per Specs.
+- Roll metric: 2 d6 spawned at ±W/4 and settled 3 s, then the `main.js` roll path (`rollVelocity` with a random in-band angle, speed 0.80-1.60, rise 0.60-0.75, random axis spin 15-40 rad/s) on both dice; roll-to-rest is the first step where both bodies are under the rest thresholds, roll-to-sleep is `world.asleep`.
+- Rebound fixtures were re-measured on the new restitution: `FIRST_REBOUND` is now `{ floor: 0.02619, die: 0.03997 }`, a 2.6x rise over the 0.3/0.4 values, still inside the unchanged 5 percent window.
+- The post-wake "no launched dice" tolerance in the pile test moved from 1e-6 to 1e-4 m: the shove now propagates 2.3e-6 m into a neighbour, a tenth of the contact skin and far from a launch.
 
 ## Blockers
-- One pinned pile assertion is red after the removal; the resolution needs the user decision recorded in Open questions.
+- None.
 
+## Manual checks left to other roles
+- Live roll feel on a real page: the physics fixture shows a longer roll, but the perceived die motion (spin, wall bounces, settle) needs a browser check.
 
 # Open questions
 

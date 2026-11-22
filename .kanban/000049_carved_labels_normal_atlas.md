@@ -59,3 +59,24 @@ Make the numbers and pips look carved into the die with a round groove profile a
 - Live check (browser, desktop and phone viewport): every die type shows carved, painted numbers or pips with round walls lit from the light direction, pips look like dimples, numbers stay readable, no console or GL errors, and the #46 error overlay does not appear.
 
 # Notes
+Live-check #49 carve feature — in progress, mid-run.
+
+SETUP (done)
+- playwright-core NOT in global npm root; found 1.64.1 at /home/phamba/.npm/_npx/e41f203b7505f1fb/node_modules (no npm install).
+- Cached chromium-1217 full Chrome CRASHED at launch (SIGTRAP immediately). Fell back ONCE per contract to chromium_headless_shell-1217 chrome-headless-shell → works with --use-angle=swiftshader --no-sandbox (renderer string: ANGLE Vulkan 1.3.0 SwiftShader).
+- Dev server: vite on http://localhost:5199/ (strictPort), HTTP 200, log /tmp/dice-dev.log. Still running; will kill + verify port free at the end.
+- App facts learned from source (read-only): no zoom/wheel interaction exists (fixed ortho top-down camera, camera.js) → used fallback: full-res visual inspection + wheel probe screenshots. DEFAULT_SET = 2x d6 only, so I clicked panel buttons (aria-label "Add d8/d12/d20") in-browser to spawn other types for glyph checks. d6 red (0.78,0.22,0.18), d8 green, d12 purple, d20 orange.
+
+RESULTS SO FAR
+- A (desktop 1280x800): canvas nonzero 1280x800, no #unsupported message, screenshots a1/a2/a3 (1 s apart) + a4-set (after adding d8/d12/d20) + a5-detail2x (2x dsf detail pass) saved to /tmp/dice-live-*.png.
+- B (phone 390x844, dsf3, touch): canvas CSS 390x844, backing store 780x1688 — NOTE: backingSize caps DPR at 2 (canvas-size.js), so it renders at 2x not 3x on dsf-3 phones. Not obviously a bug, will flag in report. Screenshots b1/b2/b3-set saved.
+- Console scan (whole session): NO pageerrors, NO requestfailed, NO app errors. Only: vite connect debug msgs (benign) + "Blocked call to navigator.vibrate because user hasn't tapped on the frame" (benign — haptics module calls vibrate before first user gesture; Chrome blocks it).
+- Wheel probe: a-prewheel/a-postwheel captured, not yet compared.
+
+REMAINING (after release)
+1. Visually inspect all screenshots; judge engraving: glyphs must look dimpled/carved (dark walls, cavity shading), NOT raised bright paint. Check d6 pips + d8/d12/d20 numbers.
+2. Wheel before/after diff (ImageMagick compare vs animation baseline) to confirm no unintended zoom response.
+3. Scenario C sanity (floor, no black screen, no NaN, rounded silhouettes, soft shadows/AO).
+4. Kill dev server (find PID via port 5199), confirm port free; git status to confirm repo clean; write final per-scenario PASS/FAIL/PARTIAL report.
+
+Screenshots so far: /tmp/dice-live-a1.png, a2, a3, a-prewheel, a-postwheel, a4-set, a5-detail2x, b1, b2, b3-set. Verification script: /tmp/dice-live-check.mjs (outside repo, repo untouched).

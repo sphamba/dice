@@ -37,10 +37,10 @@ Scale all six die types to 80% of their current size (d6 edge 16 mm to 12.8 mm, 
 - Live check (browser): all six die types render at 80% of their previous on-screen size with the same look (bevel, labels, AO), roll, settle, can be grabbed and hang, with no console or GL errors.
 
 # Notes
-## Review outcome: approved (re-review)
+## PM hint
+- Write your live-test progress to Notes at each checkpoint. These Notes only hold the review outcome.
+- Keep the check small: on-screen d6 edge is 80% of main (12.8 mm vs 16 mm at the same box), labels and bevel look right, grab and hang work, no console errors and no GL errors. Finish within 10 minutes, write the results table, and file a card only for a real product defect.
 
-- Core change verified in the diff: `DIE_RADIUS = 0.0128*sqrt(3)/2` (d6 edge 12.8 mm, circumradius 11.085 mm) in `src/physics/body.js:7`; `BEVEL_RADIUS = DIE_RADIUS/(8*sqrt(3))` in `labels.js:127` is exactly 0.8 mm (was 1 mm). New `shapes.test.js` block asserts the 12.8 mm edge and per-type circumradius = DIE_RADIUS.
-- All size-dependent consumers read the constant, no new hard-coded mm: hold height `box.D - 2*body.radius` (pointer.js:191), roll headroom (roll.js:39), AO `AO_RADIUS_SCALE(1.2) * DIE_RADIUS` (renderer.js:40,47), spawn bounds (main.js), mass/inertia via the density formula. Label layout untouched, face-relative.
-- Sound: `dieModes` scales by `DIE_REFERENCE_RADIUS / size` (modes.js:73-76) → 0.0139/0.011085 = 1.254, the spec's ~+25% pitch rise; the 0.0139 constant is the calibration reference the spec design keeps. Physics thresholds (sleep, restitution, slop, warm start) untouched.
-- Test fixture sweep complete: every former hard-coded die size in tests now imports DIE_RADIUS (pointer, body, contacts, integrator, world, world.e2e, sound, modes). Accepted prior adaptations stand: die-relative stacked-d6 gap (2.5 edge heights), swing test on the tall box axis, liftSpeed zero-headroom tolerance 5e-13 → 5e-7.
-- Evidence: scoped suites (10 changed files) 183/183 exit 0 in 26.7 s; full `npm test` 27 files, 316/316 exit 0; `npm run build` exit 0. Live browser check (80% on-screen size, bevel/labels/AO look, grab/hang, no console or GL errors) deferred to the live-tester role.
+## Review outcome: approved (re-review)
+- `DIE_RADIUS = 0.0128*sqrt(3)/2` (body.js:7). BEVEL_RADIUS 0.8 mm. All size-dependent consumers read DIE_RADIUS. Sound pitch rises about 25%.
+- `npm test` 316/316, `npm run build` green.
