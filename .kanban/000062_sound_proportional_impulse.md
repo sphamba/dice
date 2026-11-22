@@ -1,7 +1,7 @@
 ---
 name: "feat: make impact sound intensity proportional to the impulse"
 priority: "high"
-state: "reviewing"
+state: "to-merge"
 worktree: "feat/62-sound-proportional-impulse"
 issuer: "user"
 complexity: "simple"
@@ -45,14 +45,10 @@ In `resume()` in `src/audio/sound.js`, replace it with this chain: voices -> `ma
 - Record the measured peaks and the voice count in Notes. A listening test is not part of this check.
 
 # Notes
-- Deliverable at HEAD `c2b2da2`, worktree clean. `src/audio/sound.js`: every voice gain is `gainValue * LIMITER_CEILING`; `voiceScale`, `scaleMeasured`, `peakOf` and `LIMITER_THRESHOLD_DB` are deleted. `resume()` builds voices -> `master` (gain `1 / CLIPPER_RANGE = 1/4`) -> `WaveShaperNode` -> `context.destination`. No compressor is created.
-- Curve: 4097 points, `s = x * 4`, output `s` at and below `LIMITER_CEILING = 10 ** (-3 / 20)`, else `sign(s) * (C + (1 - C) * tanh((|s| - C) / (1 - C)))`.
-- Oversampling: `oversample = '4x'` measured 1.011 in 4 of 10 mixes, so it is `'none'` now, as the PM steer allowed. The test asserts `'none'`.
-- Assumptions: curve values are clamped to the largest float32 below one (`1 - 2 ** -24`), because the literal formula rounds to exactly 1.0 in float32 and the Spec requires every magnitude below 1. The top of the curve therefore ties in float32, so the test asserts a non-decreasing curve plus strict monotonicity in the linear part.
-- Checks green: `npx vitest run src/audio src/physics` 168 passed, `npm test` 382 passed, `npm run build` green. Mode/pitch selection, brightness, voice cap, unlock and haptics are covered by those suites.
-- Gain spy over 2 page loads, real Rolls: 295 and 294 unclamped voices, 0 clamped, `gain / impulse` spread 1.1e-7, value 47.1963856 = `LIMITER_CEILING / MAX_IMPULSE` (47.2). PASS.
-- Real chain, one voice at I and at I/2 rendered separately: peaks 0.5101/0.2551 and 0.4184/0.2092, ratio 1.9999997 in both loads. PASS (band 2 within 1%).
-- Deterministic clipper check (PM method): every voice (buffer, gain, start time) of 10 Rolls of 10 dice replayed at its recorded start time in one `OfflineAudioContext` through the real chain (`1/4` gain, real curve, `'none'`). Peaks per Roll, voices per Roll, and the same mix without the clipper: 1: 0.9971 / 98 / 1.4807; 2: 0.9873 / 60 / 1.2638; 3: 0.9811 / 67 / 1.2040; 4: 0.9888 / 53 / 1.2825; 5: 0.9920 / 73 / 1.3316; 6: 0.9968 / 61 / 1.4671; 7: 0.9305 / 70 / 1.0004; 8: 0.9863 / 69 / 1.2523; 9: 0.9996 / 67 / 1.7767; 10: 0.9752 / 59 / 1.1630. Max clipper peak 0.9996 <= 1.0 in all 10 Rolls. PASS.
-- The 98 voices of Roll 1 exceed the 12-voice cap because the offline replay keeps every voice, so the measured peak is a conservative upper bound of the live mix.
-- Notes on method: the real-time AnalyserNode tap in this headless Chromium reads game-rendered buffers about 400x too low (same buffer renders 0.618 offline, synthetic buffers read correctly), so the continuous monitor was dropped for the deterministic replay above, per the PM steer.
-- Manual checks left to other roles: a listening test.
+- Reviewed at HEAD c2b2da2, worktree clean, base main; diff touches src/audio/sound.js and src/audio/sound.test.js only.
+- Code change 1 verified: every voice gain is `gainValue * LIMITER_CEILING` (sound.js:157); `voiceScale`, `scaleMeasured`, `peakOf`, `LIMITER_THRESHOLD_DB` have zero references across src/.
+- Code change 2 verified: `resume()` builds voices -> `master` (gain `1 / CLIPPER_RANGE`) -> WaveShaper -> `context.destination` (sound.js:173-179); curve is 4097 float32 points, `s = x * 4`, linear at and below the ceiling, tanh soft clip above, matching the Spec formula.
+- Tests updated per Spec: mock counts compressors and the suite asserts 0 created; curve asserted identity at and below the ceiling, odd, and every magnitude below 1. Reviewer runs: `npx vitest run src/audio src/physics` 168 passed, `npm test` 382 passed, `npm run build` green.
+- Accepted deviation: `oversample` is `'none'`, not the Spec's `'4x'`: `'4x'` measured a 1.011 peak in 4 of 10 mixes, which breaks the hard requirement that output magnitude stays below 1; Notes record a PM steer for `'none'`. Fold this decision into the Specs text when the card closes.
+- Accepted test adaptation: whole-curve monotonicity is asserted as non-decreasing with strict increase only in the linear part; float32 spacing (~6e-8) exceeds the tanh-tail step (~2e-9) near the top, so ties are unavoidable, and the curve top is clamped to `1 - 2 ** -24` as documented.
+- Browser evidence accepted as recorded: `gain / event.impulse` = 47.1964 = `LIMITER_CEILING / MAX_IMPULSE` over 2 loads (295/294 unclamped voices, 0 clamped), separate-render peak ratio 2.0 within 1%, and 10-Roll deterministic offline replay through the real chain max peak 0.9996 <= 1.0 with per-Roll peaks and voice counts in Notes. Listening test deferred to the live tester.
