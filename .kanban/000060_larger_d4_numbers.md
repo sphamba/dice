@@ -1,7 +1,7 @@
 ---
 name: "fix: enlarge the d4 numbers"
 priority: "medium"
-state: "doing"
+state: "to-review"
 worktree: "fix/60-larger-d4-numbers"
 issuer: "user"
 complexity: "simple"
@@ -39,20 +39,27 @@ Calculated result with the test glyph box (0.56 em by 0.71 em): em 2.149 mm to 3
 - A browser screenshot of a d4 shows all three numbers on a face, fully legible, with no contact between numbers and no contact with a rounded edge.
 
 # Notes
-## Live-check progress (subagent, browser only, no repo changes)
+# Notes
 
-Cookie: /tmp only, no npm/git; server already at http://127.0.0.1:4319/.
+## Deliverable
+- `src/dice/labels.js`: `D4_LABEL_CENTER` 0.32 -> 0.21, `D4_MAX_WIDTH` 0.125 -> 0.19, `D4_MAX_HEIGHT` 0.146 -> 0.24. No other die, carve or geometry code touched.
+- `src/dice/labels.test.js`: the d4 flat-face fit loop moved into one `measureD4()` helper; the existing 0.3 mm margin and zero-overlap assertions are unchanged, and two guards were added: the neighbouring-number gap (>= 0.2 mm, quad-to-quad distance) and a legibility floor (em >= 3.5 mm). The em-floor test is red on the old values (0.00215 m) and green on the new ones.
 
-Key constraints found:
-- Playwright needs plain `chromium.launch()` (channel 'chrome-headless-shell' unsupported by this playwright-core build).
-- `src/render/canvas-size.js` caps devicePixelRatio at 2, so dsf>2 only upscales blur. To get REAL extra pixels I enlarged the viewport instead: viewport 2000x1600, dsf 2 -> backing store 4000x3200, die ~300 real px, digits ~50 px. This is lossless (screenshot == backing store).
-- No camera orbit and no wheel zoom: dragging grabs/flings the die (src/input/pointer.js); camera is fixed ortho top-down (src/render/camera.js).
+## Verification
+- Probe with the test's own transform helpers on DIE_RADIUS: old 2.149 mm em / 0.388 mm margin, new 3.533 mm em / 0.382 mm margin, 0.64 mm number gap. The spec table matches (2.149 -> 3.533 mm, 0.382 mm margin).
+- `npx vitest run src/dice`: 3 files, 84 tests passed.
+- `npm test`: 28 files, 367 tests passed.
+- `npm run build`: green, asset `index-DMC1bYI6.js`; the served asset hash matched the local build on port 4319.
+- Live check on the built app: one d4 roll gives a flat-on face with 4, 3 and 1 all legible, clear gaps between the digits and an obvious margin to the rounded bevel, no contact anywhere. Best frame `/tmp/bigzoom-1.png`.
+- HEAD `96a4148`.
 
-Vision results so far:
-- /tmp/bigzoom-1.png (from /tmp/bigcrop-1.png, /tmp/big-1.png): PASS. Up face flat to camera, three numbers "4", "3", "1" all legible, clear gaps between digits, all well inside the flat inset, clean margin to the bevel. No contact anywhere.
-- bigzoom-2 / bigzoom-3 / bigzoom-5: die seen near edge-on, up face foreshortened or facing away, so three numbers are visible but squashed -> not usable for the criterion.
-- bigzoom-4: two side faces visible, 3 numbers each, legible-ish but not a flat-on face.
+## Assumptions
+- The spec's "gap between numbers 0.554 mm" uses a different measure from the Euclidean quad-to-quad distance in the test (0.64 mm). Both stay well above the 0.2 mm limit, so no value was reduced.
+- The 3.5 mm em floor comes from the spec's 3.533 mm result and is asserted with the test's 0.56 em by 0.71 em glyph box, not a real font measurement.
+- The camera is fixed orthographic top-down and a canvas drag flings the die instead of orbiting, so the live check judged one flat-on roll rather than orbited views.
 
-Next step (interrupted here): view the 4x2 contact sheet /tmp/rr-sheet.png (crops /tmp/rrc-11..18.png from rolls /tmp/rr-11..18.png) to look for more flat-on faces, then write the final report.
+## Blockers
+- None.
 
-Scripts: /tmp/big.mjs, /tmp/more.mjs, /tmp/cropbig.py. No repo file touched.
+## Manual checks left to other roles
+- None.
