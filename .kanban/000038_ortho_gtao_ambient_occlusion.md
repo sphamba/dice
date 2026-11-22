@@ -81,16 +81,19 @@ Remove the directional shadow map and add a custom screen-space GTAO pass in raw
 
 # Notes
 # Notes
-## PM steer
-- Your earlier Notes described camera changes (FOV, camera distance, `keepCameraInView`, `dropViewProjection`, die aspect) and "die tops light up when held". None of these are in the Specs, and the diff does not have them. Keep it that way: `createCamera` and the frustum stay as on main. In `camera.js` only remove `createLightViewProjection` and add `worldZFromDepth` and `floorClearDepth`.
-- Write Notes that describe the real diff only.
+# Notes
 
-## Progress (from the diff at this checkpoint)
-- `camera.js`: `createLightViewProjection` removed; `worldZFromDepth(d, box)` and `floorClearDepth(box)` added. `camera.test.js` updated.
-- `gl.js`: render target helpers for R8/RGBA8 color and DEPTH_COMPONENT16.
-- `shaders.js`: AO prepass, GTAO slice-integral pass (XeGTAO convention, 4x4 noise, quadratic sample distribution, z-scaled falloff, horizon clamp), blur, forward pass with AO upsample.
-- Next: `renderer.js` (AO constants, `aoTargetSize`, the passes, shadow removal, resize and context restore, 1x1 white fallback), `renderer.test.js` and the AO tests (source check, JS slice integral), scoped suites, build, browser check.
+Deliverable
+- GTAO screen-space AO pass replacing directional shadows (src/render/renderer.js, src/render/shaders.js).
 
-## Assumptions (keep)
-- XeGTAO sign convention checked upstream: side 1 horizon angle negated, falloff mul/add = -1/(range*R) and (1-range)/range+1. A flat floor gives exactly 1.0. The wall-base test uses a 10 mm wall inside the falloff reach, because an infinite wall is cut by the falloff by design.
-- The AO upsample weights are normalized by their sum.
+Verification (live browser acceptance, in progress)
+- Environment: vite dev on :4177 OK; full Chromium failed at launch (as AGENTS.md predicted) → chrome-headless-shell fallback worked. WebGL2 via SwiftShader, gl.getError()=0 at boot, no console/page errors so far.
+- Setup verified: panel DOM buttons (aria-label "Remove d6") reduced 2 d6 → 1 d6; die blob detected via readPixels inside rAF (full-buffer read in page context); box from boxFromViewport matches spec (67.5 × 146.2 mm at dpr 1.7325, 0.1 mm/CSS px).
+- FINDING (likely blocker): sampled floor luminance at 2 mm outside the die silhouette matches a computed no-AO background model EXACTLY in 4/4 directions (e.g. left 47.33 vs predicted 47.2, right 53.67 vs 53.7, top 55.67 vs 55.6, bottom 46.56 vs 46.3) → AO contribution ≡ 1.0 everywhere. Root cause evidence: in src/render/renderer.js `buildAoSetup()` (line 157) is never invoked — `aoSetup` stays null (declared line 108, only re-nulled at 193), so `drawAoPasses` never runs, `resize()` early-returns at `if (!aoSetup)`, and the forward pass silently binds the 1×1 white fallback texture (ao = 1). GTAO pass appears to be dead code; contact darkening cannot pass as shipped.
+- Check 2 (contact darkening): FAIL on first data — raw numbers confounded by a broad specular gradient on the floor (refs 40.7–61.9 across the box), but per-point background-model match above isolates it: darkening ≈ 0, not ≥ 2–3 units.
+- Check 3 (held die): not darker than open floor — but vacuous while AO is dead (nothing darkens whether held or settled). Raw near(3mm) ≈ 59.7–66.4 vs refs 46–55.7, deltas +8…+14.7 (specular gradient), all ≥ −2.
+- Check 4 (resize) and Check 5 (context loss) not yet run: first run aborted at page.setViewportSize (headless-shell window was maximized; will relaunch with --window-size and rerun remaining checks).
+- Next: rerun v2 script (reordered: hold check before roll stress; floor-background via local plane fit over clean-floor grid to separate AO from the specular gradient; resize via setViewportSize with large --window-size; then context-loss check), then final PASS/FAIL report with numbers.
+
+Blockers
+- none
