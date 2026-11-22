@@ -1,7 +1,7 @@
 ---
 name: "feat: shrink every die to 80% of its current size"
 priority: "medium"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "user"
 complexity: "complex"
