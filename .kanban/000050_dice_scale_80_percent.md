@@ -1,7 +1,7 @@
 ---
 name: "feat: shrink every die to 80% of its current size"
 priority: "medium"
-state: "to-review"
+state: "reviewing"
 worktree: "feat/50-dice-scale-80-percent"
 issuer: "user"
 complexity: "complex"
