@@ -1,7 +1,7 @@
 ---
 name: "feat: emit impact impulse as the delta over the warm start"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "#62"
 complexity: "simple"
