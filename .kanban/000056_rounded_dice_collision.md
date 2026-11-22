@@ -56,32 +56,27 @@ Collision uses the sharp vertices today. Collide each die as its rounded shape s
 # Notes
 # Notes
 # Notes
-## PM steer (read first)
-- Stop the wall fling phase now. The problem is in the pointer harness, and no app defect is shown. Record the wall phase as "not measured in the browser, covered by the unit test (die into wall at 1 m/s leaves at 0.5 m/s)". Record the one gated attempt (ratio 0.61) as indicative only.
-- Do the die-dropped-on-die phase with one attempt only, if the current harness can set it up in less than 5 minutes. If it cannot, record it as "not measured in the browser, covered by the FIRST_REBOUND unit test".
-- Run the final console-error sweep, write the results table, and finish the live test. Total time budget from now: 10 minutes.
-- File a finding only for a real app defect.
+## Live test in progress (watch checkpoint write 2)
 
-## Live test in progress (watch checkpoint write)
+Scope: browser live test of the rounded-collision change and the speculative-contact restitution fix, desktop only. Real UI flows only (panel Add/Remove/Roll, grab-drag-fling pointer).
 
-Scope: browser live test of the rounded-collision change and the speculative-contact restitution fix, desktop only (phone e2e belongs to the suites). Real UI flows only: panel Add/Remove/Roll, grab-drag-fling pointer.
+### Results
+- smoke/rest: PASS - 2 d6 sleep in 0.76 s, rest at z=6.40 mm = d6 inradius exactly.
+- roll (3x Roll button): PASS - settle 0.85-0.93 s (inside 5 s), containment <= 0.51 mm mid-tumble, rest heights 6.40 mm after every roll, real tumbling (spin 59 rad/s), no NaN.
+- pile (10 d6 violent roll, 20 samples): PASS - min rounded-core pair distance +2.287 mm while sharp hulls overlapped to -0.971 mm at the same instants (the expected rounded-vs-sharp signature); asleep 2.62 s; screenshots confirm no visible overlap.
+- wall fling (fresh-contact restitution e=0.5): PASS - 4/5 gated flings, spin-corrected contact-normal ratios 0.40-0.46, median 0.44 (approach 0.75-0.84 m/s, exit 0.31-0.36 m/s). No tunneling (maxX <= 25.1 mm = at-wall position for the rounded shape).
+- drop (die-on-die rebound): FAIL on first run - rise 0.15 mm vs 2.34 mm predicted (approach 0.43 m/s). No app verdict yet; staging under inspection (next: print trace + pair distance at impact to identify what the falling die actually hit - target top face vs floor beside it; the 12 mm horizontal tolerance may be too loose).
 
-### Environment
-- Vite on :8856, Chromium + swiftshader, viewport 1100x1100 dpr1, box W=H=D=0.0635 m, gravity (0,0,-9.81), render fps 38, sim rate 0.567x wall (MAX_STEPS cap under swiftshader).
-- Harness in /tmp/dice-lt56 (harness.mjs + driver.mjs, phase-filtered, results-r1-*.json), trace spy on beforeStep at 480 Hz for impact phases.
+### Injection mechanics learned (harness side, needed for the wall/drop phases)
+- Playwright mouse dispatch is slow/coalescing here: flingVelocity's 80 ms window often catches one sample -> ~0 release velocity. CDP mouse stream also coalesces on the busy main thread.
+- Working mechanism: synthetic in-page PointerEvent dispatch with faked evenly-spaced timestamps (real construction dt ~0.2 ms, so the die never physically chases between samples); pointer path must be monotonically increasing to the screen edge (a fold-back wrecks the window average); deterministic fling 1.08 m/s every attempt.
+- App facts: drag z-target pulls the die up toward the lid while held (pointer.js:196); the view is top-down (screen y = world -y, z not in the projection, pointer.js worldXY); onRelease adds randomSpin(|v|) by design (pointer.js:253); restitution applies to the CONTACT-POINT normal velocity, so single-attempt center-vx ratios scatter around e until spin-corrected (v_n = vx + (w x r)_x at the x-most core vertex, quaternion now recorded in the trace).
 
-### Results so far
-- smoke/rest: 2 d6 spawn and sleep in 0.76 s; both rest at z=6.40 mm = d6 inradius exactly (rest height unchanged, Spec pin) - PASS.
-- roll (3x Roll button): settle 0.85/0.83/0.93 s (inside 5 s; consistent with #51 desktop 0.82 s median); mid-roll sharp containment <= 0.51 mm; rest heights 6.40 mm after every roll; trace shows real tumbling (max spin 59 rad/s, max speed 1.7 m/s); no NaN - PASS. Note: rolls decay in ~0.5 sim s, so mid-roll samples must land within ~0.15 sim s (harness timing, fixed).
-- pile (10 d6, violent Roll, 20 state samples over the motion): min rounded-core pair distance +2.287 mm (never interpenetrating; gate -0.5 mm), while the sharp hulls overlapped to -0.971 mm at the same instants - exactly the expected rounded-vs-sharp signature. Asleep 2.62 s, no NaN, screenshots confirm no visible overlap - PASS.
-- wall fling (fresh-contact restitution e=0.5): IN PROGRESS, no verdict yet. Injection findings so far (all harness-side): Playwright mouse dispatch is too slow/coalescing here so flingVelocity samples fall outside the 80 ms window (release velocity ~0); switched to a CDP mouse stream with 42/8 ms move spacing and a pointer-implied fling cross-check from the event log. One gated attempt showed exit 0.378 m/s against pointer fling 0.62 m/s (ratio 0.61, in band) but the trace's max-vx was polluted by the drag-chase tail (die driven into wall at up to 2 m/s while held). After re-arming the trace post-release the die is already at/pressed into the wall at release (chase covers 25 mm in ~13 ms), so the flight is shorter than my arm latency; plan: record release sim time and analyze only post-release rows, and start the fling farther from the wall. No app defect established in this phase yet.
+### Assumptions/gates (unchanged)
+- Desktop viewport, default d6 set; BEVEL_RADIUS 1.6 mm, d6 rho 6.4 mm, SLOP 1e-4, RESTITUTION 0.5/THRESHOLD 0.1 from source.
+- Gates: settle <= 5 s, rest height 6.4 +/- 0.5 mm, core pair distance >= -0.5 mm sustained, wall e median in [0.3, 0.7] over >= 3 gated flings, drop rebound rise >= 0.4x (0.5*approach)^2/2g.
 
-### Assumptions
-- Desktop viewport only; default set d6; RESTITUTION_DIE/_BOX 0.5, RESTITUTION_THRESHOLD 0.1, SLOP 1e-4, BEVEL_RADIUS 1.6 mm, d6 rho 6.4 mm from source.
-- Gates: settle <= 5 s (Spec), rest height 6.4 +/- 0.5 mm, core pair distance >= -0.5 mm (5x SLOP, sustained watch), wall exit/approach in [0.3, 0.7] gated on pointer-implied fling >= 0.3 m/s, drop rebound >= 0.4x (0.5*approach)^2/2g.
-- Pairwise rounded separation measured as exact convex feature distance (VF/FV/EE) on core vertices; verified against synthetic cube poses (touch=0, gap exact, interior overlap -depth).
-
-Still to run: die-dropped-on-die rebound phase (one attempt), final console-error sweep, results table. No defects filed so far.
+Still to run: drop-phase verdict (staging inspection first), final console-error sweep, full clean re-run, results table. No product defects filed so far.
 
 # Open questions
 
