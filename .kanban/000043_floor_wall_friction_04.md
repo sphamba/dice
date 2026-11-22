@@ -41,22 +41,24 @@ Give die-floor and die-wall contacts a Coulomb friction of 0.4 and keep the glas
 # Notes
 # Notes
 # Notes
-## PM hint
-- Earlier live tests (#37, #42) measured that dice settle 0.2-0.5 s after a Roll, and the whole-world sleep then freezes them. Sample every frame from the Roll click for the first 0.5 s before you classify the roll check. The Roll flow is not in this task's scope: one passing roll is enough.
+# Notes
+## Live test #43 (in progress, held at watch checkpoint #2)
 
-## Live test #43 (in progress)
+Scope: user-level test of the friction change only (floor 0.4, wall 0.4, lid 0.1, die-die 0.1) through the real browser app (panel UI, devicemotion tilt, pointer drag, Roll button). No unit suites run. Worktree merged commit 417e7cc, vite :8791 from the worktree. Harness /tmp/dice-lt43.
 
-Scope: user-level test of the friction change only (floor 0.4, wall 0.4, lid 0.1, die-die 0.1) through the real browser app: panel UI, devicemotion tilt, pointer drag, roll button. No unit suites run. Worktree merged commit 417e7cc, served with vite :8791 from the worktree.
+Probe run: 9/10 PASS. PASS: app mounts (WebGL2, no unsupported banner), box dims match boxFromViewport (0.08 x 0.05 x 0.05 m at 1280x800 dpr1), default 2 d6 with gravity (0,0,-9.81), devicemotion path sets world gravity exactly, panel toggle/roll/add present, settled state NaN-free and contained, console clean.
 
-Assumptions:
-- Tilt is driven through the real `devicemotion` listener (`__tilt` dispatches DeviceMotionEvent; verified it sets `world.gravity` exactly on the desktop UA path).
-- Friction 0.4 => incline hold threshold ~21.8 deg: expected floor hold at 20 deg, slide at 25 deg; wall-as-floor hold from ~68 deg (80 deg used as the wall check); lid slide at 10 deg with gravity flipped up.
-- Die-die 0.1 has no isolated live discriminator; it is covered indirectly by settle/containment behavior.
+Probe FAIL classified: HARNESS BUG, not a product defect. debug-roll.mjs raw trace proves the Roll button click fired (page-side click counter = 1), velocities were applied (die spin 25.7 rad/s), and the dice were flat at rest again within ~0.15 s wall. With floor friction 0.4 the toss lives only ~0.25-0.3 s sim: dice hop ~17-21 mm, land, and the raised friction kills the residual skid almost immediately. The probe sampled at 0.25 s sim granularity after the click, so the transient was already over - the exact "sample after the action settled" trap. Fix applied: rAF-granular flight tracker armed before triggers (harness installFlightTracker, wraps world.update and records max speed pre-update and max z post-update).
 
-Harness: /tmp/dice-lt43. Playwright via /home/phamba/repos/tarot/app. main.js spy built from the served response. Sim-time clock wraps `world.beforeStep` (the pointer drive owns it) instead of overwriting it.
+Full driver written (/tmp/dice-lt43/driver.mjs), not yet run. Scenarios:
+- S0 settle at flat gravity (NaN, containment, gravity exact).
+- S1 floor hold at 20 deg: per-die displacement < 3 mm, settles.
+- S2 floor slide at 25 deg: every die slides (> 3 mm, max > 10 mm), ends at the -y wall/corner, contained.
+- S3 wall friction: empty box via panel, tilt 80 deg (wall acts as floor; 0.4 holds from 68 deg, 0.1 would need 84 deg), add one d6 via panel; die must rest on the -y wall at z >= 16 mm (floor-corner rest would be <= 14 mm).
+- S4 lid friction: gravity flipped up, die settles on lid, tilt 10 deg (0.1 < tan10 = 0.176), die must slide (> 3 mm) toward -y and stay on the lid.
+- S5 roll flow via real Roll button with flight tracker: peak speed > 0.4 m/s, hop peak center z > 15 mm, settle, contained, NaN-free.
+- S6 pointer drag flow: drag a die toward box center, release without fling, die follows >= 5 mm (retry with second die allowed); beforeStep is wrapped, not overwritten, so the pointer drive stays alive.
+- Phone pass (iPhone 13 descriptor): iOS devicemotion sign path verified against exact gravity target, then hold 20 / slide 25 / containment.
+- Console audited for pageerror/error across both contexts.
 
-Probe run (desktop 1280x800, dpr 1, box 0.08 x 0.05 x 0.05 m, default 2 d6): 9/10 checks passed.
-- PASS: WebGL2 app mounted; box dims match boxFromViewport; default set 2 d6, gravity (0,0,-9.81); `__tilt` sets world gravity exactly; wrapped beforeStep callable; panel toggle reveals rows, Roll and Add d6 present; settled state NaN-free and contained; console clean.
-- Under debug: "roll tosses dice (peak speed > 0.2 m/s) | peak=0.000 m/s" over 6 samples in 1.5 s sim time (see PM hint).
-
-Planned scenarios: floor hold 20 deg (disp < 3 mm), floor slide 25 deg (disp > 3 mm, max > 10 mm, contained), wall hold at 80 deg tilt with one d6 (stops on the -y wall at z >= 16 mm), lid slide at 10 deg with gravity flipped (disp > 3 mm), roll flow, pointer drag flow, plus a short iPhone 13 run (settle, hold 20, slide 25, containment). Console audited throughout.
+Next on release: node --check the driver, short smoke, then one background full run with absolute paths; then file defects (if any) and write the final report into these Notes.
