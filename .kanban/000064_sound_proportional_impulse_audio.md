@@ -1,7 +1,7 @@
 ---
 name: "feat: linear impact gain, pair gate and peak limiter"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "#62"
 complexity: "simple"
