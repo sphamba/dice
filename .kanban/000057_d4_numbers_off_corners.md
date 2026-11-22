@@ -1,12 +1,14 @@
 ---
 name: "fix: move the d4 numbers away from the corners"
 priority: "medium"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/57-d4-numbers-off-corners"
 issuer: "user"
 complexity: "simple"
 shortName: "d4-numbers-off-corners"
 blockedBy: ""
+changes: "{\"base\":\"main\",\"ins\":105,\"del\":9,\"files\":3}"
+commits: "[{\"hash\":\"66f4404\",\"subject\":\"style: split the joined pip constants back onto two lines\",\"when\":\"2026-11-22T16:32:39+01:00\"},{\"hash\":\"221e852\",\"subject\":\"fix: pull the d4 numbers onto the flat part of the face\",\"when\":\"2026-11-22T16:07:12+01:00\"}]"
 ---
 
 # Summary
