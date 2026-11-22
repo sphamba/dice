@@ -1,7 +1,7 @@
 ---
 name: "fix: move the d4 numbers away from the corners"
 priority: "medium"
-state: "reviewing"
+state: "to-merge"
 worktree: "fix/57-d4-numbers-off-corners"
 issuer: "user"
 complexity: "simple"
@@ -39,11 +39,10 @@ The d4 numbers sit too close to the face corners. Move them toward the face cent
 # Notes
 # Notes
 # Notes
-- Deliverable: d4 number centres moved from 0.62 to 0.32 of the corner position, with a smaller fit box (0.125 R wide, 0.146 R tall) because the 0.3 mm margin rule cannot be met at the old glyph size. Every d4 glyph box now stays inside the bevelled inset triangle with a worst-case margin of 0.34 mm, and no two glyph boxes on a face overlap. `D4_LABEL_CENTER` is exported and reused by `carve.test.js`. No other die type changed.
-- Evidence at HEAD 221e852 (re-verified after the release): `npx vitest run src/dice` 80 passed; `npm test` 28 files / 355 passed; `npm run build` green, dist/index.html assets resolve. New test `labels.test.js > buildLabelAtlas d4 flat-face fit` rebuilds each glyph box from the recorded paint transform and checks containment margin plus pairwise separation against `faceInsetData`.
-- Live check passed on a build of this branch: desktop 1440x900 and phone 390x844, 6 rolls each, exactly 3 legible digits per visible d4 face, no digit on a rounded edge or corner, no digit overlap, no console errors.
-- State: complete and committed at 221e852, worktree clean, nothing pending.
-- Assumptions: the 0.3 mm margin is measured on the real die geometry (DIE_RADIUS, BEVEL_RADIUS), not on the unit-radius test fixture; Arial bold metrics of 0.56 em advance and 0.71 em cap height; the spec's suggested 0.45 start leaves a 0.5 mm cap height, so the centre was tuned down to 0.32 to reach 1.6 mm at the 0.3 mm margin.
-- Manual checks left to other roles: the preview port 4173 on this machine is held by a stale server from another checkout, so a live check must use `--strictPort` on a free port and confirm the served bundle carries the new constants.
-- Blockers: none.
+- Outcome: fixed. One cosmetic commit by the reviewer at 66f4404 (split the pip const line the diff had joined onto one line); no functional changes. All Spec bullets mapped to diff or test evidence; nothing stale.
+- Spec: d4 centres moved 0.62 → 0.32 via exported D4_LABEL_CENTER (labels.js:24,170-171), rotation `atan2(-x, y)` kept, no other die type touched (grep clean, diff touches only the d4 branch). Fit box reduced to 0.125R x 0.146R; accepted, the 0.3 mm rule cannot hold at the old glyph size on the bevelled inset. Containment and no-overlap are enforced by the new `buildLabelAtlas d4 flat-face fit` test, which rebuilds glyph boxes from the recorded paint transform against `faceInsetData` on real geometry (DIE_RADIUS 11.085 mm, BEVEL_RADIUS 1.6 mm).
+- Evidence at 66f4404: `npx vitest run src/dice` 3 files / 80 passed; `npm test` 28 files / 355 passed; `npm run build` green. Existing label and carve tests updated to the constant and stay green.
+- Probe re-measures the worst glyph-box margin at 0.388 mm on face 0; the developer's note said 0.34 mm. Value re-measured, both clear the 0.3 mm rule.
+- Judgment calls: tuning to 0.32 below the suggested 0.45 start is within "and tune it"; Arial bold 0.56 em advance / 0.71 em cap metrics match the existing CAP_HEIGHT=71 model and the test mock.
+- For the live-tester role: readability and corner clearance of the carved d4 numbers at desktop and phone size stay live scope. The developer flags port 4173 on this machine as held by a stale server from another checkout, so run the preview with `--strictPort` on a free port.
 - Open questions: none.
