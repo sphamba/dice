@@ -30,28 +30,45 @@ When a grabbed die is held in the air with no contact (clearance > 0), the physi
 - `npm test`
 
 # Notes
-## Live test progress (checkpoint 2)
+## Live test report (task #53)
 
-Harness /tmp/dice-lt53-live (port 8801, viewport 1100x1100 = 63.5 mm cube box, hold z 41.33 mm).
+Scope: the two manual checks from the task (hold near a side wall, confirm the lean is accepted; hold in open floor space, confirm the CoM settles below the pointer) plus release behavior. Change under test is test-only (HEAD 2e2f752); the vitest suites named in acceptance were run by the reviewer, not here.
 
-### Env probe: 7/7 PASS
-Box matches source scale (63.5 mm), sample schema complete, canvas backing 1100x1100 = client * dpr, sim clock advances, fps 30, event injection works, no console errors.
+Method: real pointer interaction in headless Chromium (SwiftShader WebGL2, ~30 fps), vite served from this worktree, viewport 1100x1100 dpr 1 = 63.5 mm cube box (the box family from the defect report). World access through a createWorld spy + beforeStep wrapper; all waits Node-side on sim time; pointer input via Playwright mouse, moves >= 60 ms apart, >= 80 ms pause before release (zero fling).
 
-### First full run: 26/31 checks passed
-- Free hang (open floor): all substance PASS. Grab point held at pointer (err 0.19 mm), CoM xy settles 0.02 mm below pointer (< 2 mm gate, unit test uses 1 mm), |w| and |v| calm to 0.0000, hangs in the air (4.1 mm min all-plane clearance), release drops the die (vz -0.326 m/s), settles contained and finite, world sleeps again.
-- Wall hold: grab holds (0.19 mm), held stable (|v|, |w| = 0.0000), not dropped and not snapped upright (CoM z 32.4 mm through hold), release drops, settles, sleeps. All PASS.
+### Result: 28/28 checks passed (final full run, /tmp/dice-lt53-live/results-driver.json)
 
-### The 5 failures are my test setup, not the app
-- Freehang: my zero-fling drop after dragging to center bounced the die 24 mm off center, so the press landed 12.6 mm from a wall (< my 15 mm no-contact premise gate). Behavior itself stayed clean (no contact happened).
-- Wall: my rest-position gate wrongly allowed the die to stop 20 mm short of the wall; it stopped 14 mm short, press landed 27 mm from the wall, so the hanging die (extent 6.4-11.1 mm) could never touch the wall: clearance 11.85 mm, CoM offset 0.01 mm. The wall lean was never exercised in this run.
-- No product defect observed so far; no cards filed.
+Env: 7/7 (box matches source scale 63.5 mm, sample schema, canvas backing = client * dpr, sim clock advances, event injection works, no console errors).
 
-### Fixes applied to the driver (not yet re-run)
-- Freehang: grab the die and drag it to the box center while held (no intermediate drop); press xy is (0,0) by construction, so the no-contact premise is guaranteed.
-- Wall: retry loop (3 attempts, zero-fling releases at 5/4/3 mm from the wall) until the die rests touching the wall (|gap| <= 2 mm), then press 1.5-5 mm from the wall (guaranteed >= 0.4 mm hang penetration against the >= 6.4 mm inradius extent).
+Free hang, hold 4.5 s sim at box center:
+- Grab point held at pointer: err 0.21 mm (unit test asserts 1 mm on the same path).
+- CoM xy settles below the pointer: offset 0.00 mm (gate < 2 mm).
+- |w| and |v| = 0.0000 over the last second; the swing calms (|w| < 0.1 rad/s) by t = 2.2-3.7 s of the hold across draws.
+- The die rests tilted while held (lever 70-73 deg from vertical) with the CoM exactly under the pointer: the accepted free-hang path, no orientation forced.
+- Hangs in the air: 20.2 mm min all-plane clearance, CoM z 32.4 mm (hold z 41.3 mm).
+- Release drops the die, settles contained and finite, world sleeps again.
 
-### Still to do after release
-Re-run freehang + wall phases, then the release checks; results table; final Notes rewrite. The wall-lean acceptance is the one manual check not yet demonstrated.
+Wall lean, hold 5 s sim with the die held 3 mm from the left wall (hang extent >= 6.4 mm inradius forces wall contact):
+- The lean is accepted: min-x vertex pinned exactly at the wall (clearance 0.000 mm) while held; CoM leans 4.96-5.02 mm off the pointer (same order as the reported 6-9.3 mm); lever tilted ~34 deg; held stable (|v|, |w| = 0.0000); CoM z stays ~34 mm, in the air, not dropped, not snapped upright.
+- Grab point stays at the pointer through the lean: err 0.24-0.26 mm.
+- Release drops the die at the wall, settles contained and finite, world sleeps.
+
+### Observations (no defect)
+- Grab-point sag under a deeper lean: one draw reached equilibrium with the grab point 11.78 mm off the hold target (wall pin vs hold drive conflict); the next draws held a shallower lean with the grab point at the target (0.24-0.26 mm). Both leans stable and accepted. The specs name grab-point accuracy only for the no-contact free hang, so this is recorded as behavior of the accepted lean path, not a defect.
+- Both draws agree with the physics: CoM x = wall + wall-side vertex extent (7.95 mm measured), exactly what a wall-pinned hang predicts.
+
+### Assumptions made in the test design
+- "Open floor space" = hold at the box center; the no-contact premise holds by construction (press xy = center; measured clearance 20.2 mm).
+- "Near a side wall" = drag the held die to 3 mm from the wall and hold, which forces the lean deterministically. A release-then-regrab setup never produced a wall-touching rest in 3 attempts (landed 1.5-9.5 mm short) and was replaced by the drag-while-held setup.
+- The default d6 stands in for the die types; per-type coverage lives in the new unit test.
+- Live tolerances: free-hang CoM offset < 2 mm (unit test 1 mm), stability |v| < 0.01 m/s and |w| < 0.1 rad/s (the unit test's rotation bound) over the last second of each hold.
+
+### Defects found
+None. No cards filed (per PM hint, no card for a wall lean).
+
+### Harness notes (technical difficulties, resolved)
+- Zero-fling drops near the wall always landed 1.5-9.5 mm short of touching; replaced with the drag-while-held setup.
+- Dropping the die at the center after a drag bounced it 24 mm off center; replaced with holding the drag at the center (no intermediate drop).
 
 # Open questions
 

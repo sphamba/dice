@@ -38,24 +38,35 @@ signedDistance in src/dice/carve.js returns NaN for glyphs far from ink, and bui
 - `npm run build`
 
 # Notes
-Live test in progress (checkpoint write).
+Live test complete. Verdict: the fix works. No product defects found; no cards filed.
 
-## Results so far (run 1 complete, /tmp/dice-lt54/run1.log + results-driver.json)
-- A1 probe: PASS (webgl2, capture sane 2200x2200, 17.9 fps swiftshader, console clean).
-- A3 desktop d6 (value 5): 5/5 pips dimpled, lower(gy=-1) min diff 23.4 vs upper mean 24.2, balance ok. Pre-fix signature was 7.1/negative -> gate discriminates, fix visible in live GL.
-- A5 phone d6 (value 4): 4/4 pips dimpled, lower 24.2/24.7 vs upper 24.3. PASS.
-- A4 desktop d10: glyphSpread 27.7 vs bodySpread 0.0. PASS.
-- A6 phone d10 (#49 deferred re-check, headline): glyphSpread=20.7 vs bodySpread=0.0 -> PASS (pre-fix: 19.7 vs 68.7 FAIL). No regression in d8 (21.7), d12 (25.7), d20 (24.0) phone numbers either.
-- A8: no GL errors anywhere, no error overlay, frames + zoom crops saved (frame/zoom-desktop-d6, frame/zoom-phone-d6, zoom-phone-d10).
+## Scope and method
+Tested the one-line EDT fix (carve.js:45, row scratch Math.max(w,h)) through the real app served by vite from the worktree, driven headless (SwiftShader WebGL2) with the proven #49 harness retargeted to /tmp/dice-lt54 (env LT_PORT/LT_OUT/LT_CWD). Two runs: run1 = probe + atlas + live GL (desktop, phone), run2 = corrected atlas re-run. Artifacts: /tmp/dice-lt54/{run1.log,run2-atlas.log,results-driver.json,frames,zooms,shots}. No unit tests run. Assumptions stated at the first checkpoint all held; none contradicted.
 
-## Harness bugs found by my own gates (fixed, atlas phase pending re-run)
-- buildCarveAtlas returns {size, data}; my first probe read carve[q] (undefined) so all byte comparisons were false. The "atlas probe byte path validated" check caught it (142812/142812 non-glyph samples read non-flat, impossible by bake design). Fixed to carve.data[q]; atlas flat/violation numbers from run 1 are VOID, re-running atlas phase only.
-- consoleClean was cumulative across phases; made phase-scoped (from-index).
+## Results (check -> outcome)
+| Check | Outcome |
+|---|---|
+| A1 probe: webgl2, capture sane 2200x2200, 17.9 fps, console | PASS |
+| A2 atlas bake, d6 (in-page, app's real buildLabelAtlas+buildCarveAtlas): 45613 interior glyph px across 6 faces, 0 off-ridge flat bakes (31 byte-flat, all within 2px of pip ridge centres - matches the dev quantisation note) | PASS |
+| A2 atlas bake, d10: 17831 interior px across 10 faces, 0 off-ridge flat (198 byte-flat, all on stroke skeleton ridges, i.e. the profile's stationary line) | PASS |
+| A2 detector sanity: 264612 non-glyph samples all exactly (128,128,255) | PASS |
+| A3 desktop d6 (value 5): 5/5 pips dimpled, lower(gy=-1) min diff 23.4 vs upper mean 24.2, balance ok | PASS |
+| A5 phone d6 (value 4): 4/4 pips dimpled, lower 24.2/24.7 vs upper 24.3 | PASS |
+| A4 desktop d10: glyphSpread 27.7 vs bodySpread 0.0 | PASS |
+| A6 phone d10 (#49 deferred re-check): glyphSpread=20.7 vs bodySpread=0.0 -> PASS (pre-fix: 19.7 vs 68.7 FAIL) | PASS |
+| A7 phone d8/d12/d20 numbers: 21.7 / 25.7 / 24.0 vs bodySpread 0.0, no regression | PASS |
+| A8 no GL errors, no error overlay, console clean on all pages/phases | PASS |
+| Visual: zoom-phone-d6 shows all 4 pips (incl. both lower-half) with identical dimple shading; zoom-desktop-d6, zoom-phone-d10 crops saved | PASS |
 
-## willReadFrequently console warning: attributed to harness, not the app
-- Run 1 showed 2x "Canvas2D: Multiple readback operations using getImageData are faster with willReadFrequently" warnings, accumulated from the atlas-probe phase.
-- App-only attribution test (fresh page, real panel spawn of d6+d10, no probe): console EMPTY. Normal app usage does not emit the warning; only my probe's extra getImageData readbacks do. Not a product defect; atlas-phase console gate whitelists it.
+Discrimination: pre-fix reference values from #49's own run of the same harness - d6 lower pips diff 7.1 (phone) / negative (desktop) vs upper ~22-24; d10 phone check FAILED 19.7 vs 68.7; #49 evidence 1+2 show whole lower zone flat in the atlas. The shipped code shows lower/upper symmetric diffs and a clean atlas, so the gates separate fix from defect. The d10 phone pass ran with bodySpread 0.0 (random orientation), so that single gate is weaker than the pre-fix run; the d6 balance gates and the atlas scan carry the discrimination.
 
-## Remaining
-- Re-run atlas phase (fixed carve.data reads) to replace the voided A2 numbers: expect 0 off-ridge flat interior glyph pixels for d6 (45613 interior px) and d10 (17831 px).
-- Then final wrap-up: results table, notes rewrite, server killed (run 1 and attribution test servers already stopped and verified).
+## Observations (not defects)
+- Byte-flat (128,128,255) bake occurs exactly at profile stationary points: pip centres (31 px on d6) and digit-stroke skeleton lines (198 px on d10), all within 2px of a local depth maximum. Consistent with the round-profile design and the dev's 1.51-1.59 px pip measurement. For future test authors: the pip-centre exemption in the unit test extends to digit skeletons.
+- App-only console (fresh page, real panel spawns, no probe) is completely clean; normal usage does not trigger the Chrome willReadFrequently perf hint.
+
+## Technical difficulties hit while testing (resolved in the test rig, no product impact)
+- First atlas numbers were void: my probe read carve[q] but buildCarveAtlas returns {size, data}; every byte comparison evaluated false. Caught by the detector-sanity gate (all non-glyph samples read non-flat, impossible by bake design), fixed to carve.data[q], re-run green.
+- Console audit was cumulative across phases, letting atlas-phase messages fail later phases' gates; made phase-scoped and re-verified clean.
+
+## Environment
+Servers stopped and verified (lsof: 0 listeners on 8954/8955). Two unrelated vite processes left untouched (main repo --host server; task #53 harness on 8801). Artifacts in /tmp/dice-lt54.
