@@ -1,11 +1,13 @@
+import { BEVEL_RADIUS } from './body.js';
 import * as vec3 from '../math/vec3.js';
 
 // Speculative skin in meters: a vertex within this gap still generates a contact.
 export const SLOP = 1e-4;
 
-// Edge axes must beat the best face axis by this factor to win, which keeps resting
-// faces on face contacts instead of flipping to an edge pair.
-export const EDGE_BIAS = 1.05;
+// Rounded dice touch when the gap between their inset cores reaches one bevel radius
+// per die; core overlaps are shifted by this amount so the SAT scores the rounded
+// surfaces and accepts them while they are still up to 2r apart.
+const RECESS = 2 * BEVEL_RADIUS;
 
 export const BROADPHASE_MARGIN = SLOP;
 
@@ -32,7 +34,7 @@ function boxPlanes(box) {
 }
 
 function buildFrame(body) {
-  const vertices = body.shape.vertices.map((vertex) =>
+  const vertices = body.shape.coreVertices.map((vertex) =>
     vec3.add(vec(), vec3.transformQuat(vec(), vertex, body.orientation), body.position),
   );
   const velocities = vertices.map((vertex) =>
@@ -70,15 +72,15 @@ function detectBox(world, body, frame, dt) {
     for (const plane of planes) {
       const distance = vec3.dot(plane.normal, point) - plane.offset;
       const approach = vec3.dot(plane.normal, velocity);
-      const margin = (approach < 0 ? -approach * dt : 0) + SLOP;
+      const margin = (approach < 0 ? -approach * dt : 0) + SLOP + BEVEL_RADIUS;
       if (distance >= margin) continue;
       world.contacts.push({
         a: body,
         b: null,
         surface: plane.surface,
-        point: Float64Array.from(point),
+        point: vec3.scaleAndAdd(vec(), point, plane.normal, -BEVEL_RADIUS),
         normal: Float64Array.from(plane.normal),
-        depth: -distance,
+        depth: BEVEL_RADIUS - distance,
       });
     }
   }
@@ -95,40 +97,136 @@ function project(frame, dir) {
   return [min, max];
 }
 
-function separatingAxis(fa, fb) {
-  let bestScore = Infinity;
-  let bestDepth = 0;
-  let bestNormal = null;
-  let bestOwner = null;
-  let bestEdges = null;
-
-  const consider = (dir, owner, edges) => {
-    const [minA, maxA] = project(fa, dir);
-    const [minB, maxB] = project(fb, dir);
+// Picks the closest face plane pair and the closest core edge pair of the two inset
+// cores. The face axis is the classic minimum-overlap SAT axis; edge pairs carry their
+// exact core distance so detectPair can prefer whichever feature pair sits deeper on
+// the rounded surfaces. Axes are oriented along refDir so the support edges hug the
+// other die.
+function separatingAxis(fa, fb, refDir) {
+  let bestFace = null;
+  let bestOverlap = Infinity;
+  const considerFace = (face, owner) => {
+    const [minA, maxA] = project(fa, face.normal);
+    const [minB, maxB] = project(fb, face.normal);
     const overlap = Math.min(maxA, maxB) - Math.max(minA, minB);
-    if (overlap <= 0) return false;
-    const score = edges ? overlap * EDGE_BIAS : overlap;
-    if (score < bestScore) {
-      bestScore = score;
-      bestDepth = overlap;
-      bestNormal = dir;
-      bestOwner = owner;
-      bestEdges = edges;
+    if (overlap < bestOverlap) {
+      bestOverlap = overlap;
+      bestFace = { normal: face.normal, owner, overlap };
     }
-    return true;
   };
+  for (const face of fa.faces) considerFace(face, 'a');
+  for (const face of fb.faces) considerFace(face, 'b');
 
-  for (const face of fa.faces) if (!consider(face.normal, fa, null)) return null;
-  for (const face of fb.faces) if (!consider(face.normal, fb, null)) return null;
+  let bestEdge = null;
+  let bestEdgeDist = Infinity;
+  const limit = Math.max(-bestOverlap, RECESS + SLOP);
   for (const da of fa.edgeDirs) {
     for (const db of fb.edgeDirs) {
-      const dir = vec3.normalize(vec(), vec3.cross(vec(), da, db));
+      const dir = vec3.cross(vec(), da, db);
       if (vec3.lengthSq(dir) < EPS) continue;
-      if (!consider(dir, null, { da, db })) return null;
+      vec3.normalize(dir, dir);
+      if (vec3.dot(dir, refDir) < 0) vec3.negate(dir, dir);
+      const [minA, maxA] = project(fa, dir);
+      const [minB, maxB] = project(fb, dir);
+      const overlap = Math.min(maxA, maxB) - Math.max(minA, minB);
+      // The 3D edge distance is at least its projection: skip pairs that can neither
+      // beat the face axis nor improve the best edge so far.
+      if (-overlap >= Math.min(limit, bestEdgeDist)) continue;
+      // The closest segments along a cross axis are not necessarily the support
+      // extremes, so every parallel edge pair is measured; the pair's line distance
+      // bounds its segment distance from below.
+      for (const edgeA of fa.edges) {
+        if (Math.abs(vec3.dot(edgeA.dir, da)) < 1 - 1e-6) continue;
+        for (const edgeB of fb.edges) {
+          if (Math.abs(vec3.dot(edgeB.dir, db)) < 1 - 1e-6) continue;
+          const lineDist = Math.abs(vec3.dot(vec3.sub(vec(), edgeA.mid, edgeB.mid), dir));
+          if (lineDist >= Math.min(bestEdgeDist, limit)) continue;
+          const [ca, cb] = closestPoints(edgeA.a, edgeA.b, edgeB.a, edgeB.b);
+          const dist = vec3.distance(ca, cb);
+          if (dist < bestEdgeDist) {
+            bestEdgeDist = dist;
+            bestEdge = { normal: Float64Array.from(dir), ca: Float64Array.from(ca), cb: Float64Array.from(cb), dist };
+          }
+        }
+      }
     }
   }
-  if (!bestNormal) return null;
-  return { normal: bestNormal, depth: bestDepth, owner: bestOwner, edges: bestEdges };
+  // Corner-involving pairs: at generic poses the closest core features are often a
+  // vertex pair or a vertex against an edge, which the edge x edge axes miss.
+  for (const va of fa.vertices) {
+    for (const vb of fb.vertices) {
+      const dist = vec3.distance(va, vb);
+      if (dist >= bestEdgeDist) continue;
+      bestEdgeDist = dist;
+      bestEdge = vertexEdgeHit(va, vb, va, vb, dist, refDir);
+    }
+  }
+  for (const [vertexFrame, edgeFrame, swap] of [
+    [fa, fb, false],
+    [fb, fa, true],
+  ]) {
+    for (const vertex of vertexFrame.vertices) {
+      for (const edge of edgeFrame.edges) {
+        const point = closestVertexEdge(vertex, edge);
+        const dist = vec3.distance(vertex, point);
+        if (dist >= bestEdgeDist) continue;
+        bestEdgeDist = dist;
+        bestEdge = swap
+          ? vertexEdgeHit(vertex, point, point, vertex, dist, refDir)
+          : vertexEdgeHit(vertex, point, vertex, point, dist, refDir);
+      }
+    }
+  }
+  // Separated corner resting against the other core's face interior: the face path
+  // cannot own this case (its incident face lands far from the contact once the
+  // cores stop overlapping), and no edge/vertex pair reaches the same distance.
+  for (const [vertexFrame, faceFrame, swap] of [
+    [fa, fb, false],
+    [fb, fa, true],
+  ]) {
+    for (const vertex of vertexFrame.vertices) {
+      for (const face of faceFrame.faces) {
+        const dist = vec3.dot(face.normal, vertex) - vec3.dot(face.normal, faceFrame.vertices[face.indices[0]]);
+        if (dist <= EPS || dist >= bestEdgeDist) continue;
+        const point = vec3.scaleAndAdd(vec(), vertex, face.normal, -dist);
+        if (!insidePolygon(point, face, faceFrame)) continue;
+        bestEdgeDist = dist;
+        bestEdge = swap
+          ? vertexEdgeHit(vertex, point, point, vertex, dist, refDir)
+          : vertexEdgeHit(vertex, point, vertex, point, dist, refDir);
+      }
+    }
+  }
+  if (!bestFace && !bestEdge) return null;
+  return { face: bestFace, edge: bestEdge };
+}
+
+function insidePolygon(point, face, frame) {
+  let positive = 0;
+  let negative = 0;
+  for (let i = 0; i < face.indices.length; i += 1) {
+    const current = frame.vertices[face.indices[i]];
+    const next = frame.vertices[face.indices[(i + 1) % face.indices.length]];
+    const side = vec3.dot(
+      vec3.cross(vec(), vec3.sub(vec(), next, current), vec3.sub(vec(), point, current)),
+      face.normal,
+    );
+    if (side > EPS) positive += 1;
+    else if (side < -EPS) negative += 1;
+  }
+  return positive === 0 || negative === 0;
+}
+
+function vertexEdgeHit(vertex, edgePoint, ca, cb, dist, refDir) {
+  const normal = dist > EPS ? vec3.scale(vec(), vec3.sub(vec(), ca, cb), 1 / dist) : Float64Array.from(refDir);
+  if (vec3.dot(normal, refDir) < 0) vec3.negate(normal, normal);
+  return { normal: Float64Array.from(normal), ca: Float64Array.from(ca), cb: Float64Array.from(cb), dist };
+}
+
+function closestVertexEdge(vertex, edge) {
+  const ab = vec3.sub(vec(), edge.b, edge.a);
+  const t = clamp(vec3.dot(vec3.sub(vec(), vertex, edge.a), ab) / Math.max(vec3.dot(ab, ab), EPS), 0, 1);
+  return vec3.scaleAndAdd(vec(), edge.a, ab, t);
 }
 
 function findFace(frame, target) {
@@ -192,33 +290,19 @@ function addFaceContacts(contacts, a, b, normal, refFrame, incFrame) {
   const incidentFace = findFace(incFrame, vec3.negate(vec(), refFace.normal));
   const polygon = incidentFace.indices.map((index) => incFrame.vertices[index]);
   const clipped = clipPolygon(polygon, sidePlanes(refVertices, refFace.normal));
-  const points = clipped.length > 0 ? clipped : [polygon[0]];
-  for (const point of points) {
+  for (const point of clipped) {
+    // Point sits midway between the two rounded surfaces, r outside each core face.
     const separation = vec3.dot(refFace.normal, point) - refOffset;
-    if (separation > SLOP) continue;
+    if (separation > RECESS + SLOP) continue;
     contacts.push({
       a,
       b,
       surface: 'die',
-      point: Float64Array.from(point),
+      point: vec3.scaleAndAdd(vec(), point, refFace.normal, -separation / 2),
       normal: Float64Array.from(normal),
-      depth: -separation,
+      depth: RECESS - separation,
     });
   }
-}
-
-function supportEdge(frame, dir, normal, preferLow) {
-  let best = null;
-  let bestValue = preferLow ? Infinity : -Infinity;
-  for (const edge of frame.edges) {
-    if (Math.abs(vec3.dot(edge.dir, dir)) < 1 - 1e-6) continue;
-    const value = vec3.dot(edge.mid, normal);
-    if (preferLow ? value < bestValue : value > bestValue) {
-      bestValue = value;
-      best = edge;
-    }
-  }
-  return best;
 }
 
 function closestPoints(p1, q1, p2, q2) {
@@ -259,38 +343,59 @@ function closestPoints(p1, q1, p2, q2) {
   ];
 }
 
-function addEdgeContact(contacts, a, b, hit, fa, fb) {
+function addEdgeContact(contacts, a, b, hit, dt) {
   const normal = hit.normal;
-  const edgeA = supportEdge(fa, hit.edges.da, normal, true);
-  const edgeB = supportEdge(fb, hit.edges.db, normal, false);
-  if (!edgeA || !edgeB) return;
-  const [ca, cb] = closestPoints(edgeA.a, edgeA.b, edgeB.a, edgeB.b);
+  const { ca, cb } = hit;
+  const coreGap = vec3.distance(ca, cb);
+  const velocityA = vec3.add(
+    vec(),
+    a.linearVelocity,
+    vec3.cross(vec(), a.angularVelocity, vec3.sub(vec(), ca, a.position)),
+  );
+  const velocityB = vec3.add(
+    vec(),
+    b.linearVelocity,
+    vec3.cross(vec(), b.angularVelocity, vec3.sub(vec(), cb, b.position)),
+  );
+  const towards = coreGap > EPS ? vec3.scale(vec(), vec3.sub(vec(), cb, ca), 1 / coreGap) : vec3.negate(vec(), normal);
+  const closing = Math.max(0, -vec3.dot(vec3.sub(vec(), velocityB, velocityA), towards));
+  if (coreGap >= RECESS + SLOP + closing * dt) return;
   contacts.push({
     a,
     b,
     surface: 'die',
     point: vec3.scale(vec(), vec3.add(vec(), ca, cb), 0.5),
     normal: Float64Array.from(normal),
-    depth: hit.depth,
+    // Core-edge distance mapped onto the rounded surfaces: surface gap = coreGap - 2r.
+    depth: RECESS - coreGap,
   });
 }
 
-function detectPair(contacts, a, b, fa, fb) {
+function detectPair(contacts, a, b, fa, fb, dt) {
   const delta = vec3.sub(vec(), a.position, b.position);
   const reach = a.radius + b.radius + BROADPHASE_MARGIN;
   if (vec3.lengthSq(delta) > reach * reach) return;
-  const hit = separatingAxis(fa, fb);
+  const length = vec3.length(delta);
+  const refDir = length > 0 ? vec3.scale(vec(), delta, 1 / length) : Float64Array.from([0, 0, 1]);
+  const hit = separatingAxis(fa, fb, refDir);
   if (!hit) return;
-  const normal = Float64Array.from(hit.normal);
-  if (vec3.dot(delta, normal) < 0) vec3.negate(normal, normal);
 
-  if (hit.edges) {
-    addEdgeContact(contacts, a, b, { ...hit, normal }, fa, fb);
-    return;
+  const before = contacts.length;
+  if (hit.face) {
+    const normal = Float64Array.from(hit.face.normal);
+    if (vec3.dot(normal, refDir) < 0) vec3.negate(normal, normal);
+    const refFrame = hit.face.owner === 'a' ? { owner: 'a', frame: fa } : { owner: 'b', frame: fb };
+    const incident = hit.face.owner === 'a' ? fb : fa;
+    addFaceContacts(contacts, a, b, normal, refFrame, incident);
   }
-  const owner = hit.owner === fa ? { owner: 'a', frame: fa } : { owner: 'b', frame: fb };
-  const incident = hit.owner === fa ? fb : fa;
-  addFaceContacts(contacts, a, b, normal, owner, incident);
+  // The closest core feature pair adds the true contact when the clipped polygon
+  // only describes a different, shallower region of the rounded shells.
+  if (hit.edge) {
+    const covered = contacts
+      .slice(before)
+      .some((contact) => vec3.distance(contact.normal, hit.edge.normal) < 1e-6);
+    if (!covered) addEdgeContact(contacts, a, b, hit.edge, dt);
+  }
 }
 
 export function detectContacts(world, dt) {
@@ -314,7 +419,7 @@ export function detectContacts(world, dt) {
     for (let j = i + 1; j < bodies.length; j += 1) {
       const a = bodies[i];
       const b = bodies[j];
-      detectPair(world.contacts, a, b, frameOf(a), frameOf(b));
+      detectPair(world.contacts, a, b, frameOf(a), frameOf(b), dt);
     }
   }
   return world.contacts;
