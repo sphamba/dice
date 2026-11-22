@@ -129,7 +129,7 @@ describe('dry impact decay targets', () => {
     const box = plateModes(A, B, A / 2, B / 2, BOX);
     const glass = plateModes(A, B, A / 2, B / 2, GLASS);
     expect(slowestT60(box)).toBeCloseTo(0.08, 6);
-    expect(slowestT60(glass)).toBeCloseTo(0.2, 6);
+    expect(slowestT60(glass)).toBeCloseTo(0.1, 6);
   });
 
   it('keeps the glass longer than the box inside the dry target', () => {

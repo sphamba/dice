@@ -15,7 +15,7 @@ export const BOX = { f11: 200, tau: t60Tau(0.08) * (1 + BOX_DAMP_HF), dampHF: BO
 
 export const GLASS = {
   f11: 900,
-  tau: t60Tau(0.2) * (1 + GLASS_DAMP_HF),
+  tau: t60Tau(0.1) * (1 + GLASS_DAMP_HF),
   dampHF: GLASS_DAMP_HF,
 };
 
