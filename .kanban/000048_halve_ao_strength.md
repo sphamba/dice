@@ -1,7 +1,7 @@
 ---
 name: "fix: halve the ambient occlusion darkening"
 priority: "medium"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "user"
 complexity: "simple"
