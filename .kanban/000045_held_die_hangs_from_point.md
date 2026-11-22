@@ -45,20 +45,14 @@ Drive only the grabbed material point toward the pointer, so gravity swings the 
 - `npm run build`
 
 # Notes
-**Live test in progress: probe phase done (25/26), grab-targeting harness bug root-caused, fixing before the full driver.**
+**Live test in progress: full driver run 1 — d4 phase 6/6 PASS; d6 grab failure + run crash root-caused as harness panel-occlusion bug; patching and re-running.**
 
-**Environment answers (front-loaded probe, /tmp/dice-lt45/results-probe.json):**
-- rAF 30 fps under SwiftShader → sim runs at the 16-substep cap = ~1.0 sim-s per wall-s; sim-clock waits behave like wall waits.
-- WebGL2 OK; viewport 1100x1100 exact: mpp 57.73 µm/px, box 63.5 mm cube, hold z 35.79 mm > 2R 27.71 mm → free hang fits in the tall viewport (D−4R = 8.07 mm clearance).
-- Quat convention: my quatRotate == repo rotateVec3 AND vec3.transformQuat (max diff 0).
-- Mouse grab HOLDS: state-based check (grabbed material point converges to pointer xy at hold z, err < 2 mm) — passes; pointerdown logged with pointerId 1, pt=mouse.
-- Synthetic PointerEvent('pointercancel') releases the held die (falls, vz −0.33 m/s) and is observed by the capture logger → usable for the pointercancel contract check.
-- Touch via CDP: two fingers → pointerdown ids 2,3 distinct; per-finger touchEnd releases only that pointer (ups [3,2] in order); pointermove fires only for fingers that actually moved (CDP semantic — probe expectation fixed).
-- Console clean (no pageerror/error) throughout.
+**Run 1 evidence (/tmp/dice-lt45/driver-run1.log, results-driver-error.json):**
+- d4 hang phase 6/6 PASS: grab holds (err 0.62 mm at +100 ms, lever 9.7 mm); CoM hangs below grab (xy 0.03 mm, rest theta 0.15 deg); one visible swing (maxDev 58.8 deg, 1 crossing); calm |w|<0.1 rad/s at 0.83 s (spec ~1.5 s); release drops (vz −0.026); settles contained and finite. The pendulum behavior itself matches the spec.
+- d6 grab FAIL: err 19.79 mm = hold z 35.79 − top face 16 exactly → the die never moved. Immediately after, the d8 phase crashed: `Remove d6` click timed out with "element is not visible" — the panel had collapsed.
 
-**Grab-miss investigation (probe's one FAIL: touch grab did not hold):**
-- My in-page pick probe had a scratch-clobbering bug (worldVertex writes into the same array twice → edge vector zero → insideFace always true) → its verdicts discarded. The app's real insideFace uses separate scratch arrays and is correct.
-- Node-side candidate analysis: chooseGrab's "65% toward highest vertex" candidates can land within micrometers of the face edge when a flat die is rotated in-plane (rotated-square footprint). Measured case: candidate 5 µm from the edge → app justifiably rejects boundary picks (FACE_EPS = 1e-9) → no hold. A second miss was 0.7-1 mm from the edge in a frame-dependent estimate (unresolved, same class).
-- Classification: harness targeting bug (edge-fragile grab points), not a product defect. Fix: grab only high-margin points (top-face centroid: 8 mm margin, lever 8 mm — sufficient for pendulum visibility), re-sample the die pose immediately before every grab, never reuse a stale grab.
+**Root cause (batch audit of all three same-signature grab failures: probe touch id 21, debug-pick mouse, this d6):** the grab screen point can land on the bottom-center panel (toggle/rows) when the die rests there. mouse.down then presses the PANEL, not the canvas: the canvas logger shows no pointerdown → the app's pick never runs → the die never moves (err exactly holdZ − face z). The stray press also toggles the panel collapsed, which killed the next phase's Remove-click. Classification: harness bug (missing occlusion guard), not a product defect. The one non-occlusion failure (debug-touch, candidate 5 µm from the face edge) predates the margin filter and is a boundary coin flip the app rightly rejects.
 
-**Progress:** source inspection done; probe done (25/26, the one FAIL is the harness targeting bug above); no product defects found yet; no kanban cards filed yet. Next: add a margin filter to chooseGrab + re-run the probe (expect 26/26), then write the full driver: hang per die type, CoM-below-grab, swing after 20 mm move with calm ≤ 1.5 s, hold height D−2R, floor/other-die contact while held (1280x800 shallow viewport), fling + 3 m/s clamp (exact replica of flingVelocity from logged pointer samples), multi-pointer dominance + single-entry release, pointercancel, roll exclusion, NaN/containment guards.
+**Fix (in progress):** grabAndHold gains (1) elementFromPoint === 'view' check before every down, (2) canvas-pointerdown verification after a no-converge (respawn if the canvas saw nothing or the die never moved), (3) mouse-up + re-spawn retry (3 attempts, re-randomizes the rest position); clickStep self-heals a collapsed panel; the swing/fling/cancel/shallow/multi regrabs get the same guard. Then a full re-run of the driver.
+
+**Progress:** probe 26/26; run 1: 7/8 checks passed before the crash, d4 pendulum fully validated; no product defects found so far; no kanban cards filed. Next: patch, full re-run, results table + wrap-up (defect cards if any, kill servers, unique result ids).
