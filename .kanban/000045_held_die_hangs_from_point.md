@@ -1,12 +1,14 @@
 ---
 name: "feat: let a held die hang from the grabbed point under gravity"
 priority: "medium"
-state: "merging"
+state: "to-live-test"
 worktree: "feat/45-held-die-hangs-from-point"
 issuer: "user"
 complexity: "moderate"
 shortName: "held-die-hangs-from-point"
 splitter: "done"
+changes: "{\"base\":\"main\",\"ins\":171,\"del\":100,\"files\":2}"
+commits: "[{\"hash\":\"b1d53ed\",\"subject\":\"feat(input): hang a held die from the grabbed point under gravity\",\"when\":\"2026-11-22T11:52:33+01:00\"}]"
 ---
 
 # Summary
