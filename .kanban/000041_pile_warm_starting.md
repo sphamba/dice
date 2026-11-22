@@ -37,23 +37,16 @@ Persist solved contact impulses across steps and reuse them to warm start the so
 - `npx vitest run src/physics`
 
 # Notes
-## Deliverable
-- `src/physics/contacts.js`: `solveContacts` caches the prepared contacts with their solved impulses in `world.contactCache` and clears it on a step without contacts. Each new contact warm starts from the cached contact with the same body pair and surface, point within `WARM_START_DISTANCE` (1 mm) and normal dot above `WARM_START_NORMAL_DOT` (0.99): the normal impulse starts at the old value and is applied before the iterations, the old friction impulse is projected onto the new tangents and clamped to the friction disk of that normal impulse.
-- `warmStartImpulses` is exported as the pure matching and clamping decision so the tests can assert the starting values.
-- No change to friction, restitution, Baumgarte, `SOLVER_ITERATIONS`, `FIXED_DT`, `world.js` or `src/input/*`. No module-level mutable state.
+## Review outcome: fixed
 
-## Verification
-- HEAD `147d43a`; `npx vitest run src/physics` → 8 files, 80 tests passed.
-- `npm run build` green; `dist/index.html` references `./assets/index-BIsGiyBQ.js` and `./assets/index-DA_12YQk.css`.
-- Probe, 10 mixed dice, 20 degrees tilted gravity, 5 s, max angular speed: HEAD 0.082 / 0.112 / 1.347 rad/s at 3 / 4 / 5 s, with the change 0.019 / 0.020 / 0.016 rad/s. The reported rocking is gone and the pile stays settled.
+- Violation found and fixed in commit 6497126: `findCached` passed the prepared `{direction, impulse}` object to `vec3.dot` instead of `cached.normal.direction`, so the dot check evaluated to NaN and `NaN <= 0.99` never rejected. Any contact with the same body pair, surface and point within 1 mm warm started regardless of normal (probe: cached normal [1,0,0], fresh [0,0,1] still carried the 0.02 impulse). Hit hardest for die-die contacts whose normals change between steps. Fixed to compare `cached.normal.direction` and added a regression test for the disagreeing-normal case.
+- Rest matches the Specs: cache lives on `world.contactCache` (prepared objects mutated in place, so end-of-solve impulses), matching uses pair + surface + 1 mm point + dot > 0.99, normal impulse applied before the iterations, friction projected onto the new tangents and clamped to the friction disk, unmatched contacts start at zero, cache cleared on contact-less steps, no changes to friction, restitution, Baumgarte, iterations, dt, world.js or input, no module-level mutable state.
+- Verified after the fix: `npx vitest run src/physics` → 8 files, 81 tests passed; `npm run build` green; probe confirms the dot filter now rejects orthogonal normals.
 
-## Assumptions
-- The cache holds the step's prepared contact objects, so the cached shape is `{a, b, surface, point, normal: {direction, impulse}, tangents: [{direction, impulse}]}`.
-- The restitution target is computed before the warm start is applied, so the approach speed of the step is unchanged by warm starting.
-- Matching reads the new contact normal for its tangent basis, which agrees with the prepared tangent directions.
+## Guidance for future reviewers
 
-## Blockers
-- None.
+- When a Spec names a numeric match predicate, probe it with an off-by-construction input (for example orthogonal normals) instead of trusting fixtures that mirror the production shape; here the fixtures reproduced the bug's blind spot and all tests stayed green.
 
-## Manual checks left to other roles
-- Live feel of the tilted pile in the browser.
+## Deferred to live testing
+
+- Browser feel of the tilted pile (rocking gone, settling within the iteration budget).
