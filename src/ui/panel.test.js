@@ -66,6 +66,7 @@ const stubDocument = {
   activeElement: null,
   listeners: new Map(),
   createElement: (tag) => new StubElement(tag),
+  createElementNS: (_ns, tag) => new StubElement(tag),
   addEventListener(type, listener) {
     if (!this.listeners.has(type)) this.listeners.set(type, []);
     this.listeners.get(type).push(listener);
@@ -80,6 +81,13 @@ const keyDown = (init) => {
   for (const listener of stubDocument.listeners.get('keydown') ?? []) listener(event);
   return event;
 };
+
+const childrenByTag = (root, tagName) =>
+  root.children.filter((child) => child.tagName === tagName.toUpperCase());
+
+const usesCurrentColor = (root) =>
+  [...root.attributes.values()].includes('currentColor') ||
+  root.children.some((child) => usesCurrentColor(child));
 
 const byClass = (root, className) => {
   if (String(root.className).split(' ').includes(className)) return root;
@@ -164,7 +172,7 @@ describe('createPanel disclosure', () => {
     expect(toggle.tagName).toBe('BUTTON');
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     expect(toggle.getAttribute('aria-controls')).toBe(rows.id);
-    expect(toggle.textContent).toBe('Show controls');
+    expect(toggle.getAttribute('aria-label')).toBe('Show controls');
     expect(rows.hidden).toBe(true);
     expect(roll.hidden).toBe(false);
   });
@@ -176,14 +184,26 @@ describe('createPanel disclosure', () => {
     toggle.click();
     expect(rows.hidden).toBe(false);
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
-    expect(toggle.textContent).toBe('Hide controls');
+    expect(toggle.getAttribute('aria-label')).toBe('Hide controls');
 
     toggle.click();
     expect(rows.hidden).toBe(true);
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
-    expect(toggle.textContent).toBe('Show controls');
+    expect(toggle.getAttribute('aria-label')).toBe('Show controls');
     expect(byClass(rows, 'panel-count').textContent).toBe(count);
     expect(panel.getSet()).toEqual(setOf({ d6: 2 }));
+  });
+
+  it('draws one hidden icon and no visible text on each corner button', () => {
+    const { toggle, roll } = mount();
+    for (const button of [toggle, roll]) {
+      const icons = childrenByTag(button, 'svg');
+      expect(icons).toHaveLength(1);
+      expect(icons[0].getAttribute('aria-hidden')).toBe('true');
+      expect(usesCurrentColor(icons[0])).toBe(true);
+      expect(button.textContent).toBe('');
+    }
+    expect(roll.getAttribute('aria-label')).toBe('Roll dice');
   });
 
   it('keeps a single document key listener across toggles', () => {

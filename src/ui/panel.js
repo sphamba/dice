@@ -58,6 +58,49 @@ function writeStorage(set) {
   }
 }
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+const DIE_SHAPE = [
+  ['rect', { x: '3', y: '3', width: '18', height: '18', rx: '4', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }],
+  ...[8, 16].map((x) => ['circle', { cx: String(x), cy: '8', r: '1.6', fill: 'currentColor' }]),
+  ['circle', { cx: '12', cy: '12', r: '1.6', fill: 'currentColor' }],
+  ...[8, 16].map((x) => ['circle', { cx: String(x), cy: '16', r: '1.6', fill: 'currentColor' }]),
+];
+
+const SLIDERS_SHAPE = [
+  ...[6, 12, 18].map((y, index) => [
+    'line',
+    {
+      x1: '4',
+      y1: String(y),
+      x2: '20',
+      y2: String(y),
+      stroke: 'currentColor',
+      'stroke-width': '2',
+      'stroke-linecap': 'round',
+    },
+  ]),
+  ...[14, 9, 16].map((x, index) => [
+    'circle',
+    { cx: String(x), cy: String([6, 12, 18][index]), r: '2.4', fill: 'currentColor' },
+  ]),
+];
+
+function buildIcon(shape) {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('width', '24');
+  svg.setAttribute('height', '24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  for (const [tag, attributes] of shape) {
+    const node = document.createElementNS(SVG_NS, tag);
+    for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, value);
+    svg.append(node);
+  }
+  return svg;
+}
+
 function buildRow(type, set, onChange) {
   const row = document.createElement('div');
   row.className = 'panel-row';
@@ -139,16 +182,19 @@ export function createPanel(root, { initialSet, onAdd, onRemove, onRoll } = {}) 
   const toggle = document.createElement('button');
   toggle.type = 'button';
   toggle.className = 'panel-toggle';
-  toggle.textContent = 'Show controls';
   toggle.setAttribute('aria-expanded', 'false');
   toggle.setAttribute('aria-controls', ROWS_ID);
+  toggle.append(buildIcon(SLIDERS_SHAPE));
+
+  const toggleLabel = (shown) => (shown ? 'Hide controls' : 'Show controls');
+  toggle.setAttribute('aria-label', toggleLabel(false));
 
   let expanded = false;
   toggle.addEventListener('click', () => {
     const wasInRows = rows.contains(document.activeElement);
     expanded = !expanded;
     rows.hidden = !expanded;
-    toggle.textContent = expanded ? 'Hide controls' : 'Show controls';
+    toggle.setAttribute('aria-label', toggleLabel(expanded));
     toggle.setAttribute('aria-expanded', String(expanded));
     if (!expanded && wasInRows) toggle.focus();
   });
@@ -174,8 +220,8 @@ export function createPanel(root, { initialSet, onAdd, onRemove, onRoll } = {}) 
   const roll = document.createElement('button');
   roll.type = 'button';
   roll.className = 'panel-roll';
-  roll.textContent = 'Roll';
   roll.setAttribute('aria-label', 'Roll dice');
+  roll.append(buildIcon(DIE_SHAPE));
   roll.addEventListener('click', () => onRoll?.());
 
   panel.append(toggle, rows, roll);
