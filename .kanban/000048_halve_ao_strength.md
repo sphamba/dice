@@ -33,9 +33,18 @@ The GTAO contact darkening is too strong. Add an AO strength constant of 0.5 so 
 - Live check (browser): the contact darkening next to a flat-resting d6 is about half of its value on main, it is still symmetric, and there are no console or GL errors.
 
 # Notes
-## PM hint
-- Last release. Run the one decisive probe, then the paired head/base run. Stop after 10 minutes at most.
-- If the die-position mismatch stays unexplained, sample only the floor points that read as floor on BOTH sides (exclude any point whose luma matches the die colour) and use the affine check `luma_head = 0.5*luma_base + 0.5*L0` (tolerance 1 luma) on those points. That is enough evidence.
-- File a card only if the rendered die position does not match the world position after the world has slept (that would be a product defect). Otherwise finish with the results table.
+## Live-test progress (held at watch checkpoint #4)
 
-**State:** shader needles pass on both servers. Panel toggle handled. Probes P1-P5 green, glErr 0, console clean. Flat-floor shading is affine in ao (P50==P95==49.333), so the fix predicts darkening ratio 0.5 at every floor point. Open harness issue: in 5 of 6 smoke attempts the mapped die centre read as floor.
+**Scope unchanged:** live check only — 2 mm contact darkening next to a flat-resting d6 ≈ half of pre-fix, symmetric, no console/GL errors. No unit suites, no code edits.
+
+**Design:** floor points only, positioned from the world quat: 4 near points 2 mm outside each die edge (10 mm from the die axis along the two horizontal body axes), 1 reference point beyond AO_RADIUS (16.63 mm) in the clearest direction, plus P95 floor luma as the unoccluded level L0. Flat-floor shading is affine in `ao` with globally constant unoccluded luma (measured P50==P95==49.333), so under the fix the exact relation `luma_head = 0.5*luma_base + 0.5*L0` and darkening ratio 0.5 hold at every floor point, wall AO included. Determinism (seed 20261122 + fixed `world.update(0.1)` rewrite) makes head and base scenes identical (R5 measured dPos=0.000 mm).
+
+**Breakthrough since last checkpoint:**
+- The decisive probe (probe2: full-frame PPM dump + raw 3x3/5x5 RGB grids) pinned the earlier "die centre reads as floor" bug: a coordinate-convention mismatch in MY readback helper, NOT a product defect. The die renders exactly at the world position (rendered css (445,707) vs mapped (446.5,709.3), ~2 px). No card needed. Driver now computes all sample points in css space (worldToCss) with the world-y offset sign flipped for css (y grows downward).
+- FULL PAIRED RUN COMPLETED (full1.log). Core acceptance is GREEN where sample points were valid:
+  - R1 darkening ratio per edge point: 0.494 / 0.497 / 0.500 (target ~0.5) on the 3 valid points.
+  - R2 exact-halving residual: 0.093 / 0.037 / 0.001 lum (tolerance 0.75) on the same points.
+  - R5 seeded head/base die positions identical (0.000 mm). R6 L0 equal (49.333 both). R7/R8 console+GL clean on both sides (only the harness-induced ReadPixels perf warning).
+- Remaining FAILs are all one harness issue: the reference-point distance used `|px|`, collapsing the +x and −x directions to the worst side, so the ref point never validated (refOk=false in all 12 attempts), and invalid (−1) pairs polluted the R1 mean, R3 mean and R4 spread. Fixed both just now: signed per-axis wall distance for the ref direction, and PM-hint filtering (drop points that are not floor on both sides before averaging). Near points can legitimately be invalid when the die rests close to a wall (the 2 mm point falls outside the tray); those attempts still have other valid points.
+
+**Next on release:** rerun MODE=full once (expect all R1-R8 green: R4 valid-point spread is 0.097 vs 0.5 limit). Then final notes + results table, no cards (no product defects found).
