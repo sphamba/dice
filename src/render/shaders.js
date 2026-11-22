@@ -3,7 +3,6 @@
 
 const LIGHTING_FS = `
 uniform vec3 uLightDir;
-uniform vec3 uEye;
 uniform float uAmbient;
 uniform float uIntensity;
 uniform float uDirectAo;
@@ -42,7 +41,10 @@ vec3 litColor(vec3 base) {
   vec3 toLight = -uLightDir;
   float ndotl = dot(n, toLight);
   float diffuse = max(ndotl, 0.0);
-  vec3 viewDir = normalize(uEye - vWorldPos);
+  // Orthographic top-down camera: the toward-eye vector is constant (+z) for
+  // every fragment. A point-eye viewDir here would put a position-dependent
+  // specular pool on the floor.
+  vec3 viewDir = vec3(0.0, 0.0, 1.0);
   vec3 halfDir = normalize(viewDir + toLight);
   float specular = pow(max(dot(n, halfDir), 0.0), 40.0) * 0.22 * step(0.0, ndotl);
   float ao = sampleAo();

@@ -54,7 +54,7 @@ const CLEAR_COLOR = [0.078, 0.082, 0.102];
 
 const GTAO_UNIFORMS = ['uNormalTex', 'uDepthTex', 'uHalfExtents', 'uTexelWorld', 'uAoSize', 'uDepthRange', 'uRadius', 'uFalloffMul', 'uFalloffAdd', 'uMinDist'];
 const BLUR_UNIFORMS = ['uAoTex', 'uDepthTex', 'uDepthRange', 'uBlurDz'];
-const LIGHT_UNIFORMS = ['uLightDir', 'uEye', 'uAmbient', 'uIntensity', 'uDirectAo', 'uAo', 'uAoDepth', 'uAoSize', 'uViewport', 'uDepthRange'];
+const LIGHT_UNIFORMS = ['uLightDir', 'uAmbient', 'uIntensity', 'uDirectAo', 'uAo', 'uAoDepth', 'uAoSize', 'uViewport', 'uDepthRange'];
 const FLOOR_UNIFORMS = ['uViewProj', 'uHalfExtents', 'uColor', ...LIGHT_UNIFORMS];
 const DICE_UNIFORMS = ['uViewProj', 'uModel', 'uColor', 'uAtlas', ...LIGHT_UNIFORMS];
 
@@ -109,7 +109,6 @@ export function createRenderer(gl) {
   let box = null;
   let viewport = [0, 0];
   let viewProjection = null;
-  let eye = null;
   const model = mat4.create();
 
   function buildResources() {
@@ -240,7 +239,6 @@ export function createRenderer(gl) {
   function setLightUniforms(uniforms, options, direction, depthRange) {
     const [aoW, aoH] = aoSetup?.size ?? [1, 1];
     gl.uniform3fv(uniforms.uLightDir, direction);
-    gl.uniform3fv(uniforms.uEye, eye);
     gl.uniform1f(uniforms.uAmbient, options.ambient);
     gl.uniform1f(uniforms.uIntensity, options.intensity);
     gl.uniform1f(uniforms.uDirectAo, DIRECT_AO);
@@ -347,7 +345,6 @@ export function createRenderer(gl) {
       viewport = [pixelW, pixelH];
       box = nextBox;
       const camera = createCamera(box);
-      eye = camera.eye;
       viewProjection = mat4.multiply(mat4.create(), camera.projection, camera.view);
       if (!aoSetup) return;
       try {

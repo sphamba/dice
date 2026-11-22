@@ -77,7 +77,7 @@ describe('AO source check', () => {
   it('keeps shadow uniforms and helpers out of the render sources', () => {
     for (const file of ['shaders.js', 'renderer.js']) {
       const source = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8');
-      for (const token of ['uShadowMap', 'uLightViewProj', 'shadowFactor', 'drawShadowPass', 'createLightViewProjection']) {
+      for (const token of ['uShadowMap', 'uLightViewProj', 'shadowFactor', 'drawShadowPass', 'createLightViewProjection', 'uEye - vWorldPos']) {
         expect(source, `${file} contains ${token}`).not.toContain(token);
       }
     }
