@@ -1,12 +1,14 @@
 ---
 name: "fix: remove the sharp hull pixels outside the rounded die silhouette"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/59-rounded-silhouette-transparent"
 issuer: "user"
 complexity: "moderate"
 shortName: "rounded-silhouette-transparent"
 splitter: "done"
+changes: "{\"base\":\"main\",\"ins\":10,\"del\":4,\"files\":2}"
+commits: "[{\"hash\":\"1f22e07\",\"subject\":\"fix: discard dice fragments outside the rounded silhouette\",\"when\":\"2026-11-22T20:42:18+01:00\"}]"
 ---
 
 # Summary
