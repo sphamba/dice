@@ -1,13 +1,15 @@
 ---
 name: "feat: make impact sound intensity proportional to the impulse"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "feat/62-sound-proportional-impulse"
 issuer: "user"
 complexity: "simple"
 shortName: "sound-proportional-impulse"
 blockedBy: ""
 splitter: "done"
+changes: "{\"base\":\"main\",\"ins\":121,\"del\":57,\"files\":2}"
+commits: "[{\"hash\":\"c2b2da2\",\"subject\":\"fix: use the raw clipper curve without oversampling\",\"when\":\"2026-11-22T23:21:47+01:00\"},{\"hash\":\"67f439c\",\"subject\":\"fix: bound the impact output with a symmetric soft clipper\",\"when\":\"2026-11-22T23:04:57+01:00\"}]"
 ---
 
 # Summary
