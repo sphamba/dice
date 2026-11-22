@@ -1,7 +1,7 @@
 ---
 name: "fix: place the d4 numbers flush with the rounded edges"
 priority: "high"
-state: "reviewing"
+state: "to-merge"
 worktree: "fix/61-d4-numbers-flush-edges"
 issuer: "user"
 complexity: "simple"
@@ -39,23 +39,10 @@ Do not change the number size, the labels of other dice, the carve method, the b
 - A zoomed screenshot of a d4 face shows the three numbers close to the rounded edges, legible and with no ink on the rounded band. Record the file path in Notes.
 
 # Notes
-## Deliverable
-- `src/dice/labels.js`: `D4_LABEL_CENTER` 0.21 -> 0.305. `D4_MAX_WIDTH` and `D4_MAX_HEIGHT` unchanged, so the em stays 3.533 mm. Comment updated to speak of the digit ink, not the glyph box.
-- `src/dice/labels.test.js`: the 0.3 mm margin on the 0.56 x 0.71 em glyph box is replaced by the real outline of the limiting digit 4 (Arimo Bold, second contour included) in font em, with the Chromium-measured advance 0.55615234375 and `textBaseline='middle'` offset 0.31 em. The check pins the ink clearance in 0.10 to 0.25 mm. Neighbour gap (0.2 mm), em (3.5 mm) and box-separation checks unchanged.
-- `src/physics/body.js`: the `BEVEL_RADIUS` comment no longer claims that the d4 number tips reach into the rounded band.
-- Commit `20f7129` on `fix/61-d4-numbers-flush-edges`.
-
-## Verification
-- Red first: the new ink test failed at `D4_LABEL_CENTER = 0.21` with 0.0006443 m (probe and test agreed), then passed after the constant change.
-- `npx vitest run src/dice`: 84 passed. `npm test`: 367 passed in 28 files. `npm run build`: OK, `dist/assets/index-BXf4sC4d.js`.
-- Chromium live check on the real label atlas (OffscreenCanvas path, ink = alpha > 0), own Vite dev server on 127.0.0.1:5199, killed after the run: worst ink-to-flat-triangle distance 0.1507 mm (limiting digit 4 on face 2, next tightest 0.1593), all 12 labels carry ink, 0 ink pixels outside the flat triangle, pixel scale 0.040825 mm/px. Measured value sits on the spec target of 0.15 mm, so no second constant change was needed.
-- Measurement plumbing validated on a synthetic square whose near edge was 0.5 mm inside a face edge: 0.5338 mm.
-- Zoomed screenshot, real atlas face cell at 4x with the flat triangle border in red: `/tmp/live-check/d4-atlas-cell-zoom.png` (and `-4x.png`). Rendered scene with three d4 after a roll: `/tmp/live-check/d4-roll1.png` (also `d4-settled.png`, `d4-roll2.png`, `d4-roll3.png`). Numbers sit close to the rounded edges, legible, no ink on the rounded band.
-- No page console errors during load, measurement or three rolls.
-
-## Assumptions
-- The Chrome `textBaseline='middle'` offset is font-metric and stable at 0.31 em for Arimo Bold; the test freezes it as a constant, so a font-metric change would show as a test drift.
-- A d4 seen from the fixed orthographic top camera never shows a face face-on (it rests on a face with a vertex up), so the atlas cell zoom is the closest available face-on evidence, next to the rendered scene shots.
-
-## Blockers
-None.
+- Spec 1: `D4_LABEL_CENTER = 0.305` with `D4_MAX_WIDTH`/`D4_MAX_HEIGHT` untouched (src/dice/labels.js:25-27), em stays 3.533 mm; comment now speaks of digit ink, not the glyph box.
+- Spec 3: the 0.3 mm box-margin test replaced by the real Arimo Bold digit-4 ink (two contours in em coords) mapped through the recorded paint transform (labels.test.js `D4_INK`, `glyphInk`); clearance pinned in [0.10, 0.25] mm (labels.test.js:327-328, 462-468). Gap (0.2 mm), em (3.5 mm) and box-separation checks unchanged.
+- Spec 4: src/physics/body.js comment no longer claims the number tips reach into the rounded band.
+- Spec 2: Chromium live measurement accepted from the developer's Notes: worst ink clearance 0.1507 mm (limiting digit 4, face 2), inside the 0.12-0.22 mm window, so no second constant change; screenshot at /tmp/live-check/d4-atlas-cell-zoom.png recorded. Screenshot review and rendered-scene feel deferred to the live-tester.
+- Red-first re-verified by A/B: with the constant restored to 0.21 the new test fails with worstMargin 0.0006443056 m, identical to the recorded red value; green after restoring 0.305.
+- Evidence: npx vitest run src/dice 84 passed; npm test 367 passed in 28 files; npm run build OK (dist/assets/index-BXf4sC4d.js). Scope limits hold: no size, other-dice, carve, bevel or geometry changes; carve.test.js follows D4_LABEL_CENTER via import and stays green.
+- Outcome: approved. No open questions.
