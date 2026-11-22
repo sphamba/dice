@@ -2,7 +2,7 @@
 name: "fix: place the d4 numbers flush with the rounded edges"
 priority: "high"
 state: "done"
-worktree: "fix/61-d4-numbers-flush-edges"
+worktree: ""
 issuer: "user"
 complexity: "simple"
 shortName: "d4-numbers-flush-edges"
