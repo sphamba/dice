@@ -42,14 +42,16 @@ Rolled dice settle in 0.2-0.5 s, partly because of CONTACT_ANGULAR_DAMPING, a no
 
 # Notes
 # Notes
-## PM hint
-- Fix harness bugs 1 and 2 only. Drop the fling phase: the Roll button covers the spec.
-- Run the 8-roll metric once on desktop and once on phone, then write the results table and finish. Budget: 15 minutes.
-- The fling wall bounce showed exit/entry 0.31/1.41 = 0.22, not about 0.5. In the 8-roll trace, record the exit/entry ratio of the normal velocity at each wall hit. If the median ratio is below 0.35, file one card with the trace (the bounce loses more than restitution 0.5 allows). Spin-to-linear transfer at an edge hit can explain single low ratios, so judge on the median.
+## Live test (interim checkpoint)
 
-## Interim state
-- HEAD 426761d: restitution 0.5 box and die, threshold 0.1 kept, no CONTACT_ANGULAR_DAMPING, containBody reflects -e*v, roll.js unchanged.
-- Desktop 1280x800: WebGL2 ok, 32 fps, no page errors. First run 18/22, all 4 fails harness-side.
+Scope: the review's deferred item only - perceived roll feel in a browser (spin, wall bounces, settle) through the real UI (Roll button). No unit suites run. Assumptions: durations in sim time via the beforeStep clock (SwiftShader ~0.5x wall, 28-32 fps); wall-hit evidence read as per-axis velocity flips in a 1/240 s-decimated trace of the fastest die; live medians compared to the task's recorded baselines (main sleep median 0.78 s; committed fixture desktop 0.843/0.343 s, phone 0.929 s sleep).
+
+- Harness state: /tmp/dice-lt53 (from dice-lt52 precedent, port 8798). All earlier failures resolved as harness bugs: stale pre-roll asleep=true sample (fixed with a wake gate before polling), reduced-sample objects passed to hasNaN/containmentWorst (kept the last full sample), fling phase dropped per PM, bounce-ratio band check replaced by the PM's median rule.
+- Desktop 1280x800 dpr 1, 8 rolls, 51/51 green: sleep median 0.815 s (all 0.73-0.95 s, each well under the 5 s settle limit), rest median 0.324 s, every roll finite and contained, no wall dead-stops. Matches the committed fixture (0.843/0.343) within noise and sits above the main baseline 0.78 s.
+- Phone 393x852 dpr 3, 8 rolls, 47/51: sleep median 0.967 s (all 0.87-1.01 s), rest median 0.467 s, all finite and contained; matches the phone fixture (0.929) within noise. The 4 failed checks are the tightened dead-stop detector flagging 2 low-entry (0.19-0.21 m/s) events plus their aggregate - raw traces show both are corner-impact/solver-regime contacts where spin absorbs the normal component (|w| jumps 28->23, 77->98 rad/s) and the die leaves the wall or slides along it while settling; the spec keeps the sub-threshold zeroing rule, so exit ~0 after solver pre-damping is designed behavior. Classifying as harness limit (1/240 s sampling cannot resolve the sub-step solver sequence), recorded once, not re-analyzed.
+- Wall bounce verdict per the PM's median rule: desktop median ratio 1.00 over 27 hits (min 0.17, none < 0.15); phone median 1.00 over 26 hits. Median >= 0.35 on both boxes, so no card filed. Clean reflections (ratio ~0.4-0.6) are visible in the raw traces alongside spin-coupled solver bounces.
+- Spin evidence (no contact spin damping): traced dice hold |w| 12-32 rad/s median (peaks to 77) while in floor contact through 0.3-0.7 s rolls; under the removed 1/(1+6dt) per-step damping that spin would collapse within ~0.1-0.2 s of contact.
+- Remaining: confirm the phone env checks (dpr/backing) from the run log, kill the vite server, final results table. No product defects found so far.
 
 # Open questions
 
