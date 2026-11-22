@@ -45,29 +45,20 @@ Drive only the grabbed material point toward the pointer, so gravity swings the 
 - `npm run build`
 
 # Notes
-## Live test in progress: setup phase complete
+**Live test in progress: probe phase done (25/26), grab-targeting harness bug root-caused, fixing before the full driver.**
 
-**Scope (from Summary/Specs):** hang a held die from the grabbed point under gravity (pendulum), swing calms in ~1 s, hold height D-2R, contacts active while held, fling/release/pointercancel/multi-pointer contracts kept. Unit-test suites and frame-rate matrix are excluded (not live-test scope).
+**Environment answers (front-loaded probe, /tmp/dice-lt45/results-probe.json):**
+- rAF 30 fps under SwiftShader → sim runs at the 16-substep cap = ~1.0 sim-s per wall-s; sim-clock waits behave like wall waits.
+- WebGL2 OK; viewport 1100x1100 exact: mpp 57.73 µm/px, box 63.5 mm cube, hold z 35.79 mm > 2R 27.71 mm → free hang fits in the tall viewport (D−4R = 8.07 mm clearance).
+- Quat convention: my quatRotate == repo rotateVec3 AND vec3.transformQuat (max diff 0).
+- Mouse grab HOLDS: state-based check (grabbed material point converges to pointer xy at hold z, err < 2 mm) — passes; pointerdown logged with pointerId 1, pt=mouse.
+- Synthetic PointerEvent('pointercancel') releases the held die (falls, vz −0.33 m/s) and is observed by the capture logger → usable for the pointercancel contract check.
+- Touch via CDP: two fingers → pointerdown ids 2,3 distinct; per-finger touchEnd releases only that pointer (ups [3,2] in order); pointermove fires only for fingers that actually moved (CDP semantic — probe expectation fixed).
+- Console clean (no pageerror/error) throughout.
 
-**Constants table (printed from source, file:line, value, unit, consumer):**
-- DIE_RADIUS = 0.016·√3/2 = 13.856 mm (src/physics/body.js:7) — every die's circumradius; hold height, lever bound.
-- mpp = dpr·0.0254/440 = 57.73 µm/px → 17.32 px/mm at dpr 1 (src/physics/box.js:1); box D = min(W,H) (box.js:14).
-- Hold z = D − 2·DIE_RADIUS (src/input/pointer.js drive, target[2]; z unclamped, xy clamped MAX_DRAG_SPEED = 2 m/s).
-- HOLD_DAMPING = 120 1/s (pointer.js:20), HOLD_SWING_DAMPING = 12 1/s (pointer.js:24), MAX_FLING_SPEED = 3 m/s (:13), MAX_FLING_SPIN = 60 rad/s (:15), FLING_WINDOW_MS = 80 ms (:17).
-- FIXED_DT = 1/480 (world.js:8), MAX_STEPS = 16 (:11), SLEEP_SPEED/SLEEP_TIME = 0.01/0.5 s (:14-15).
-- world.step calls beforeStep (the drive) before the asleep check (world.js:139-144) → held die wakes a sleeping world; sim-clock wrapper advances even while asleep.
-- DEFAULT_SET = {d6: 2} (ui/panel.js:5); ROLL_SPEED_MIN = 0.8 m/s (roll.js:4) for the roll-exclusion check; gravity [0,0,−9.81], no tilt in scope.
+**Grab-miss investigation (probe's one FAIL: touch grab did not hold):**
+- My in-page pick probe had a scratch-clobbering bug (worldVertex writes into the same array twice → edge vector zero → insideFace always true) → its verdicts discarded. The app's real insideFace uses separate scratch arrays and is correct.
+- Node-side candidate analysis: chooseGrab's "65% toward highest vertex" candidates can land within micrometers of the face edge when a flat die is rotated in-plane (rotated-square footprint). Measured case: candidate 5 µm from the edge → app justifiably rejects boundary picks (FACE_EPS = 1e-9) → no hold. A second miss was 0.7-1 mm from the edge in a frame-dependent estimate (unresolved, same class).
+- Classification: harness targeting bug (edge-fragile grab points), not a product defect. Fix: grab only high-margin points (top-face centroid: 8 mm margin, lever 8 mm — sufficient for pendulum visibility), re-sample the die pose immediately before every grab, never reuse a stale grab.
 
-**Observation plan (committed):**
-- Two viewports: 1100×1100 (box D = 63.5 mm, hold z = 35.8 mm > 27.7 mm full hang reach) for the strict pendulum checks with no floor interference; 1280×800 default desktop (box D = 46.2 mm, hold z = 18.5 mm < 27.7 mm) for the deferred shallow-box case: held die resting on the floor / touching another die.
-- Sim clock + per-substep trace via a wrapped world.beforeStep (decimated rows: t, p, v, w of the held body), armed before each trigger.
-- Grab validation: Node-side replica of pointer.js pickFace (topmost face through the click xy, boundary-inclusive insideFace) computes the expected body-local grab offset from the pre-grab sample; after settle, that material point's world position must be within 1 mm of (pointer xy, D−2R). CoM-below-grab via |p.xy − target| < 1 mm. Calm: last trace t with |w| ≥ 0.1 rad/s ≤ trigger + 1.5 s.
-- Injections: CDP mouse, CDP touch (two fingers for #18 duplicate holds), synthetic PointerEvent('pointercancel') with pointerId observed from a capture-phase event logger; pointer-sample times from the logger give an exact flingVelocity replica for release checks.
-- Preconditions from precedent harnesses (/tmp/dice-lt43): vite on an uncommon port, spy on createWorld via served-main.js route rewrite, panel rows revealed via .panel-toggle, software-GL launch args, waits keyed on sim time.
-
-**Assumptions so far (will be restated in the final report):**
-- The default 1280×800 box is "shallow": a near-vertex grab at hold height 18.5 mm cannot reach the full vertical hang (needs 27.7 mm), so a floor-propped lean there is user-accepted; strict pendulum numbers are verified in the tall viewport.
-- Grabbing at a validated near-top-vertex surface point (max-lever valid pick) stands in for the unit tests' "top-face corner" grab.
-- Pointer injection via CDP/synthetic events represents real user input.
-
-**Progress:** source inspection and harness design done; no defects found yet; no kanban cards filed yet. Next: write shared harness + front-loaded probe (env unknowns: rAF fps under software GL, WebGL2, touch/synthetic event injection, helper shapes), smoke run, then the full check suite (hang per die type, swing after 20 mm move, wake-from-sleep, hold height, floor/other-die contact while held, fling + 3 m/s clamp, pointercancel, multi-pointer dominance and single-entry release, roll exclusion).
+**Progress:** source inspection done; probe done (25/26, the one FAIL is the harness targeting bug above); no product defects found yet; no kanban cards filed yet. Next: add a margin filter to chooseGrab + re-run the probe (expect 26/26), then write the full driver: hang per die type, CoM-below-grab, swing after 20 mm move with calm ≤ 1.5 s, hold height D−2R, floor/other-die contact while held (1280x800 shallow viewport), fling + 3 m/s clamp (exact replica of flingVelocity from logged pointer samples), multi-pointer dominance + single-entry release, pointercancel, roll exclusion, NaN/containment guards.
