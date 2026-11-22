@@ -17,7 +17,7 @@ const EPS = 1e-9;
 const FACE_COUNT = { d4: 4, d6: 6, d8: 8, d10: 10, d12: 12, d20: 20 };
 const PIP_COUNT = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6 };
 const PIP_RADIUS_FRACTION = 0.13;
-const PIP_OFFSET_FRACTION = 0.42;
+const PIP_OFFSET_FRACTION = 0.38;
 const D6_COLOR = [0.78, 0.22, 0.18];
 
 const IDENTITY = [1, 0, 0, 1, 0, 0];
@@ -474,6 +474,48 @@ describe('buildLabelAtlas d4 flat-face fit', () => {
 
   it('draws numbers of at least 3.5 mm em', () => {
     expect(measureD4().minEm).toBeGreaterThanOrEqual(D4_MIN_EM);
+  });
+});
+
+const D6_CLEARANCE_MIN = 0.0001;
+const D6_CLEARANCE_MAX = 0.0003;
+
+// Smallest distance from any d6 pip ink, padded by one atlas texel, to the
+// border of the flat square (the face plane minus the rounded edge band).
+function measureD6Clearance() {
+  const shape = createShape('d6', DIE_RADIUS);
+  const { atlas, ellipses } = recordAtlas(shape, D6_COLOR);
+  const { size, rects } = atlas;
+  let min = Infinity;
+  let index = 0;
+  shape.faces.forEach((face, f) => {
+    const frame = faceFrame(shape, face);
+    const rect = rects[f];
+    const centerX = (size * (rect.u0 + rect.u1)) / 2;
+    const centerY = size * (1 - (rect.v0 + rect.v1) / 2);
+    const sx = (size * (rect.u1 - rect.u0)) / (2 * frame.radius);
+    const sy = (size * (rect.v1 - rect.v0)) / (2 * frame.radius);
+    const texel = Math.max(1 / sx, 1 / sy);
+    const rho = vec3.dot(shape.vertices[face.indices[0]], face.normal);
+    const flat = rho - BEVEL_RADIUS;
+    for (let k = 0; k < PIP_COUNT[face.value]; k += 1) {
+      const pip = ellipses[index];
+      index += 1;
+      const x = (pip.x - centerX) / sx;
+      const y = (centerY - pip.y) / sy;
+      const extent = Math.max(Math.abs(x) + pip.rx / sx, Math.abs(y) + pip.ry / sy);
+      min = Math.min(min, flat - extent - texel);
+    }
+  });
+  return min;
+}
+
+describe('buildLabelAtlas d6 flat-face fit', () => {
+  it('keeps every pip plus one texel inside the flat square', () => {
+    const clearance = measureD6Clearance();
+    expect(clearance).toBeGreaterThanOrEqual(0);
+    expect(clearance).toBeGreaterThanOrEqual(D6_CLEARANCE_MIN);
+    expect(clearance).toBeLessThanOrEqual(D6_CLEARANCE_MAX);
   });
 });
 
