@@ -27,12 +27,20 @@ Collision uses the sharp vertices today. Collide each die as its rounded shape s
 - Die vs die: run the SAT on the two cores. Contact when the core separation is less than 2r (plus SLOP). The contact normal is the SAT axis. Move the contact points by r along the normal onto each rounded surface, and the depth is `2r - separation`.
 - `containBody`: use the core vertices and keep each one at least r inside every box plane.
 - Keep `body.radius` (circumradius of the sharp shape) for broad phase, clamp and hold height.
-- Do not change restitution, friction, sleep, solver iterations, FIXED_DT or warm start. The rest height of a die on a face stays the same (core face at rho - r plus r).
+- Do not change restitution values, friction, sleep, solver iterations, FIXED_DT or warm start. The rest height of a die on a face stays the same (core face at rho - r plus r).
+
+# Restitution on speculative contacts (decision from the rebound probe)
+- Defect: a fresh contact that fires with a negative (speculative) depth caps the closing speed in that step. In the next step it is no longer fresh, so the #40 rule gives no bounce. Measured die-on-die bounce 0.099 m/s against 0.285 m/s expected (rise 0.0147 against 0.0400).
+- Fix (as in Box2D v3): before the velocity iterations, store each contact's relative normal velocity. After the iterations, run one restitution pass: for a fresh contact (the #40 rule) that carried a positive normal impulse in this step and whose stored approach speed is above `RESTITUTION_THRESHOLD`, solve the normal velocity toward `-e * storedApproach`, clamping the accumulated impulse at 0. Speculative and touching contacts use the same rule.
+- Do not re-pin FIRST_REBOUND to the soft value. The pinned rebound (die 0.0400, floor 0.0262) must hold within the old tolerance.
+- After this fix, re-measure the roll desktop mean rise (pin > 0.5) and the wake neighbour shift (pin 1e-4). If either still fails, write an Open question with the measured values and stop. Do not loosen a pin.
 
 # Tests
 - A d6 resting on a face: the centre height equals the sharp-shape inradius within 0.05 mm.
 - A d6 balanced on an edge or corner: the contact point lies on the rounded surface (r from the core edge or vertex), and the centre height matches the rounded geometry.
 - Two d6 corner to corner: they touch when the core separation is 2r. No contact before.
+- A die dropped onto a resting die bounces with the pinned FIRST_REBOUND. A speculative fresh contact with an approach above the threshold gives `-e * approach` after the step (unit test in contacts.test.js).
+- Test helpers measure the rounded surface (core vertices plus or minus r), not the sharp hull.
 - The #40 pile tests, the roll-out e2e (8 seeds, desktop and phone, every seed asleep within 5 s) and all other suites stay green. Record the new roll-to-sleep medians in Notes and compare with the #51 values (desktop 0.82 s, phone 0.97 s).
 - If a pile or settle test fails, do not add damping and do not change another constant. Write an Open question with the measured times.
 
@@ -43,23 +51,15 @@ Collision uses the sharp vertices today. Collide each die as its rounded shape s
 
 # Notes
 # Notes
-## PM hint
-- The helper plan is right: measure the rounded surface (core vertices plus r along the wall normal), not the sharp hull. Then assert the surface overshoot with the old tolerance. Do not loosen tolerances on the sharp hull instead.
-- Check: when the rounded surface touches a wall, the sharp hull can stick out by at most r*(R/rho - 1) for that die type (d4 2r, d6 about 0.73r). An overshoot of 2r is only correct for a d4. If a non-d4 shows more than its bound, the contact depth or point has a sign error.
-- Then probe the pile settle times. If a pile test still fails, stop and write an Open question with the measured times. Do not change constants.
-- Commit step 2 (collision.js plus its tests) now, before the helper work.
+## PM decisions
+- (1) Fix the bounce loss. See the new Specs section "Restitution on speculative contacts". Do not re-pin FIRST_REBOUND.
+- (2) and (3): re-measure after the fix. If they still fail, write an Open question with the values and stop.
 
 ## Progress
-- Commit 59898a2: the die-die scan rewrite (step 2 committed as ordered).
-- Containment 30 s timeout fixed with three result-identical optimizations in the scan: dirGroups (parallel edge dirs deduped, 900 -> 225 axis combos for a d20), a 3D midpoint/halfLen prune before closestPoints, and a SAT band gate that skips the exact feature scan when the hull distance exceeds 2r + SLOP + closing*dt (the closing bound is conservative, so the gate never eats a contact addEdgeContact would fire). collision.test.js + world.test.js 47/47; the pinned oracle depth still matches to 1e-12. world.e2e runs ~52 s wall, no timeout.
-- Helper re-pin done per plan: boxOvershoot and lowest/highestVertex measure the rounded surface (coreVertices +- BEVEL_RADIUS) in world.e2e.test.js and roll.test.js. Per-type bound check verified: worst surface overshoot ~1e-17 in the containment fixture, the sharp hull pokes 3.11e-3 there, under the d4 bound 2r = 3.2e-3 (signs consistent for all six types).
-- Piles: all 25 cases (level/x15/x30/y15/y30 x 5 seeds) settle in <= 3.5 s on the current build. Earlier boundary readings (y15 5.68 s, one null) were tie-break chaos between builds, not a physics property.
-- Rebound A/B (instrumented per-step, current vs 7d79485 sharp physics on a /tmp copy):
-  - Floor bounce unchanged: rise 0.02620 vs pin 0.02619.
-  - Die-on-die: sharp fires at step 69 with 4 contacts, depths +2.32e-3 (raw core overlap), bounce speed 0.9035, rise 0.039974 (the pin). Rounded fires at step 68 with depth -5.95e-4 (speculative), the depth turns positive only at step 69, bounce speed 0.0989, rise 0.01465.
-  - Mechanism: the rounded depth (2r - core separation) makes the contact fire one step earlier with a negative depth; the solver's speculative branch lets the closing continue at the remaining-gap rate, so when the depth turns positive the approach is below the restitution threshold and the 0.5*approach bounce never engages. The fire-step target should have been bounce = 0.285, but the measured post-step vz is 0.099, so the solver also under-converges on this two-dynamic-body pair.
-- Open questions (need PM decision): (1) fix the die-die bounce loss (probe the contact-cache freshness and solver convergence at the fire step) or accept the softer rounded bounce and re-pin FIRST_REBOUND.die to 0.01465; (2) roll desktop mean rise 0.498 vs the > 0.5 pin (per-toss rises 0.011..1.069, the wall-facing tosses die at the wall - likely the same speculative loss); (3) wake neighbor shift 2.2e-4..8.2e-4 across runs vs the 1e-4 pin (re-settle itself is fast, 0.027 s).
-- Next: decide the rebound fix vs re-pin, then the roll mean, then the sleep pin, full suite, commit.
+- Commit 59898a2: die-die scan rewrite with dirGroups, a midpoint prune and a SAT band gate. collision + world 47/47. world.e2e runs about 52 s.
+- Helpers measure the rounded surface. Worst surface overshoot about 1e-17. The sharp hull pokes 3.11e-3, under the d4 bound 2r.
+- Piles: 25/25 cases settle within 3.5 s.
+- Rebound A/B: floor unchanged. Die-on-die bounce 0.099 m/s vs 0.9035 sharp (rise 0.0147 vs pin 0.0400), caused by the speculative fire step.
 
 # Open questions
 
