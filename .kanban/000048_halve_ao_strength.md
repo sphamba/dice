@@ -1,7 +1,7 @@
 ---
 name: "fix: halve the ambient occlusion darkening"
 priority: "medium"
-state: "to-live-test"
+state: "live-testing"
 worktree: "fix/48-halve-ao-strength"
 issuer: "user"
 complexity: "simple"
