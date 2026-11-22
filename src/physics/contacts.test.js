@@ -63,6 +63,26 @@ describe('restitution', () => {
     expect(body.linearVelocity[2]).toBe(1);
     expect(world.events).toEqual([]);
   });
+
+  it('kills the approach speed of a contact carried over from the previous step', () => {
+    const body = makeBody([0, 0, 0.01], [0, 0, -1]);
+    const world = makeWorld(floorContact(body));
+    world.contactCache = [
+      {
+        a: body,
+        b: null,
+        surface: 'floor',
+        point: Float64Array.from([0, 0, 0.01]),
+        normal: { direction: Float64Array.from([0, 0, 1]), impulse: 0 },
+        tangents: [
+          { direction: Float64Array.from([0, 1, 0]), impulse: 0 },
+          { direction: Float64Array.from([-1, 0, 0]), impulse: 0 },
+        ],
+      },
+    ];
+    solveContacts(world, FIXED_DT);
+    nearRel(body.linearVelocity[2], 0, 1e-12);
+  });
 });
 
 describe('friction', () => {
@@ -205,6 +225,31 @@ describe('die-die contacts', () => {
     expect(world.events).toHaveLength(1);
     expect(world.events[0].surface).toBe('die');
     expect(world.events[0].b).toBe(b);
+  });
+});
+
+describe('warm start ordering', () => {
+  it('measures every approach before the first replay', () => {
+    const body = makeBody([0, 0, 0.01], [0, 0, -1]);
+    const corner = (x) => floorContact(body, { point: [x, 0, 0.01] });
+    const world = makeWorld(corner(0.005), corner(-0.005));
+    world.contactCache = [
+      {
+        a: body,
+        b: null,
+        surface: 'floor',
+        point: Float64Array.from([0.005, 0, 0.01]),
+        normal: { direction: Float64Array.from([0, 0, 1]), impulse: 0.05 },
+        tangents: [
+          { direction: Float64Array.from([0, 1, 0]), impulse: 0 },
+          { direction: Float64Array.from([-1, 0, 0]), impulse: 0 },
+        ],
+      },
+    ];
+
+    solveContacts(world, FIXED_DT);
+
+    for (const prepared of world.contactCache) nearRel(prepared.approach, 1);
   });
 });
 

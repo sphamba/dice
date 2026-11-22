@@ -102,6 +102,8 @@ export function createWorld({ W, H, D }) {
     asleep = true;
     stillTime = 0;
     vec3.copy(sleepGravity, world.gravity);
+    // Impulses cached before the sleep describe a motion that no longer exists.
+    world.contactCache = null;
     for (const body of world.bodies) {
       vec3.set(body.linearVelocity, 0, 0, 0);
       vec3.set(body.angularVelocity, 0, 0, 0);

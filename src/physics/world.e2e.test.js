@@ -251,3 +251,172 @@ describe('energy', () => {
     expect(peak).toBeLessThanOrEqual(dropHeight);
   });
 });
+
+const D6_REST = -Math.min(...createShape('d6', DIE_RADIUS).vertices.map((vertex) => vertex[2]));
+
+const FIRST_REBOUND = { floor: 0.01001, die: 0.02827 };
+
+function firstReboundRise(world, body, rest, events) {
+  let launched = false;
+  let peak = -Infinity;
+  for (let step = 0; step < 3 * STEPS_PER_SECOND; step += 1) {
+    world.events.length = 0;
+    world.step(FIXED_DT);
+    for (const event of world.events) events.push(event);
+    if (!launched && body.linearVelocity[2] > 0.01) launched = true;
+    if (!launched) continue;
+    const rise = body.position[2] - rest;
+    peak = Math.max(peak, rise);
+    if (body.linearVelocity[2] <= 0 && rise <= 0.0001) break;
+  }
+  return peak;
+}
+
+describe('rebound', () => {
+  it('bounces a die dropped on the floor as before', () => {
+    const world = createWorld({ W: 0.4, H: 0.4, D: 0.4 });
+    const body = dropBody('d6', [0, 0, D6_REST + 0.1]);
+    world.addBody(body);
+    const events = [];
+
+    const rise = firstReboundRise(world, body, D6_REST, events);
+
+    expect(Math.abs(rise - FIRST_REBOUND.floor) / FIRST_REBOUND.floor).toBeLessThan(0.05);
+    expect(events.some((event) => event.surface === 'floor')).toBe(true);
+  });
+
+  it('bounces a die dropped on another die as before', () => {
+    const world = createWorld({ W: 0.4, H: 0.4, D: 0.4 });
+    const lower = dropBody('d6', [0, 0, D6_REST]);
+    const upper = dropBody('d6', [0, 0, 3 * D6_REST + 0.1]);
+    world.addBody(lower);
+    world.addBody(upper);
+    const events = [];
+
+    const rise = firstReboundRise(world, upper, 3 * D6_REST, events);
+
+    expect(Math.abs(rise - FIRST_REBOUND.die) / FIRST_REBOUND.die).toBeLessThan(0.05);
+    expect(events.some((event) => event.surface === 'die')).toBe(true);
+  });
+});
+
+const PILE_SEEDS = [20240601, 7, 99];
+
+const PILE_COLUMNS = 2;
+
+const PILE_ROWS = 5;
+
+const SETTLE_LIMIT = 3;
+
+const PILE_WINDOW = 6;
+
+function tiltedGravity(axis, degrees) {
+  const radians = (degrees * Math.PI) / 180;
+  return axis === 'x'
+    ? [GRAVITY * Math.sin(radians), 0, -GRAVITY * Math.cos(radians)]
+    : [0, GRAVITY * Math.sin(radians), -GRAVITY * Math.cos(radians)];
+}
+
+function pileWorld(gravity, seed) {
+  const random = mulberry32(seed);
+  const world = createWorld(BOX);
+  world.setGravity(gravity);
+  const bodies = [];
+  for (let index = 0; index < PILE_COLUMNS * PILE_ROWS; index += 1) {
+    const column = index % PILE_COLUMNS;
+    const row = Math.floor(index / PILE_COLUMNS);
+    const body = dropBody(
+      DICE_TYPES[index % DICE_TYPES.length],
+      [
+        (column + 0.5) * (BOX.W / PILE_COLUMNS) - BOX.W / 2,
+        (row + 0.5) * (BOX.H / PILE_ROWS) - BOX.H / 2,
+        BOX.D * (0.55 + 0.35 * random()),
+      ],
+      randomQuat(random),
+    );
+    world.addBody(body);
+    bodies.push(body);
+  }
+  return { world, bodies };
+}
+
+const atRest = (body) =>
+  vec3.length(body.linearVelocity) < 0.005 && vec3.length(body.angularVelocity) < 0.1;
+
+function settledAt(world, bodies, seconds) {
+  let at = null;
+  const steps = Math.round(seconds / FIXED_DT);
+  for (let step = 0; step < steps; step += 1) {
+    world.step(FIXED_DT);
+    if (!bodies.every(atRest)) at = null;
+    else if (at === null) at = (step + 1) * FIXED_DT;
+  }
+  return at;
+}
+
+const PILE_CASES = [
+  { label: 'a level floor', gravity: [0, 0, -GRAVITY] },
+  { label: 'a 15 degree tilt about x', gravity: tiltedGravity('x', 15) },
+  { label: 'a 30 degree tilt about x', gravity: tiltedGravity('x', 30) },
+  { label: 'a 15 degree tilt about y', gravity: tiltedGravity('y', 15) },
+  { label: 'a 30 degree tilt about y', gravity: tiltedGravity('y', 30) },
+];
+
+describe('pile settle', () => {
+  for (const { label, gravity } of PILE_CASES) {
+    it(`settles ten mixed dice within 3 s on ${label}`, () => {
+      for (const seed of PILE_SEEDS) {
+        const { world, bodies } = pileWorld(gravity, seed);
+        const at = settledAt(world, bodies, PILE_WINDOW);
+        expect(at).not.toBe(null);
+        expect(at).toBeLessThanOrEqual(SETTLE_LIMIT);
+        for (const body of bodies) {
+          expect(Number.isFinite(vec3.length(body.linearVelocity))).toBe(true);
+          expect(boxOvershoot(BOX, body)).toBeLessThan(0.001);
+        }
+      }
+    }, 60000);
+  }
+});
+
+describe('sleep and wake', () => {
+  it('sleeps a settled pile, idles while asleep and wakes on a held die', () => {
+    const { world, bodies } = pileWorld([0, 0, -GRAVITY], PILE_SEEDS[0]);
+    let sleptAt = null;
+    for (let step = 0; step < PILE_WINDOW * STEPS_PER_SECOND && sleptAt === null; step += 1) {
+      world.step(FIXED_DT);
+      if (world.asleep) sleptAt = (step + 1) * FIXED_DT;
+    }
+    expect(sleptAt).not.toBe(null);
+
+    const rest = bodies.map((body) => Float64Array.from(body.position));
+    world.events.length = 0;
+    world.step(FIXED_DT);
+    for (let index = 0; index < bodies.length; index += 1) {
+      expect(vec3.distance(bodies[index].position, rest[index])).toBe(0);
+    }
+    expect(world.events).toEqual([]);
+
+    world.beforeStep = () => vec3.set(bodies[0].linearVelocity, 0.05, 0, 0);
+    world.step(FIXED_DT);
+    expect(world.asleep).toBe(false);
+  }, 30000);
+
+  it('re-settles within 3 s after the wake without launching the resting dice', () => {
+    const { world, bodies } = pileWorld([0, 0, -GRAVITY], PILE_SEEDS[0]);
+    settledAt(world, bodies, PILE_WINDOW);
+    expect(world.asleep).toBe(true);
+
+    const rest = bodies.map((body) => Float64Array.from(body.position));
+    world.beforeStep = () => vec3.set(bodies[0].linearVelocity, 0.05, 0, 0);
+    for (let step = 0; step < Math.round(0.25 / FIXED_DT); step += 1) world.step(FIXED_DT);
+    for (let index = 1; index < bodies.length; index += 1) {
+      expect(vec3.distance(bodies[index].position, rest[index])).toBeLessThan(1e-6);
+    }
+
+    world.beforeStep = null;
+    const at = settledAt(world, bodies, SETTLE_LIMIT);
+    expect(at).not.toBe(null);
+    expect(at).toBeLessThanOrEqual(SETTLE_LIMIT);
+  }, 30000);
+});

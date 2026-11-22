@@ -100,15 +100,17 @@ function prepare(contact, dt, cache) {
   relativeVelocity(scratchRelative, prepared);
   const normalSpeed = vec3.dot(scratchRelative, normal);
   prepared.approach = -normalSpeed;
+  // A contact that persisted from the previous step is resting or rocking. Restitution there
+  // only feeds the rocking mode, so it applies to a fresh contact alone.
+  const fresh = findCached(cache, contact) === null;
   const bounce =
-    prepared.approach > RESTITUTION_THRESHOLD
+    fresh && prepared.approach > RESTITUTION_THRESHOLD
       ? (b ? RESTITUTION_DIE : RESTITUTION_BOX) * prepared.approach
       : 0;
   const depth = contact.depth ?? 0;
   prepared.target = depth < 0
     ? (bounce > 0 ? bounce : depth / dt)
     : bounce + Math.min((BAUMGARTE * Math.max(depth - SLOP, 0)) / dt, MAX_BIAS_SPEED);
-  warmStart(prepared, cache, contact);
   return prepared;
 }
 
@@ -217,8 +219,12 @@ export function solveContacts(world, dt) {
     return;
   }
 
-  const prepared = contacts.map((contact) => prepare(contact, dt, world.contactCache));
+  const cache = world.contactCache;
+  const prepared = contacts.map((contact) => prepare(contact, dt, cache));
   world.contactCache = prepared;
+  // Every approach is measured before any replay: a warm start applied mid-prepare would
+  // inflate the approach of the contacts behind it.
+  prepared.forEach((preparedContact, index) => warmStart(preparedContact, cache, contacts[index]));
   const events = (world.events ??= []);
   const groups = new Map();
   const ids = new Map();
