@@ -42,7 +42,12 @@ Collision uses the sharp vertices today. Collide each die as its rounded shape s
 - `npm run build`
 
 # Notes
-## PM hint
-- These Notes are empty after 41 minutes. Write your progress here now: what is done, what is committed, the test status and the blockers.
-- Commit each working step (box contacts, containBody, die-die) separately, so that the progress is not lost.
-- If the #40 pile tests or the roll-out e2e fail with the rounded shapes, do not tune constants. Write an Open question with the measured times and stop.
+## Progress (checkpoint)
+- Done: card read, full batched source read of the touch set (collision.js, world.js, body.js, contacts.js, shapes.js, bevel.test.js, existing suites). No code written yet, nothing committed, tests not yet run.
+- Plan (tests first, per PM hint one commit per working step):
+  1. `collision.js` die vs box on core vertices (threshold r + SLOP + approach*dt, point = core vertex + r toward plane, depth = r - distance).
+  2. `world.js` containBody on core vertices, keep each at least r inside every plane.
+  3. `collision.js` die vs die SAT on cores (contact when core separation < 2r + SLOP, points moved r along the normal, depth = 2r - separation).
+- Key facts settled from the read: BEVEL_RADIUS already exists in body.js (DIE_RADIUS / (4*sqrt(3))); renderer inset scale s = 1 - r/rho with rho = dot(vertex, face.normal) per type (pinned in bevel.test.js); shape cache in shapes.js is keyed by type|radius, so core vertices will be derived per body at createBody (cheap map over shape.vertices) or as a cached shape-derived map in collision.js.
+- Tests planned: red tests in src/physics/collision.test.js and world.test.js (d6 face rest height, edge/corner rounded contact, two dice corner-to-corner at core separation 2r), then implementation until green, then scoped suites, then `npm test` + `npm run build`, then roll-out e2e medians recorded here vs #51 (desktop 0.82 s, phone 0.97 s).
+- No blockers. Install was started at run begin (npm ci in background); deps assumed present by the time tests run.
