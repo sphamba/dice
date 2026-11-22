@@ -43,23 +43,12 @@ Drive only the grabbed material point toward the pointer, so gravity swings the 
 - `npm run build`
 
 # Notes
-## Deliverable
-- `src/input/pointer.js`: the hold now drives only the grabbed material point, with the impulse `J = K^-1 (vTarget - vPoint)`, `K = (1/m) I - [r]x invInertiaWorld [r]x`, applied at that point. Gravity turns the rest of the die about it, so the centre hangs below the grabbed point.
-- Grab-point target: pointer x/y (xy speed clamped to `MAX_DRAG_SPEED`) and z = `D - 2*body.radius`. The old centre-velocity overwrite and the `HOLD_ANGULAR_DAMPING` spin damping are gone.
-- Swing damping: `HOLD_SWING_DAMPING = 12` 1/s, applied after the constraint solve, with a centre-velocity correction `(1 - decay) * w x r` so the point stays in place. Measured: |w| 0.13 rad/s at 0.85 s, 0.035 rad/s at 1.0 s for the worst die type (d4, vertex grab).
-- Release, fling (3 m/s clamp, z = 0, residual spin, speed-based random spin), pointercancel, multi-pointer insertion order and exact face picking unchanged.
-- `src/input/pointer.test.js` rewritten: hanging for every die type, swing plus settle, spun-die settle, 30/60/144 fps, pointer-jump tracking within the clamp. Tests that assumed a driven centre, or the old spin decay rate, are replaced.
+## Review verdict: approved
 
-## Verification
-- HEAD b1d53ed. `npx vitest run src/input src/physics`: 128 passed. `npm test`: 300 passed. `npm run build`: green, asset check `src="./assets/index-BPDaA_rG.js"`, `href="./assets/index-DA_12YQk.css"`.
-
-## Assumptions
-- The hold height `D - 2*DIE_RADIUS` is read as the height of the grabbed point, not of the centre of mass.
-- Swing damping tuned to 12 1/s: 3 and 8 1/s left |w| above 0.1 rad/s past 1.5 s on a vertex grab.
-- Two holds on one die damp the swing once per held entry.
-
-## Blockers
-- None.
-
-## Manual checks left to other roles
-- Real-browser feel of the hang and the fling at 60 Hz, including a hanging die that touches the floor or another die in a shallow box.
+- Point-constraint drive verified line by line: `pointImpulse` builds `K = (1/m)I - [r]x invInertiaWorld [r]x` with the repo's column-major mat3/vec3 conventions (crossMatrix, multiply order, transformMat3 = m·a all checked); impulse applied at the world grab point through the existing `applyImpulse`. Gravity now turns the body about the point; `invInertiaWorld` is refreshed every substep in `integratePositions`.
+- Spec behaviors asserted numerically in the rewritten tests and green: per-die-type vertex hang (lever horizontal < 1 mm, grab point within 1 mm of pointer xy and `D - 2R` z, |w| < 0.1 rad/s after 1.5 s), swing after a 20 mm move with at least one rest crossing, spun-die settle, 30/60/144 fps agreement. Frame-rate independence rests on the fixed `FIXED_DT = 1/480` substepping in `world.update`.
+- Contracts kept: xy clamp `MAX_DRAG_SPEED` on the point target, z unclamped as before; release/fling (3 m/s, vz = 0, residual spin, random spin), pointercancel, multi-pointer insertion order, exact face picking and the `rollDice` held-set exclusion in `main.js` all untouched and green. Drive still runs in `beforeStep` while asleep, so held dice wake the world.
+- `HOLD_ANGULAR_DAMPING` and the centre-velocity overwrite fully removed; no leftover references.
+- Recorded assumptions are consistent with the Specs: hold height read as the grabbed point's height matches the Change text; swing damping tuned to 12 1/s ("tune with the test" allows this); dual holds damp swing once per entry, last entry dominates per #18.
+- Evidence: `npx vitest run src/input src/physics` 128 passed (exit 0), `npm test` 300 passed (exit 0), `npm run build` green with the same asset hashes as the developer Notes.
+- Deferred to live testing: real-browser feel of hang, swing and fling at 60 Hz, and a held die touching floor or other dice in a shallow box.
