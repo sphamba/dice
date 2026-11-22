@@ -49,9 +49,16 @@ Collision uses the sharp vertices today. Collide each die as its rounded shape s
 - Next order stays: vertex-face candidates, re-pin the crossing test by probe, full suite, commit.
 
 ## Progress
-- Commit 7d79485: core polyhedron on the shape.
-- collision.test.js 14/15. The crossing-cubes pose is obsolete for rounded cores; re-pin it by probe.
-- The full suite was red before the scan rewrite (world.e2e pile timeouts 5.99 s and others). Re-run after the commit.
+- Commit 7d79485: core polyhedron on the shape. Die-die scan rewrite done, validated against an exhaustive feature-pair oracle:
+  - The support-edge heuristic was unsound for finite segments (the closest segments along a cross axis are not the support extremes). Replaced by the full parallel-edge-pair enumeration per axis combo with a per-pair line-distance prune.
+  - Added vertex-face candidates to the scan. detectPair now unions the clipped face polygon with the closest-feature-pair contact, deduped by normal (within 1e-6); the closest-pair contact supplies the true edge/vertex contact the clip misses once the cores separate.
+  - Probe vs oracle: at the re-pinned crossing pose the deepest contact has the exact analytic normal (0, -0.611289, -0.791408) and depth 5.45699121659e-4 = 2r - core distance, matching the exhaustive oracle. collision.test.js 15/15 green. world.test.js 32/32 green.
+- Full-suite triage (HEAD collision + HEAD world = 27/27 baseline; my collision + my world = 10 failures: roll x2, world.e2e x8):
+  - The e2e/roll helpers measure the sharp hull, which is obsolete for rounded dice: the surface is the core dilated by r, the rotated sharp hull pokes up to r*(sqrt3-1) beyond it. Containment overshoot 0.00317 = 2r exactly: the solver holds the contact point (rounded surface) at the wall, so the sharp corner legitimately sits 2r beyond. Roll lid check: the surface stayed below the lid (lidSteps = 0 holds), only the sharp hull poked 1e-4.
+  - Fix plan: give the helpers surface semantics (boxOvershoot / highestVertex / lowestVertex over coreVertices with the +-r support correction), re-pin FIRST_REBOUND by probe, probe the pile settle numbers.
+  - Probe script /tmp/probe56e2e.mjs replicates the exact fixtures (containment seed 770311, pile y15 seed 20240601, rebound, roll); needs a quat.set API fix before running.
+- Assumption: the union contact behavior is the intended manifold for rounded dice (the two overlapping regions of the rounded shells are both real contacts).
+- Open question: whether any surface-vs-wall residual beyond the solver's speculative skin remains after the helper re-pin (the probe measures it).
 
 # Open questions
 
