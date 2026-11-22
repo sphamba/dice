@@ -1,12 +1,12 @@
 ---
 name: "feat: carve the numbers and pips with a baked normal-map atlas"
 priority: "medium"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "user"
 complexity: "complex"
 shortName: "carved-labels-normal-atlas"
-blockedBy: "#48"
+blockedBy: ""
 ---
 
 # Summary
