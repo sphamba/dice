@@ -45,52 +45,12 @@ In `resume()` in `src/audio/sound.js`, replace it with this chain: voices -> `ma
 - Record the measured peaks and the voice count in Notes. A listening test is not part of this check.
 
 # Notes
-## Verification of commit 67f439c (HEAD, clean tree)
+- Implemented in `src/audio/sound.js` (commit 67f439c, worktree clean): every voice gain is `gainValue * LIMITER_CEILING`; `voiceScale`, `scaleMeasured`, `peakOf` and `LIMITER_THRESHOLD_DB` deleted; `resume()` builds voices -> `master` (gain `1 / CLIPPER_RANGE = 1/4`) -> `WaveShaperNode` (`oversample = '4x'`, 4097-point curve) -> `destination`; no compressor is created.
+- Curve: `s = x * 4`, output `s` at and below `LIMITER_CEILING = 10 ** (-3 / 20)`, else `sign(s) * (C + (1 - C) * tanh((|s| - C) / (1 - C)))`.
+- Assumption: curve values are clamped to the largest float32 below one (`1 - 2 ** -24`), because the literal formula rounds to exactly 1.0 in float32 and the Spec requires every magnitude below 1. Probed curve: max 0.99999994, linear-region error 0, 12 full voices map to 0.99999994.
+- Assumption: the curve top therefore ties in float32, so the test asserts a non-decreasing curve plus strict monotonicity in the linear part.
+- Tests (`src/audio/sound.test.js`, audio mock): no compressor, master gain 1/4, chain to destination, curve length/oversample, linearity at and below the ceiling, oddness, monotonicity, every value below 1, one voice inside the linear part, voice gain `LIMITER_CEILING * gainForImpulse`.
+- Checks green: `npx vitest run src/audio src/physics` 168 passed, `npm test` 382 passed, `npm run build` green. Mode/pitch selection, brightness, voice cap, unlock, and haptics are covered by those suites.
+- Browser checks in headless Chromium (dev server, instrumented `sound.js`, parallel AnalyserNode tap after the WaveShaper): tap validation negative 0, known positive 0.49999991; voice gain/impulse over 2 page loads (295 and 294 unclamped voices, 0 clamped) spread 1.1e-7 and matching `LIMITER_CEILING / MAX_IMPULSE = 47.1963856`; offline render of real buffers through the same chain at I and I/2 gives peaks 0.510/0.255 and 0.418/0.209, ratio 1.9999997 in both loads.
+- Open blocker: the real-time tap reads only 0.0003..0.0012 during 10 Rolls of 10 dice (50..70 voices per roll, impulses up to 0.0086, voice signal peaks up to 0.35), while the same captured buffer through the same chain renders 0.618 offline and synthetic buffers/oscillators read exactly in the same page. Real-time playback of the game-rendered buffers appears unreliable in this headless build, so the "peak at most 1.0" number is not yet trustworthy. Next step: reproduce with the captured channel data outside the game page and, if headless real-time audio is at fault, replace the tap with a deterministic offline mix render of the recorded voices and record its peaks.
 
-Method: Playwright/chromium headless against my own vite dev server (`127.0.0.1:4197`, started and stopped by me, port now free). Instrumentation = `page.route` rewrite of the dev-served `src/audio/sound.js` with all three anchors found exactly once (`    node.gain.value = gainValue * LIMITER_CEILING;`, `    source.buffer = renderModes(context, modes, event.speed);`, `        shaper.connect(context.destination);`). Extra parallel `AnalyserNode` (fftSize 2048, ~43 ms window, polled every 10 ms) after the WaveShaper via a zero-gain sink, so measured peak is the clipper output and is not affected by the tap. 10-dice set, viewport 1280x800, canvas clicked once, `context.state === 'running'` asserted on every page. Harness: /tmp/live-62/harness.js, raw JSON /tmp/live-62/out.json.
-
-Tap validation (production numbers only reported after it passed): negative before any roll = 0; known positive 440 Hz sine 0.5 x Gain 0.5 through `master` = 0.4999999 (band 0.495..0.505). `curve.length` 4097, `oversample` `'4x'`, max |curve| 0.99999994, ceiling 0.7079457843841379, maxImpulse 0.015, range 4, sampleRate 48000.
-
-### Check 1 - voice gain proportionality (2 fresh page loads, 5 Rolls each)
-| load | unclamped | clamped | min ratio | max ratio | spread | expected |
-|---|---|---|---|---|---|---|
-| 1 | 295 | 0 | 47.19638309 | 47.19638826 | 1.09e-7 | 47.196385625609196 |
-| 2 | 294 | 0 | 47.19638290 | 47.19638819 | 1.12e-7 | 47.196385625609196 |
-Max |ratio/expected - 1| = 5.58e-8 (load 1) / 5.77e-8 (load 2). PASS (band 1%).
-No clamped records: every observed `event.impulse` stayed below MAX_IMPULSE = 0.015 on the 10-dice set, so the clamp path was never exercised in this run.
-
-### Check 2 - two-voice ratio through the real chain shape (offline, real curve, `__lastBuffer`)
-| load | I = maxImpulse peak | I/2 peak | ratio |
-|---|---|---|---|
-| 1 | 0.51013118 | 0.25506562 | 1.99999977 |
-| 2 | 0.41842279 | 0.20921142 | 1.99999972 |
-PASS (band 1.98..2.02). Buffer captured was the final voice of the 5-Roll run, duration 0.0927 s.
-
-### Check 3 - 10 Rolls of 10 dice, continuous peak monitor
-| roll | peak | voices created |
-|---|---|---|
-| 1 | 0.000328 | 50 |
-| 2 | 0.000917 | 55 |
-| 3 | 0.000279 | 57 |
-| 4 | 0.001229 | 65 |
-| 5 | 0.000372 | 54 |
-| 6 | 0.001176 | 67 |
-| 7 | 0.000700 | 62 |
-| 8 | 0.000313 | 65 |
-| 9 | 0.000307 | 60 |
-| 10 | 0.000531 | 70 |
-Max peak 0.001229 at roll 4. All 10 <= 1.0. PASS. Peaks are far below the ceiling because each voice is a normalised modal buffer scaled by impulse/MAX_IMPULSE * CEILING (order 1e-3), i.e. overlap never approached 1.0. Voice counts above are events that actually played during the Roll window (concurrency itself stays capped at MAX_VOICES = 12 by the existing voice cap).
-
-### Commands
-- `npx vitest run src/audio src/physics`: 11 files, 168 tests passed.
-- `npm test`: 28 files, 382 tests passed.
-- `npm run build`: built in 68ms, `dist/assets/index-BpWOwJvh.js` 70.50 kB (gzip 25.90 kB).
-
-### Console / errors
-3 console errors, all `Blocked call to navigator.vibrate because user hasn't tapped on the frame...` (headless haptics blocking, expected, not a defect). 0 `pageerror`.
-
-### Screenshots
-/tmp/live-62/load0-before-rolls.png, /tmp/live-62/load1-before-rolls.png, /tmp/live-62/load1-after-last-roll.png, /tmp/live-62/load3-after-last-roll.png
-
-### Verdict
-All Specs checks on 67f439c pass. No source file changed; only the in-memory route rewrite was instrumented. Note that `npm run build` regenerated `dist/`, so that directory may show modified build output in the worktree.
