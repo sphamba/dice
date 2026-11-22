@@ -101,6 +101,7 @@ function prepare(contact, dt, cache) {
     approach: 0,
     target: 0,
     normal: { direction: normal, impulse: 0 },
+    warmNormal: 0,
     tangents: tangents.map((direction) => ({ direction, impulse: 0 })),
   };
   prepared.normal.mass = effectiveMass(prepared, normal);
@@ -160,6 +161,7 @@ export function warmStartImpulses(cache, contact, friction) {
 function warmStart(prepared, cache, contact) {
   if (!cache) return;
   const warm = warmStartImpulses(cache, contact, prepared.friction);
+  prepared.warmNormal = warm.normal;
   if (warm.normal > 0) {
     prepared.normal.impulse = warm.normal;
     applyPair(prepared, prepared.normal.direction, warm.normal);
@@ -293,7 +295,10 @@ export function solveContacts(world, dt) {
   for (const contact of prepared) solveFriction(contact);
 
   for (const group of groups.values()) {
-    for (const contact of group.contacts) group.impulse += contact.normal.impulse;
+    // Only the impulse added over the warm start is the impulse of the impact.
+    for (const contact of group.contacts) {
+      group.impulse += Math.max(contact.normal.impulse - contact.warmNormal, 0);
+    }
     if (group.speed <= EVENT_MIN_SPEED) continue;
     events.push({
       a: group.a,

@@ -18,7 +18,8 @@ import {
   WARM_START_DISTANCE,
   warmStartImpulses,
 } from './contacts.js';
-import { FIXED_DT } from './world.js';
+import { createShape } from '../dice/shapes.js';
+import { FIXED_DT, createWorld } from './world.js';
 
 const nearRel = (actual, expected, eps = 1e-9) =>
   expect(Math.abs(actual - expected)).toBeLessThan(eps * Math.max(Math.abs(expected), 1e-12));
@@ -413,6 +414,111 @@ describe('warm starting', () => {
     world.contactCache = [{}];
     solveContacts(world, FIXED_DT);
     expect(world.contactCache).toBe(null);
+  });
+});
+
+function mulberry32(seed) {
+  let state = seed;
+  return () => {
+    state = (state + 0x6d2b79f5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+describe('impact impulse', () => {
+  const mass = (body) => 1 / body.invMass;
+
+  it('emits the impulse of a fresh flat drop', () => {
+    const body = makeBody([0, 0, 0.01], [0, 0, -2]);
+    const world = makeWorld(floorContact(body));
+    solveContacts(world, FIXED_DT);
+    expect(world.events).toHaveLength(1);
+    nearRel(world.events[0].impulse, mass(body) * (1 + RESTITUTION_BOX) * 2, 0.01);
+  });
+
+  it('emits a near-zero impulse for a resting contact that carries the load', () => {
+    // 30 m/s^2 keeps the resting approach g*dt above EVENT_MIN_SPEED, so the pair emits.
+    const GRAVITY = 30;
+    const body = makeBody([0, 0, DIE_RADIUS]);
+    const world = makeWorld(floorContact(body, { depth: SLOP }));
+    body.linearVelocity[2] -= GRAVITY * FIXED_DT;
+    solveContacts(world, FIXED_DT);
+    world.events.length = 0;
+    body.linearVelocity[2] -= GRAVITY * FIXED_DT;
+    solveContacts(world, FIXED_DT);
+
+    const load = mass(body) * GRAVITY * FIXED_DT;
+    expect(body.linearVelocity[2]).toBe(0);
+    expect(world.events).toHaveLength(1);
+    nearRel(world.contactCache[0].normal.impulse, load);
+    expect(world.events[0].impulse).toBeLessThan(load * 1e-6);
+  });
+
+  it('emits only the new impulse for an impact on a loaded pair', () => {
+    const LOAD = 5e-4;
+    const a = makeBody([0, 0, 0.01], [0, 0, -1]);
+    const b = makeBody([0, 0, -0.01], [0, 0, 1]);
+    const world = makeWorld({
+      a,
+      b,
+      surface: 'die',
+      point: [0, 0, 0],
+      normal: [0, 0, 1],
+      depth: 0,
+    });
+    world.contactCache = [
+      {
+        a,
+        b,
+        surface: 'die',
+        point: Float64Array.from([0, 0, 0]),
+        normal: { direction: Float64Array.from([0, 0, 1]), impulse: LOAD },
+        tangents: [
+          { direction: Float64Array.from([0, 1, 0]), impulse: 0 },
+          { direction: Float64Array.from([-1, 0, 0]), impulse: 0 },
+        ],
+      },
+    ];
+
+    solveContacts(world, FIXED_DT);
+
+    const accumulated = world.contactCache[0].normal.impulse;
+    expect(world.events).toHaveLength(1);
+    nearRel(accumulated, 4.9152e-3);
+    nearRel(world.events[0].impulse, accumulated - LOAD);
+  });
+
+  it('leaves the body states of a seeded run unchanged', () => {
+    const random = mulberry32(63);
+    const world = createWorld({ W: 0.4, H: 0.4, D: 0.4 });
+    const bodies = ['d6', 'd6', 'd4'].map((type) => {
+      const body = createBody(createShape(type, DIE_RADIUS), {
+        position: [(random() - 0.5) * 0.1, (random() - 0.5) * 0.1, 0.1 + random() * 0.2],
+      });
+      vec3.set(
+        body.linearVelocity,
+        (random() - 0.5) * 0.5,
+        (random() - 0.5) * 0.5,
+        -1 - random(),
+      );
+      world.addBody(body);
+      return body;
+    });
+    const expected = [
+      [-0.064854969305141549, -0.090088088215029713, 0.0084669620230561349, 0.13975270813722962, -0.018083670637639403, -0.068998022837437542],
+      [-0.042477726409306193, -0.013400587454831484, 0.0083433351392860396, 0.12091551109257789, -0.16156909091036672, -0.085581280375165408],
+      [-0.085615861083748579, 0.065907222477889993, 0.0068454909408890673, -0.064207073574464424, 0.15445539940612971, 0.054507525284815603],
+    ];
+
+    const steps = Math.round(0.5 / FIXED_DT);
+    for (let step = 0; step < steps; step += 1) world.step(FIXED_DT);
+
+    bodies.forEach((body, index) => {
+      const state = [...body.position, ...body.linearVelocity];
+      state.forEach((value, axis) => nearRel(value, expected[index][axis], 1e-12));
+    });
   });
 });
 
