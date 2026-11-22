@@ -1,7 +1,7 @@
 ---
 name: "feat: make impact sound intensity proportional to the impulse"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "user"
 complexity: "moderate"
