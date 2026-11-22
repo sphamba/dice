@@ -61,11 +61,21 @@ Make the numbers and pips look carved into the die with a round groove profile a
 - Live check (browser, desktop and phone viewport): every die type shows carved, painted numbers or pips with round walls lit from the light direction, pips look like dimples, numbers stay readable, no console or GL errors, and the #46 error overlay does not appear.
 
 # Notes
-## Review (approved, no fixes)
-- All Spec bullets map to diff/test evidence: FH EDT (signedDistance, two distanceTransform passes, anisotropic metre spacing from the faceVertexUvs cell scale), quarter-ellipse profile h(d) = -CARVE_DEPTH·sqrt(1-(1-min(d/W,1))²) with W = per-connected-component inradius (= stroke half-width for strokes, pip radius for disks), tangent-space normals with correct dh/dy row-sign flip, cavity in A (1 flat, 1-CAVITY at the steepest wall, per-cell slope normalization - recorded assumption), bottom-up rows matching the FLIP_Y label upload (buildCarveAtlas row mapping verified by test).
-- Shader: uCarve sampled unconditionally at vUV (no implicit-LOD-in-branch UB); carve normal replaces the flat normal only when q == 0 and there reduces exactly to the bevel-normal value, so no visual change outside glyphs; bevel band and AO prepass unchanged in output; ambient-only cavity (floor passes 1.0). #46 rules: no new loops, no %, no new divisions.
-- Wiring: bake once per type at load, RGBA8 TEXTURE4 per dice entry, deleted in destroyResources, rebuilt on context restore; empty/transparent masks (fake-canvas tests) bake safely to flat.
-- Tests cover every spec bullet: EDT vs brute force ≤ 0.5 px on a 40 px disk, field signs, pip centre/rim/wall normals + symmetry, stroke groove symmetry + cavity range, orientation for all 6 die types (right-of and above samples tilt toward the glyph centre after T/B/N), CARVE_DEPTH equality, atlas cell mapping + bottom-up rows + flat padding, shader source pins.
-- Evidence: npx vitest run src/render src/dice 9 files / 114 tests green; npm test 28 files / 337 green; npm run build ok; worktree clean at 8bde405.
-- Developer's recorded assumptions (brute-force EDT as the exact reference, unified profile, per-cell cavity normalization) all stated in Notes, none silent, none direction-changing. Non-blocking: carve mask threshold 128 vs canvas AA can offset the carve boundary ~1 px from the paint edge - imperceptible.
-- Deferred to live-tester: confirm the dimple read and cavity strength in zoom under the tilted light (wall shading is subtle at CAVITY = 0.25), readability at phone size, no console/GL errors, no #46 overlay; developer's own playwright live check on desktop + phone viewports reported PASS with screenshots.
+STATUS: live-testing in progress. Harness + checks built and mostly green; one product defect found, root cause localized to a NaN in the carve SDF bake. Work held at the NaN source-tracing step.
+
+SETUP: harness at /tmp/dice-lt49 (harness.mjs, driver.mjs, driver runs via LT_PHASES env filter; helpers: serve :8949, Playwright import, readPixels capture, panel panel helpers). diag.mjs = pip-centre calibration (err <= 1 px). atlas-probe.mjs + repro.mjs + trace.mjs = defect investigation.
+
+ENV PROBE: green. WebGL2 on, fps ok, canvas backing = clientWidth x dpr, dpr=1 in headless. Console clean, no #46 overlay, no GL errors.
+
+CHECK RESULTS SO FAR (run1, desktop + phone contexts):
+- PASS: spawn, settle, roll flow, panel counts, values shown, no GL errors, console clean (all six types, both contexts).
+- PASS: label paint (ink present on every glyph of every face value 1-6).
+- FAIL: "numbers carved (wall shading): d10 (phone): glyphSpread=19.7 vs bodySpread=68.7" (threshold-style check; see defect).
+- LIVE FINDING: on d6 top faces, SOME pips render with no dimple: interior flat at luma 254 (carve normal (0,0,1) = flat) with only a 1-2 px dark edge ring. Other pips on the SAME face show the dimple gradient (+10..+22 luma on the away side). Same face, same texture.
+
+ROOT CAUSE EVIDENCE:
+1. In-page bake probe (atlas-probe.mjs): rebuilt label atlas + carve atlas in-page with the exact shipped functions. Deterministic pattern: in EVERY atlas cell, glyphs in the LOWER HALF of the cell bake FLAT (flatCarve 25/25 sample points at labelA=255), upper-half glyphs carve correctly. Affects all six faces and all glyph positions below the cell midline.
+2. Minimal Node repro (repro.mjs) with the shipped signedDistance/carveCell on a 341x512 mask with two 22 px disks (upper j=148, lower j=364): sdf at lower disk centre = NaN. NaN fails every `sdf[p] < 0` comparison, so those pixels are forced to flat (128,128,255) in the bake output. Upper disk also partially flat (NaN spreads through the FH distance transform).
+3. Conclusion: buildCarveAtlas bakes flat normals wherever signedDistance returns NaN. NaN enters through the Felzenszwalb-Huttenlocher EDT for sample rows/regions far from glyph ink (suspicion: INF(1e20) arithmetic in edt1d). This is a product defect in src/dice/carve.js, not a harness issue.
+
+NEXT STEPS: run trace.mjs (written, not yet run) to pinpoint the NaN entry (toInside vs toOutside, which rows, INF-INF vs v[k] underflow in edt1d); then file the defect card with file:line refs and a fix direction (clamp distance-transform inputs or guard non-finite f values in edt1d). Rerun invalidated checks after fix. Full check table + unique run ids at wrap-up.
