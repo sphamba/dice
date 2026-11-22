@@ -1,7 +1,7 @@
 ---
 name: "fix: enlarge the d4 numbers"
 priority: "medium"
-state: "live-testing"
+state: "done"
 worktree: "fix/60-larger-d4-numbers"
 issuer: "user"
 complexity: "simple"
@@ -45,15 +45,34 @@ Calculated result with the test glyph box (0.56 em by 0.71 em): em 2.149 mm to 3
 # Notes
 # Notes
 # Notes
+# Notes
 
-## Live test (run id lt60/lt60s/lt60b, harness /tmp/dice-lt60)
+## Live test report (task #60, fix: enlarge the d4 numbers)
 
-Setup: served this worktree with vite on :8944, Playwright Chromium 1.59, SwiftShader WebGL, desktop 1280x800 dpr1. User flow: expand panel, remove 2 d6, add 1 d4, collapse panel, press Roll. No app code edited; no repo test suites run.
+Runs: lt60 (results-lt60.json), lt60s (lt60s-results.json), lt60b (lt60b-results.json), all in /tmp/dice-lt60. Served this worktree with vite on :8944; Playwright Chromium 1.59, SwiftShader WebGL; desktop 1280x800 dpr1. User flow exercised: expand panel, remove both default d6, add one d4, collapse panel, press Roll; repeated rolls and inspection of settled and mid-tumble states. No app code edited; no repo test suites run.
 
-Results so far:
-- PASS setup: default set is 2 d6; +/- buttons adjust; tray ends with exactly one d4. Console clean (0 product errors in every phase, all runs).
-- PASS settled top view (user's primary view), 9 rolls total: d4 rests apex-up, three side faces visible, all numbers legible (e.g. 2,3,2,4,4,3 and 3,1,2,3,4,3,1,2), clear of the rounded edges, no contact between numbers. Scene settles (AE=0) after every roll. Evidence: /tmp/dice-lt60/lt60-settled-crop-r1..r3.png, /tmp/dice-lt60/lt60s-final-die-zoom.png (x3 zoom).
-- PASS acceptance face-on view: mid-tumble burst captures caught two near-flat-on faces. r4-f00 shows face 4-3-1, r6-f00 shows face 4-1-2: all three numbers per face fully legible, wide margins to the rounded edges, wide gaps between numbers, no contact anywhere. Evidence: /tmp/dice-lt60/zoom-lt60b-r4-f00.png, /tmp/dice-lt60/zoom-lt60b-r6-f00.png. (Carve is in the face texture, so glyph-to-edge distance is orientation-invariant; the settled view confirms the same margins from a second angle.)
-- Harness/environment notes (not product defects): SwiftShader renders ~0.4 fps at 1280x800, so mid-flight capture needed per-roll screenshot polling (CDP screencast stalled at 3 frames per 4.5 s roll and full screenshot bursts were 2.4 s/frame); the flight itself settles in under ~2.4 s, so only the first post-click frame per roll was mid-flight. A resting d4 shows only foreshortened side faces under the fixed top-down ortho camera (src/render/camera.js); the flat-on view exists only transiently mid-tumble.
-- Numbers size sanity: die silhouette ~240 px wide; number em ~40 px at 1280x800 dpr1, consistent with spec em 3.533 mm and METERS_PER_DEVICE_PIXEL = 0.0254/440.
-- No product defects found so far. Remaining: quick look at the two other mid-flight candidates (r3/r5), then final report.
+### Assumptions made when designing the usage tests
+- Standard user window 1280x800 dpr1; physical mm sizes from the spec are viewport-independent, so legibility at this size is the acceptance proxy.
+- A resting d4 shows only foreshortened side faces under the fixed top-down ortho camera (src/render/camera.js); a flat-on face exists only transiently mid-tumble, so the acceptance view was captured by polling screenshots during flight (roll spin 15-40 rad/s, src/physics/roll.js:8-10, decorrelates orientation between ~2.4 s frames). This matches the developer's flat-on evidence frame (/tmp/bigzoom-1.png).
+- Carve is baked into the face texture, so glyph-to-edge and glyph-to-glyph distances are orientation-invariant; margins judged on near-flat views hold at rest.
+- No observed behavior contradicts the task's stated assumptions: visible number size is consistent with the spec em (about 40 px at dpr1 for 3.533 mm), and margins/gaps look comfortably above the 0.3 mm / 0.2 mm limits in every capture.
+
+### Results table
+| Check | Result |
+|---|---|
+| Setup: default set 2 d6; +/- buttons adjust; tray ends with exactly one d4 | PASS |
+| Console clean (0 product errors, every phase of every run) | PASS |
+| Scene settles after roll (AE=0 double-shot), 10 of 10 rolls | PASS |
+| Settled top view: all visible numbers legible, clear of rounded edges, no number-number contact (9 rolls; e.g. 2,3,2,4,4,3 and 3,1,2,3,4,3,1,2) | PASS |
+| Face-on mid-tumble captures: faces 4-3-1, 4-1-2, 2-4-1, 4-2-1 (4 independent captures); all three numbers per face fully legible, wide margins to the rounded edges, wide gaps between numbers, no contact | PASS |
+| Acceptance evidence files | /tmp/dice-lt60/zoom-lt60b-r4-f00.png, zoom-lt60b-r6-f00.png, zoom-lt60b-r3-f00.png, zoom-lt60b-r5-f00.png; settled views lt60-settled-crop-r1..r3.png, lt60s-final-die-zoom.png (x3) |
+| CDP screencast mid-flight capture | Harness limit: stalled at 3 frames per 4.5 s roll under software GL; replaced by first-frame-per-roll screenshot polling |
+| Continuous mid-flight frame stream | Harness limit: SwiftShader renders about 0.4 fps at 1280x800 and full screenshot bursts are 2.4 s/frame, while flight plus settle completes in under about 2.4 s, so only the first post-click frame per roll was mid-flight |
+
+### Environment notes (not product defects)
+- Software rasterizer frame rate is the only constraint hit; it shaped the capture strategy but blocked no acceptance check.
+- The dice set persists in localStorage; fresh contexts always start with the 2 d6 default.
+- Die silhouette measures about 240 px wide at 1280x800 dpr1, consistent with DIE_RADIUS = 0.0128*sqrt(3)/2 m (src/physics/body.js:7) and METERS_PER_DEVICE_PIXEL = 0.0254/440 (src/physics/box.js:1); my initial 481 px estimate had used a wrong radius and was corrected against the measurement.
+
+### Verdict
+All acceptance-relevant checks pass. No product defects found; no cards filed. Servers killed and verified (port 8944 free; stray hung drivers from earlier sessions in /tmp/dice-lt45 and /tmp/dice-lt50 also killed).
