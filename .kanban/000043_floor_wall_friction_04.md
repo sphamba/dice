@@ -40,9 +40,20 @@ Give die-floor and die-wall contacts a Coulomb friction of 0.4 and keep the glas
 # Notes
 # Notes
 # Notes
-- Outcome: approved at HEAD 417e7cc, no fixes needed.
-- Spec: `contacts.js` picks friction per surface (`FRICTION_FLOOR` 0.4, `FRICTION_WALL` 0.4, `FRICTION_LID` 0.1, `FRICTION_DIE` 0.1); `FRICTION_BOX` removed with no leftover references in `src`. Restitution, Baumgarte, iterations, FIXED_DT, warm starting, sleep and the friction disk untouched.
-- Tests as specced: per-surface coefficient check (floor/wall/lid/die), incline floor holds at 20 deg and slides at 25 deg, lid slides at 10 deg, e2e tilted gravity at 30 deg, #40 pile cases unchanged.
-- Evidence: `npx vitest run src/physics` 105 passed, `npm test` 293 passed, `npm run build` green.
-- Reviewed assumption (stated in dev notes, accepted): `roll.test.js` counts a lid contact only when `depth > 0`; with floor friction 0.4 the tossed die enters the 1e-4 m speculative skin near the lid (sub-mm gaps, no penetration) and the old check miscounted those as touches. The real-touch guard `highest < box.D` stays.
-- Guidance: the `?? FRICTION_FLOOR` fallback in `prepare` is unreachable from `collision.js` tagging (every box contact carries floor/wall/lid); fine as a defensive default, do not grow it into a config surface.
+# Notes
+## Live test #43 (in progress, held at watch checkpoint)
+
+Scope: user-level test of the friction change only (floor 0.4, wall 0.4, lid 0.1, die-die 0.1) through the real browser app: panel UI, devicemotion tilt, pointer drag, roll button. No unit suites run. Worktree merged commit 417e7cc, served with vite :8791 from the worktree.
+
+Assumptions stated up front (will be repeated in the final report):
+- Tilt is driven through the real `devicemotion` listener (`__tilt` dispatches DeviceMotionEvent; verified it sets `world.gravity` exactly on the desktop UA path).
+- Friction 0.4 => incline hold threshold ~21.8 deg: expected floor hold at 20 deg, slide at 25 deg; wall-as-floor hold from ~68 deg (80 deg used as the wall check); lid slide at 10 deg with gravity flipped up.
+- Die-die 0.1 has no isolated live discriminator; it is covered indirectly by settle/containment behavior (coefficient itself is unit-level, not re-tested live).
+
+Harness: /tmp/dice-lt43 (adapted from precedent harnesses). Playwright via /home/phamba/repos/tarot/app. main.js spy built from the served response (verified served import line). Sim-time clock wraps `world.beforeStep` instead of overwriting it — unlike precedent, because `createPointer` owns beforeStep (pointer drive); overwriting would silently break drag/hold.
+
+Probe run (desktop 1280x800, dpr 1, box 0.08 x 0.05 x 0.05 m, default 2 d6): 9/10 checks passed.
+- PASS: WebGL2 app mounted, no unsupported banner; box dims match boxFromViewport; default set = 2 d6 with gravity (0,0,-9.81); `__tilt` sets world gravity exactly through the real event path; wrapped beforeStep callable; panel toggle reveals rows, Roll and Add d6 buttons present; settled state NaN-free and contained; console clean (no pageerror/error).
+- FAIL (unclassified, under debug): "roll tosses dice (peak speed > 0.2 m/s) | peak=0.000 m/s". After clicking the Roll button, sampled velocities were exactly zero in all 6 samples over 1.5 s sim time; dice stayed asleep-looking. Candidates: click never reached the handler, or sampling missed the transient. Next step is a 10-line debug probe that samples raw velocity arrays immediately after the click with a page-side click listener, then classify harness bug vs product defect before the full driver run.
+
+Planned scenarios for the full driver: floor hold 20 deg (disp < 3 mm), floor slide 25 deg (disp > 3 mm, max > 10 mm, contained), wall hold at 80 deg tilt after removing dice and adding one d6 via the panel (die must stop on the -y wall at z >= 16 mm; floor-corner rest would be z <= 14 mm), lid slide at 10 deg with gravity flipped (disp > 3 mm), roll flow (toss + settle + containment), pointer drag flow (die follows pointer, no NaN), plus a short phone-descriptor run (iPhone 13) for the iOS devicemotion sign path: settle, hold 20, slide 25, containment. Console audited throughout.
