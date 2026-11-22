@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { FIXED_DT, MAX_STEPS, createWorld } from './world.js';
+import {
+  FIXED_DT,
+  MAX_STEPS,
+  SLEEP_SPEED,
+  SLEEP_TIME,
+  WAKE_GRAVITY_DELTA,
+  createWorld,
+} from './world.js';
 import { LINEAR_DAMPING } from './integrator.js';
-import { createBody } from './body.js';
+import { DIE_RADIUS, createBody } from './body.js';
 import { createShape } from '../dice/shapes.js';
 import * as mat3 from '../math/mat3.js';
 import * as vec3 from '../math/vec3.js';
@@ -40,6 +47,7 @@ describe('createWorld', () => {
     expect(Array.from(world.gravity)).toEqual([0, 0, -9.81]);
     expect(world.box).toEqual(BOX);
     expect(world.events).toEqual([]);
+    expect(world.asleep).toBe(false);
   });
 
   it('runs 480 fixed steps per simulated second', () => {
@@ -162,5 +170,116 @@ describe('setBox', () => {
 
     expect(body.position[0]).toBeCloseTo(0.01, 12);
     expect(Array.from(body.linearVelocity)).toEqual([1, 0, 0]);
+  });
+});
+
+const STEPS_PER_SECOND = Math.round(1 / FIXED_DT);
+
+// A die dropped from mid-box, left long enough to settle and fall asleep.
+const restingWorld = () => {
+  const world = createWorld(BOX);
+  const body = createBody(createShape('d6', DIE_RADIUS), { position: [0, 0, BOX.H / 2] });
+  world.addBody(body);
+  for (let i = 0; i < 3 * STEPS_PER_SECOND; i += 1) world.step(FIXED_DT);
+  return { world, body };
+};
+
+describe('sleep', () => {
+  it('sleeps after SLEEP_TIME below the speed threshold', () => {
+    const world = createWorld(BOX);
+    world.setGravity([0, 0, 0]);
+    world.addBody(makeBody());
+    const window = Math.round(SLEEP_TIME / FIXED_DT);
+
+    for (let i = 0; i < window - 2; i += 1) world.step(FIXED_DT);
+    expect(world.asleep).toBe(false);
+
+    for (let i = 0; i < 3; i += 1) world.step(FIXED_DT);
+    expect(world.asleep).toBe(true);
+  });
+
+  it('sleeps once a dropped die settles and zeroes its velocities', () => {
+    const { world, body } = restingWorld();
+    expect(world.asleep).toBe(true);
+    expect(Array.from(body.linearVelocity)).toEqual([0, 0, 0]);
+    expect(Array.from(body.angularVelocity)).toEqual([0, 0, 0]);
+  });
+
+  it('keeps a fast world awake', () => {
+    const world = createWorld(BOX);
+    world.setGravity([0, 0, 0]);
+    const body = makeBody();
+    world.addBody(body);
+    vec3.set(body.linearVelocity, SLEEP_SPEED * 2, 0, 0);
+    for (let i = 0; i < Math.round(SLEEP_TIME / FIXED_DT) + 2; i += 1) world.step(FIXED_DT);
+    expect(world.asleep).toBe(false);
+  });
+});
+
+describe('waking', () => {
+  it('wakes when the drive moves a held die', () => {
+    const { world, body } = restingWorld();
+    world.beforeStep = () => vec3.set(body.linearVelocity, 0.2, 0, 0);
+    const startX = body.position[0];
+
+    world.step(FIXED_DT);
+
+    expect(world.asleep).toBe(false);
+    expect(body.position[0]).toBeGreaterThan(startX);
+  });
+
+  it('wakes on a non-zero velocity', () => {
+    const { world, body } = restingWorld();
+    vec3.set(body.linearVelocity, 0.5, 0, 0);
+    world.step(FIXED_DT);
+    expect(world.asleep).toBe(false);
+  });
+
+  it('wakes on addBody', () => {
+    const { world } = restingWorld();
+    world.addBody(makeBody([0.05, 0.05, 0.05]));
+    expect(world.asleep).toBe(false);
+  });
+
+  it('wakes on removeBody', () => {
+    const { world, body } = restingWorld();
+    world.removeBody(body);
+    expect(world.asleep).toBe(false);
+  });
+
+  it('wakes on setBox', () => {
+    const { world } = restingWorld();
+    world.setBox({ W: BOX.W, H: BOX.H, D: BOX.D });
+    expect(world.asleep).toBe(false);
+  });
+
+  it('wakes on a gravity change above WAKE_GRAVITY_DELTA', () => {
+    const { world } = restingWorld();
+    world.setGravity([0, 0, world.gravity[2] + 2 * WAKE_GRAVITY_DELTA]);
+    expect(world.asleep).toBe(false);
+  });
+
+  it('stays asleep on a gravity change below WAKE_GRAVITY_DELTA', () => {
+    const { world } = restingWorld();
+    world.setGravity([0, 0, world.gravity[2] + WAKE_GRAVITY_DELTA * 0.8]);
+    expect(world.asleep).toBe(true);
+
+    world.step(FIXED_DT);
+    expect(world.asleep).toBe(true);
+  });
+
+  it('integrates nothing, detects no contacts and emits no events while asleep', () => {
+    const { world, body } = restingWorld();
+    const position = Array.from(body.position);
+    world.contacts.length = 0;
+    world.events.length = 0;
+
+    world.step(FIXED_DT);
+
+    expect(Array.from(body.position)).toEqual(position);
+    expect(Array.from(body.linearVelocity)).toEqual([0, 0, 0]);
+    expect(Array.from(body.angularVelocity)).toEqual([0, 0, 0]);
+    expect(world.contacts).toEqual([]);
+    expect(world.events).toEqual([]);
   });
 });

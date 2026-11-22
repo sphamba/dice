@@ -1,5 +1,6 @@
 import * as vec3 from '../math/vec3.js';
 import { detectContacts } from './collision.js';
+import { DIE_RADIUS } from './body.js';
 import { integratePositions, integrateVelocities } from './integrator.js';
 import { solveContacts } from './contacts.js';
 
@@ -8,6 +9,30 @@ export const FIXED_DT = 1 / 480;
 export const MAX_STEPS = 16;
 
 export const MAX_FRAME_DT = 0.1;
+
+export const SLEEP_SPEED = 0.01;
+
+export const SLEEP_TIME = 0.5;
+
+export const WAKE_GRAVITY_DELTA = 0.5;
+
+// Fastest point speed of a body: linear speed plus the spin of its farthest point.
+function pointSpeed(body) {
+  return vec3.length(body.linearVelocity) + DIE_RADIUS * vec3.length(body.angularVelocity);
+}
+
+function fastestPoint(bodies) {
+  let fastest = 0;
+  for (const body of bodies) fastest = Math.max(fastest, pointSpeed(body));
+  return fastest;
+}
+
+function moving(bodies) {
+  for (const body of bodies) {
+    if (vec3.length(body.linearVelocity) > 0 || vec3.length(body.angularVelocity) > 0) return true;
+  }
+  return false;
+}
 
 const clamp = (value, lo, hi) => Math.min(Math.max(value, lo), hi);
 
@@ -64,6 +89,25 @@ function containBody(box, body) {
 
 export function createWorld({ W, H, D }) {
   let accumulator = 0;
+  let asleep = false;
+  let stillTime = 0;
+  const sleepGravity = new Float64Array(3);
+
+  const wake = () => {
+    asleep = false;
+    stillTime = 0;
+  };
+
+  const sleep = () => {
+    asleep = true;
+    stillTime = 0;
+    vec3.copy(sleepGravity, world.gravity);
+    for (const body of world.bodies) {
+      vec3.set(body.linearVelocity, 0, 0, 0);
+      vec3.set(body.angularVelocity, 0, 0, 0);
+    }
+  };
+
   const world = {
     bodies: [],
     gravity: Float64Array.from([0, 0, -9.81]),
@@ -71,29 +115,47 @@ export function createWorld({ W, H, D }) {
     contacts: [],
     events: [],
     beforeStep: null,
+    get asleep() {
+      return asleep;
+    },
     addBody(body) {
       world.bodies.push(body);
+      wake();
       return body;
     },
     removeBody(body) {
       const index = world.bodies.indexOf(body);
       if (index !== -1) world.bodies.splice(index, 1);
+      wake();
       return body;
     },
     setGravity(gravity) {
       vec3.copy(world.gravity, gravity);
+      if (asleep && vec3.distance(world.gravity, sleepGravity) > WAKE_GRAVITY_DELTA) wake();
     },
     setBox(box) {
       Object.assign(world.box, box);
       for (const body of world.bodies) clampIntoBox(world.box, body);
+      wake();
     },
     step(dt) {
+      // The drive still runs while asleep: it is the only in-scope signal that a die is held.
       if (world.beforeStep) world.beforeStep(dt);
+      if (asleep) {
+        if (!moving(world.bodies)) return;
+        wake();
+      }
       integrateVelocities(world.bodies, world.gravity, dt);
       detectContacts(world, dt);
       solveContacts(world, dt);
       integratePositions(world.bodies, dt);
       for (const body of world.bodies) containBody(world.box, body);
+      if (fastestPoint(world.bodies) < SLEEP_SPEED) {
+        stillTime += dt;
+        if (stillTime >= SLEEP_TIME) sleep();
+      } else {
+        stillTime = 0;
+      }
     },
     update(frameDt) {
       world.events.length = 0;
