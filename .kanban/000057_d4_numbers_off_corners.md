@@ -1,7 +1,7 @@
 ---
 name: "fix: move the d4 numbers away from the corners"
 priority: "medium"
-state: "live-testing"
+state: "done"
 worktree: "fix/57-d4-numbers-off-corners"
 issuer: "user"
 complexity: "simple"
@@ -43,18 +43,28 @@ The d4 numbers sit too close to the face corners. Move them toward the face cent
 # Notes
 # Notes
 # Notes
-Live test in progress on merged commit (worktree fix/57-d4-numbers-off-corners). No unit suites run; only real UI flows (panel toggle, clear, Add d4, Roll).
+# Notes
+Live test of the merged commit (worktree fix/57-d4-numbers-off-corners) is DONE. Result: PASS, no product defects found, nothing filed.
 
-Scope: live acceptance = "a d4 at desktop and phone size shows 3 readable, carved numbers per visible face, clear of the rounded corners". Assumptions: ortho top-down camera; settled d4 rests face-down so exactly 3 faces visible (upness 0.33 each), 9 glyphs per pose.
+Flows exercised like a user: panel toggle, clear, Add d4, Roll, all via real clicks on :8957 (vite, strictPort). One d4 spawned per pose; settled (asleep) before capture. Poses: desktopA (spawn), desktopB (after Roll), phone (spawn, 390x844 dpr 2 -> 780x1688 backing). Console audit: 0 errors, 0 warnings.
 
-Harness: /tmp/dice-lt57 (harness.mjs from proven /tmp/dice-lt54, retargeted; port 8957 strictPort). Gates grounded in printed source constants: DIE_RADIUS 11.085 mm, BEVEL_RADIUS 1.6 mm, D4_LABEL_CENTER 0.32, fit box 0.125R x 0.146R, margin rule 0.3 mm, inset from faceInsetData. Classifier calibrated on printed pixel distributions: glyph cores luma < 0.55 * per-face body p85 (glyph core <40, AA blends 40-95, body 91-221).
+Final run run-d: 51/51 checks PASS (/tmp/dice-lt57/results-lt57-d.json). Evidence: /tmp/dice-lt57/crop-desktopA.png, crop-desktopB.png, crop-phone.png (200% crops) and full frames.
 
-Latest full run (run-c), 42/55, all remaining FAILs diagnosed as harness calibration or capture timing, none product-side:
-- Clearance (the core of the fix), real pixels, settled poses: desktopA worst 0.583 mm, phone worst 0.639 mm inside the inset - both clear the 0.3 mm rule on every analysed face.
-- Glyph positions: PASS on all 6 analysed face instances (desktop faces 0,2,3 + phone faces 1,2,3 = all 4 faces seen live) at 1.0-4.0 px from the projected 0.32*corner centres (tol 21 px desktop / 14 px phone). At the old 0.62 the offset would be ~50 px, so the gate stresses the change.
-- Contrast PASS everywhere (core lumas 19-45 vs body 93-221).
-- "present and sized" FAILs are my core-extent floor (0.45*capPx = 12.6 px) sitting above the measured dark-core extents (5-16 px; strokes are 1-2 px AA blends). Recalibrating floor to 0.25*capPx; readability itself is evidenced by the 200% crops (crop-desktopA.png, crop-phone.png): 9 crisp readable numbers, 3 per face, all toward face centres, clearly clear of corners/edges.
-- desktopB (after panel Roll): die woke again between sleep and capture (asleep=false in the post-capture sample; capture mid-motion shows motion-shading pixels, worst margin 0.000 mm is motion AO, not glyph position). Spawn-settled poses (A, phone) hold asleep. Next: retry loop capture-then-sample; if a rolled pose still will not hold asleep on SwiftShader, record B as observation-only with that reason.
-- Harness bug found and fixed mid-run: my scan indexed the bottom-up readPixels buffer without the Y flip (H.pxAt does it); run-b's zero-ink results were that bug, not app behaviour.
+Acceptance mapping:
+- 3 readable carved numbers per visible face: PASS on all 3 poses (9 glyphs each, values per face as expected, 3 per face). Measured per-glyph dark-core pixel counts 19-85 with extents 5-16 px, contrast core-vs-body 130-190 luma. Crops show crisp legible digits.
+- Numbers clear of rounded corners: PASS. Worst glyph-edge margin inside the inset: desktopA 0.598 mm, desktopB 0.597 mm, phone 0.608 mm (min over all analysed faces, per-pixel), all above the 0.3 mm rule and the ~0.087 mm 1 px AA tolerance.
+- Numbers toward face centres at 0.32 x corner: PASS. Every owned glyph cloud centroid within 0.3-4.0 px of the projected 0.32*corner position (tol 21 px desktop / 14 px phone); the old 0.62 placement would sit ~50 px away, so the gate stresses the change. All 4 d4 faces covered live (desktopA 0,1,2 + desktopB 1,2,3 + phone 0,1,2).
+- Settled resting geometry: exactly 3 faces visible, upness 0.33 each, on every pose.
 
-No product defects filed so far. Remaining: recalibrated rerun (run-d), read evidence crops, final report + results table.
+Gates grounded in printed source constants (DIE_RADIUS 11.085 mm, BEVEL_RADIUS 1.6 mm, D4_LABEL_CENTER 0.32, fit 0.125R x 0.146R, CAP_HEIGHT 71) and in printed pixel distributions (ink = luma < 0.55 * per-face body p85; calibrated: glyph core <40, AA blends 40-95, body 91-221). Presence floor recalibrated once on measured core extents (0.45 -> 0.25 * capPx); readability itself judged from the crops, not the floor.
+
+Harness notes for the record: one mid-run bug was my own (missing Y flip when indexing the bottom-up readPixels buffer; H.pxAt does it). One unreproduced environment flake: in run-c the die woke again ~0.3 s after falling asleep post-Roll on SwiftShader; the final clean run showed correct sleep-hold behaviour, so not filed as a defect.
+
+Results table:
+- env: WebGL2, backing = viewport * min(dpr,2), capture fields, no unsupported overlay - PASS (run-c; env phase skipped in run-d as already green)
+- each pose: capture sane / one d4 / asleep / 3 visible faces - PASS x3
+- each face: clearance >= 0.3 mm - PASS x9; presence+size - PASS x9; position at 0.32 - PASS x9; contrast - PASS x9
+- console audit - PASS
+- harness-limit notes: none remaining; presence-floor recalibration documented above
+
+Server stopped and port verified free.
