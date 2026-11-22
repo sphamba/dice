@@ -172,7 +172,7 @@ export function createSound() {
         context = new AudioCtor();
         const shaper = context.createWaveShaper();
         shaper.curve = clipperCurve();
-        shaper.oversample = '4x';
+        shaper.oversample = 'none';
         master = context.createGain();
         master.gain.value = 1 / CLIPPER_RANGE;
         master.connect(shaper);

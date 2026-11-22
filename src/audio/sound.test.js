@@ -226,11 +226,11 @@ test('is silent at and below the minimum impulse', () => {
   expect(gainForImpulse(MIN_IMPULSE / 2)).toBe(0);
 });
 
-test('builds a 4x-oversampled clipper curve of 4097 points', async () => {
+test('builds a table-lookup clipper curve of 4097 points', async () => {
   const sound = createSound();
   await sound.resume();
   const shaper = audio.created.shapers[0];
-  expect(shaper.oversample).toBe('4x');
+  expect(shaper.oversample).toBe('none');
   expect(shaper.curve).toBeInstanceOf(Float32Array);
   expect(shaper.curve.length).toBe(4097);
 });
