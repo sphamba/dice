@@ -1,7 +1,7 @@
 ---
 name: "test: lock the free-hang rest of a held die (the wall lean is physical)"
 priority: "medium"
-state: "doing"
+state: "to-review"
 worktree: "fix/53-grabbed-die-in"
 issuer: "#50"
 complexity: "simple"
@@ -28,21 +28,27 @@ When a grabbed die is held in the air with no contact (clearance > 0), the physi
 - `npm test`
 
 # Notes
-## PM hint
-- `|w| = 0.000` with a constant offset: the hint was that the step does not integrate the body. Wrong: the step does integrate and the wall contact solver pins it. Evidence below.
+## Deliverable
+- Root cause of the 6-9 mm rests: a die jammed against a **side wall** while held, not sleep, not the pointer drive, and not a speed gate. PM confirmed the behaviour is correct (#45 rule: contacts stay active while held), so no production change.
+- Added a regression test in `src/input/pointer.test.js` ('hangs from 20 grabbed points and orientations per die type without a contact'): seeded, 20 grab points and initial orientations per die type, 3 s hold in a 0.2 m box with no contact of any kind, asserting the CoM xy within 1 mm of the grab point and |w| < 0.1 rad/s.
+- HEAD 2e2f752, test-only change.
 
-## State
-- Root cause found: a **side-wall contact**, not sleep, not the drive, not the sleep gate. No code changed yet.
-- Per-step trace of a failing case (d10, seed 1011): after the drive v = (-0.0146, 0.0007, 0.0188), w = (0.33, -2.75, 0.42); after gravity v_z = -0.0017; `detectContacts` reports 2 wall contacts (depth 8.4e-15 and 0); `solveContacts` returns v = 0, w = 0 exactly and the position does not move. A jammed lean, stable across steps.
-- Geometry of the same case: the pointer at (-13.03, -17.35) mm, the CoM at (-22.39, -17.64) mm (offset 9.37 mm), and the die's min-x vertex at exactly -31.750 mm, the side wall. The free-hang clearance at that pointer is 7.6 mm, but swinging the CoM under the pointer pushes that vertex through the wall, so the die is geometrically jammed and cannot reach the free hang.
-- Cause of the trigger: every failing case starts on an **asleep** die resting near a wall (lever 10.0-10.8 mm), which is then lifted up the wall and jams against it. All 31/120 failing cases in the 63.5 mm box are wall cases.
-- Same sweep in a wide box (W = H = 0.2 m, same seeds, same 3 s hold, 24.2 and 60 fps): 0/120 fail, worst offset 0.00 mm. Grab at hold height in free hang: 0/120 fail. So the free-hang path on main is correct and needs no change.
-- Repro (deterministic, per-case seeds): `/tmp/run53.mjs` (63.5 mm box, 31/120 fail), `/tmp/run53w.mjs` (wide box, 0/120), per-step diag `/tmp/diag53d.mjs`.
+## Verification
+- `npx vitest run src/input src/physics`: 10 files, 142 tests passed.
+- `npm test`: 28 files, 343 tests passed.
+- `npm run build`: built, `dist/index.html` references `./assets/index-CEHgI89T.js` and `./assets/index-DFCdjPSa.css`.
+- Evidence for the free hang: `/tmp/run53w.mjs` wide box 0/120 fail, worst 0.00 mm at 24.2 and 60 fps; `/tmp/run53.mjs` 63.5 mm box 31/120 fail, every failure with a wall contact.
+- Per-step trace (`/tmp/diag53d.mjs`): drive sets v = (-0.0146, 0.0007, 0.0188), then gravity, then two wall contacts at depth ~0, then `solveContacts` returns v = 0 and w = 0 with the pose unchanged.
 
-## Next action
-- Write the card's regression test (`src/input/pointer.test.js`, no contacts, 20 seeded grab points and orientations per die type, 3 s hold, CoM xy < 1 mm, |w| < 0.1). It is green on main and locks the invariant.
-- Then decide the wall case: it is physically correct (a real pendulum leaning on a wall while the pointer holds the grab point jams there), so no production change is in scope without forcing an orientation (#45 rule). Ask the PM in Open questions whether a held die leaning on a side wall is acceptable, or should be a separate task (for example wall friction for held bodies).
-- No blockers.
+## Assumptions
+- The grab convention for the new test is a random up-facing face point toward a vertex, with a unit-length random axis for the initial orientation.
+- The free-hang invariant only binds with no contact; a held die that leans on a wall, the lid, or another die keeps that contact.
+
+## Blockers
+- None.
+
+## Manual checks left to other roles
+- Optional live re-check: hold a die near a side wall and confirm the lean is accepted; hold in open floor space and confirm the CoM settles below the pointer.
 
 # Open questions
 
