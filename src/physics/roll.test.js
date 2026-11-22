@@ -5,18 +5,23 @@ import { createShape } from '../dice/shapes.js';
 import { FIXED_DT, createWorld } from './world.js';
 import {
   ROLL_RISE_MAX,
-  ROLL_RISE_MIN,
   ROLL_SPEED_MAX,
   ROLL_SPIN_MAX,
+  headroom,
   liftSpeed,
   rollVelocity,
 } from './roll.js';
 import * as quat from '../math/quat.js';
 import * as vec3 from '../math/vec3.js';
 
-const BOX = boxFromViewport(1280, 800, 1);
+const BOXES = [
+  ['desktop', boxFromViewport(1280, 800, 1)],
+  ['phone', boxFromViewport(393, 852, 3)],
+];
 
 const GRAVITY = Float64Array.from([0, 0, -9.81]);
+
+const NO_GRAVITY = Float64Array.from([0, 0, 0]);
 
 const STEPS_PER_SECOND = Math.round(1 / FIXED_DT);
 
@@ -53,6 +58,7 @@ function toss(world, body, random, angle) {
   rollVelocity(body.linearVelocity, {
     box: world.box,
     gravity: world.gravity,
+    position: body.position,
     angle,
     speed: ROLL_SPEED_MAX,
     rise: ROLL_RISE_MAX,
@@ -61,25 +67,35 @@ function toss(world, body, random, angle) {
 }
 
 describe('liftSpeed', () => {
-  it('grows with the box depth and with gravity', () => {
-    expect(liftSpeed(BOX, GRAVITY, ROLL_RISE_MAX)).toBeCloseTo(
-      Math.sqrt(2 * 9.81 * ROLL_RISE_MAX * BOX.D),
+  it('turns a fraction of the headroom under the lid into an ascent speed', () => {
+    const up = Float64Array.from([0, 0, 1]);
+    const [, box] = BOXES[0];
+    const rest = Float64Array.from([0, 0, DIE_RADIUS]);
+    expect(headroom(box, rest, up)).toBeCloseTo(box.D - 2 * DIE_RADIUS, 12);
+    expect(liftSpeed(box, GRAVITY, rest, ROLL_RISE_MAX)).toBeCloseTo(
+      Math.sqrt(2 * 9.81 * ROLL_RISE_MAX * (box.D - 2 * DIE_RADIUS)),
       12,
     );
-    expect(liftSpeed(BOX, Float64Array.from([0, 0, 0]), ROLL_RISE_MAX)).toBe(0);
+    expect(liftSpeed(box, NO_GRAVITY, rest, ROLL_RISE_MAX)).toBe(0);
   });
 });
 
-describe('roll toss', () => {
-  it('lifts the die without reaching the lid, then settles it on the floor', () => {
+describe.each(BOXES)('roll toss on the %s box', (name, box) => {
+  it('tosses the die high without touching the lid, then settles it on the floor', () => {
+    const up = Float64Array.from([0, 0, 1]);
+    const rises = [];
     for (let index = 0; index < 8; index += 1) {
       const random = mulberry32(424242 + index);
-      const world = createWorld(BOX);
+      const world = createWorld(box);
       const body = createBody(createShape('d6', DIE_RADIUS), {
-        position: [0, 0, DIE_RADIUS],
+        position: [0, 0, box.D / 2],
         orientation: quat.random(new Float64Array(4), random),
       });
       world.addBody(body);
+      for (let step = 0; step < SETTLE_SECONDS * STEPS_PER_SECOND; step += 1) world.step(FIXED_DT);
+
+      const rest = body.position[2];
+      const available = headroom(box, body.position, up);
       toss(world, body, random, (2 * Math.PI * index) / 8);
 
       let lidSteps = 0;
@@ -93,11 +109,12 @@ describe('roll toss', () => {
       }
 
       expect(lidSteps).toBe(0);
-      expect(highest).toBeLessThan(BOX.D);
-      expect(apex).toBeGreaterThan(DIE_RADIUS + 0.5 * ROLL_RISE_MIN * BOX.D);
+      expect(highest).toBeLessThan(box.D);
+      rises.push((apex - rest) / available);
       expect(Math.abs(lowestVertex(body))).toBeLessThan(0.0005);
       expect(vec3.length(body.linearVelocity)).toBeLessThan(0.005);
       expect(vec3.length(body.angularVelocity)).toBeLessThan(0.1);
     }
+    expect(rises.reduce((sum, rise) => sum + rise, 0) / rises.length).toBeGreaterThan(0.5);
   });
 });

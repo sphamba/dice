@@ -126,6 +126,7 @@ if (!gl) {
       rollVelocity(body.linearVelocity, {
         box: world.box,
         gravity: world.gravity,
+        position: body.position,
         angle: Math.random() * 2 * Math.PI,
         speed: randomRange(ROLL_SPEED_MIN, ROLL_SPEED_MAX),
         rise: randomRange(ROLL_RISE_MIN, ROLL_RISE_MAX),
