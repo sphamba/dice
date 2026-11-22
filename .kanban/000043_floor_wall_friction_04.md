@@ -41,19 +41,22 @@ Give die-floor and die-wall contacts a Coulomb friction of 0.4 and keep the glas
 # Notes
 # Notes
 # Notes
-## Live test #43 (in progress, held at watch checkpoint)
+## PM hint
+- Earlier live tests (#37, #42) measured that dice settle 0.2-0.5 s after a Roll, and the whole-world sleep then freezes them. Sample every frame from the Roll click for the first 0.5 s before you classify the roll check. The Roll flow is not in this task's scope: one passing roll is enough.
+
+## Live test #43 (in progress)
 
 Scope: user-level test of the friction change only (floor 0.4, wall 0.4, lid 0.1, die-die 0.1) through the real browser app: panel UI, devicemotion tilt, pointer drag, roll button. No unit suites run. Worktree merged commit 417e7cc, served with vite :8791 from the worktree.
 
-Assumptions stated up front (will be repeated in the final report):
+Assumptions:
 - Tilt is driven through the real `devicemotion` listener (`__tilt` dispatches DeviceMotionEvent; verified it sets `world.gravity` exactly on the desktop UA path).
 - Friction 0.4 => incline hold threshold ~21.8 deg: expected floor hold at 20 deg, slide at 25 deg; wall-as-floor hold from ~68 deg (80 deg used as the wall check); lid slide at 10 deg with gravity flipped up.
-- Die-die 0.1 has no isolated live discriminator; it is covered indirectly by settle/containment behavior (coefficient itself is unit-level, not re-tested live).
+- Die-die 0.1 has no isolated live discriminator; it is covered indirectly by settle/containment behavior.
 
-Harness: /tmp/dice-lt43 (adapted from precedent harnesses). Playwright via /home/phamba/repos/tarot/app. main.js spy built from the served response (verified served import line). Sim-time clock wraps `world.beforeStep` instead of overwriting it — unlike precedent, because `createPointer` owns beforeStep (pointer drive); overwriting would silently break drag/hold.
+Harness: /tmp/dice-lt43. Playwright via /home/phamba/repos/tarot/app. main.js spy built from the served response. Sim-time clock wraps `world.beforeStep` (the pointer drive owns it) instead of overwriting it.
 
 Probe run (desktop 1280x800, dpr 1, box 0.08 x 0.05 x 0.05 m, default 2 d6): 9/10 checks passed.
-- PASS: WebGL2 app mounted, no unsupported banner; box dims match boxFromViewport; default set = 2 d6 with gravity (0,0,-9.81); `__tilt` sets world gravity exactly through the real event path; wrapped beforeStep callable; panel toggle reveals rows, Roll and Add d6 buttons present; settled state NaN-free and contained; console clean (no pageerror/error).
-- FAIL (unclassified, under debug): "roll tosses dice (peak speed > 0.2 m/s) | peak=0.000 m/s". After clicking the Roll button, sampled velocities were exactly zero in all 6 samples over 1.5 s sim time; dice stayed asleep-looking. Candidates: click never reached the handler, or sampling missed the transient. Next step is a 10-line debug probe that samples raw velocity arrays immediately after the click with a page-side click listener, then classify harness bug vs product defect before the full driver run.
+- PASS: WebGL2 app mounted; box dims match boxFromViewport; default set 2 d6, gravity (0,0,-9.81); `__tilt` sets world gravity exactly; wrapped beforeStep callable; panel toggle reveals rows, Roll and Add d6 present; settled state NaN-free and contained; console clean.
+- Under debug: "roll tosses dice (peak speed > 0.2 m/s) | peak=0.000 m/s" over 6 samples in 1.5 s sim time (see PM hint).
 
-Planned scenarios for the full driver: floor hold 20 deg (disp < 3 mm), floor slide 25 deg (disp > 3 mm, max > 10 mm, contained), wall hold at 80 deg tilt after removing dice and adding one d6 via the panel (die must stop on the -y wall at z >= 16 mm; floor-corner rest would be z <= 14 mm), lid slide at 10 deg with gravity flipped (disp > 3 mm), roll flow (toss + settle + containment), pointer drag flow (die follows pointer, no NaN), plus a short phone-descriptor run (iPhone 13) for the iOS devicemotion sign path: settle, hold 20, slide 25, containment. Console audited throughout.
+Planned scenarios: floor hold 20 deg (disp < 3 mm), floor slide 25 deg (disp > 3 mm, max > 10 mm, contained), wall hold at 80 deg tilt with one d6 (stops on the -y wall at z >= 16 mm), lid slide at 10 deg with gravity flipped (disp > 3 mm), roll flow, pointer drag flow, plus a short iPhone 13 run (settle, hold 20, slide 25, containment). Console audited throughout.
