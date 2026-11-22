@@ -1,5 +1,7 @@
+import * as mat3 from '../math/mat3.js';
 import * as quat from '../math/quat.js';
 import * as vec3 from '../math/vec3.js';
+import { applyImpulse } from '../physics/body.js';
 
 export const MAX_DRAG_SPEED = 2;
 
@@ -12,7 +14,8 @@ export const FLING_WINDOW_MS = 80;
 // Held-body damping rates in 1/s, so the fixed-step response is frame-rate independent.
 const HOLD_DAMPING = 120;
 
-const HOLD_ANGULAR_DAMPING = 8;
+// Light enough to keep a visible swing after a pointer move, strong enough to calm it in ~1 s.
+const HOLD_SWING_DAMPING = 12;
 
 const FACE_EPS = 1e-9;
 
@@ -68,6 +71,40 @@ const scratchOffset = new Float64Array(3);
 const scratchConjugate = new Float64Array(4);
 const scratchRotatedOffset = new Float64Array(3);
 const scratchTarget = new Float64Array(3);
+const scratchPoint = new Float64Array(3);
+const scratchPointVelocity = new Float64Array(3);
+const scratchSpinLever = new Float64Array(3);
+const scratchImpulse = new Float64Array(3);
+const scratchCross = new Float64Array(9);
+const scratchProduct = new Float64Array(9);
+const scratchStiffness = new Float64Array(9);
+const scratchInverse = new Float64Array(9);
+
+// Column-major [r]x: the operator v -> r x v.
+function crossMatrix(out, r) {
+  out[0] = 0;
+  out[1] = r[2];
+  out[2] = -r[1];
+  out[3] = -r[2];
+  out[4] = 0;
+  out[5] = r[0];
+  out[6] = r[1];
+  out[7] = -r[0];
+  out[8] = 0;
+  return out;
+}
+
+// The impulse at the offset point that changes that point's velocity by deltaVelocity,
+// with K = (1/m) I - [r]x invInertiaWorld [r]x.
+function pointImpulse(out, body, offset, deltaVelocity) {
+  const cross = crossMatrix(scratchCross, offset);
+  mat3.multiply(scratchProduct, cross, body.invInertiaWorld);
+  mat3.multiply(scratchStiffness, scratchProduct, cross);
+  for (let index = 0; index < 9; index += 1) scratchStiffness[index] = -scratchStiffness[index];
+  for (let axis = 0; axis < 3; axis += 1) scratchStiffness[axis * 4] += body.invMass;
+  const inverse = mat3.invert(scratchInverse, scratchStiffness);
+  return inverse ? vec3.transformMat3(out, deltaVelocity, inverse) : null;
+}
 
 function worldVertex(out, body, index) {
   quat.rotateVec3(scratchRotatedVertex, body.orientation, body.shape.vertices[index]);
@@ -128,30 +165,46 @@ export function createPointer(canvas, { world, toWorld }) {
     return [point[0] ?? point.x, point[1] ?? point.y];
   }
 
-  // Pulls the held material point toward the pointer and the center to the hold height.
+  // Pulls the held material point toward the pointer, at the hold height. Gravity is left
+  // to turn the rest of the die about that point, so the center hangs below it.
   function drive(dt) {
     const gain = (1 - Math.exp(-HOLD_DAMPING * dt)) / dt;
-    const spinDecay = 1 / (1 + HOLD_ANGULAR_DAMPING * dt);
-    const holdHeight = world.box.D;
+    const swingDecay = 1 / (1 + HOLD_SWING_DAMPING * dt);
     for (const entry of held.values()) {
       const body = entry.body;
-      vec3.scale(body.angularVelocity, body.angularVelocity, spinDecay);
       const offset = vec3.transformQuat(scratchRotatedOffset, entry.offset, body.orientation);
-      const spinX = body.angularVelocity[1] * offset[2] - body.angularVelocity[2] * offset[1];
-      const spinY = body.angularVelocity[2] * offset[0] - body.angularVelocity[0] * offset[2];
+      const point = vec3.add(scratchPoint, body.position, offset);
+      const pointVelocity = vec3.add(
+        scratchPointVelocity,
+        body.linearVelocity,
+        vec3.cross(scratchSpinLever, body.angularVelocity, offset),
+      );
       const target = clampSpeed(
         vec3.set(
           scratchTarget,
-          (entry.target[0] - body.position[0] - offset[0]) * gain,
-          (entry.target[1] - body.position[1] - offset[1]) * gain,
+          (entry.target[0] - point[0]) * gain,
+          (entry.target[1] - point[1]) * gain,
           0,
         ),
         MAX_DRAG_SPEED,
       );
-      target[0] -= spinX;
-      target[1] -= spinY;
-      target[2] = (holdHeight - 2 * body.radius - body.position[2]) * gain;
-      vec3.copy(body.linearVelocity, target);
+      target[2] = (world.box.D - 2 * body.radius - point[2]) * gain;
+      const impulse = pointImpulse(
+        scratchImpulse,
+        body,
+        offset,
+        vec3.sub(target, target, pointVelocity),
+      );
+      if (impulse) applyImpulse(body, impulse, point);
+      // The constraint re-solves the point velocity, so the free spin about the held point
+      // has to be damped after it, with the center moved to keep the point in place.
+      vec3.scaleAndAdd(
+        body.linearVelocity,
+        body.linearVelocity,
+        vec3.cross(scratchSpinLever, body.angularVelocity, offset),
+        1 - swingDecay,
+      );
+      vec3.scale(body.angularVelocity, body.angularVelocity, swingDecay);
     }
   }
 

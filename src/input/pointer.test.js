@@ -110,28 +110,20 @@ function run(world, fps, seconds) {
   for (let frame = 0; frame < frames; frame += 1) world.update(1 / fps);
 }
 
-describe('face picking', () => {
-  it('holds the exact face point of every die type without moving the center', () => {
-    for (const type of DICE_TYPES) {
-      const shape = createShape(type, DIE_RADIUS);
-      const top = shape.faces.reduce((best, face) => (face.normal[2] > best.normal[2] ? face : best));
-      const centroid = [0, 0, 0];
-      for (const index of top.indices) {
-        for (let axis = 0; axis < 3; axis += 1) {
-          centroid[axis] += shape.vertices[index][axis] / top.indices.length;
-        }
-      }
-      const body = makeDie({ type });
-      const { world, canvas, pointer } = scene([body]);
-      pressWorld(canvas, 1, centroid[0], centroid[1]);
-      expect(pointer.heldBodies()).toEqual([body]);
-      run(world, 60, 0.4);
-      const anchor = [body.position[0] + centroid[0], body.position[1] + centroid[1]];
-      expect(Math.hypot(anchor[0] - centroid[0], anchor[1] - centroid[1])).toBeLessThan(0.001);
-      expect(Math.hypot(body.position[0], body.position[1])).toBeLessThan(0.001);
-    }
-  });
+// The grabbed material point: the world lever from the center, the point itself, the spin.
+function grabbedPoint(body, offset) {
+  const lever = vec3.transformQuat(new Float64Array(3), offset, body.orientation);
+  return {
+    lever,
+    point: vec3.add(new Float64Array(3), body.position, lever),
+    spin: Math.hypot(...body.angularVelocity),
+  };
+}
 
+// The topmost vertex of a die is on the upper surface, so a press at its user-space xy picks it.
+const topVertex = (shape) => shape.vertices.reduce((best, v) => (v[2] > best[2] ? v : best));
+
+describe('face picking', () => {
   it('keeps a tilted grab anchored to the pressed material point', () => {
     const orientation = quat.setAxisAngle(new Float64Array(4), [1, 0, 0], 0.6);
     const body = makeDie({ orientation });
@@ -144,14 +136,10 @@ describe('face picking', () => {
     const { world, canvas, pointer } = scene([body]);
     pressWorld(canvas, 1, worldPoint[0], worldPoint[1]);
     expect(pointer.heldBodies()).toEqual([body]);
-    run(world, 60, 0.5);
-    const anchor = vec3.add(
-      new Float64Array(3),
-      vec3.transformQuat(new Float64Array(3), grabbed, body.orientation),
-      body.position,
-    );
-    expect(Math.hypot(anchor[0] - worldPoint[0], anchor[1] - worldPoint[1])).toBeLessThan(0.001);
-    expect(Math.abs(body.position[2] - holdHeight(body))).toBeLessThan(0.001);
+    run(world, 60, 1.5);
+    const { point } = grabbedPoint(body, grabbed);
+    expect(Math.hypot(point[0] - worldPoint[0], point[1] - worldPoint[1])).toBeLessThan(0.001);
+    expect(Math.abs(point[2] - holdHeight(body))).toBeLessThan(0.001);
   });
 
   it('holds nothing for a press inside the bounding circle but outside the face', () => {
@@ -170,91 +158,121 @@ describe('face picking', () => {
   });
 });
 
-describe('held damping', () => {
-  it('does not snap the center under the pointer on an off-center grab', () => {
-    const body = makeDie();
-    const { world, canvas } = scene([body]);
-    pressWorld(canvas, 1, FACE_HALF * 0.55, FACE_HALF * 0.3);
-    world.update(1 / 60);
-    expect(Math.hypot(body.position[0], body.position[1])).toBeLessThan(1e-9);
-  });
-
-  it('settles the anchor and the hold height at 30, 60 and 144 fps', () => {
-    for (const fps of [30, 60, 144]) {
-      const body = makeDie();
+describe('hanging', () => {
+  it('hangs every die type with its center directly below the grabbed vertex', () => {
+    for (const type of DICE_TYPES) {
+      const grabbed = topVertex(createShape(type, DIE_RADIUS));
+      const body = makeDie({ type });
       const { world, canvas } = scene([body]);
-      const grabbed = [FACE_HALF * 0.55, FACE_HALF * 0.3];
       pressWorld(canvas, 1, grabbed[0], grabbed[1]);
-      run(world, fps, 0.4);
-      let peakAnchor = 0;
-      let peakHeight = 0;
-      for (let frame = 0; frame < fps / 2; frame += 1) {
-        world.update(1 / fps);
-        const anchor = [body.position[0] + grabbed[0], body.position[1] + grabbed[1]];
-        peakAnchor = Math.max(peakAnchor, Math.hypot(anchor[0] - grabbed[0], anchor[1] - grabbed[1]));
-        peakHeight = Math.max(peakHeight, Math.abs(body.position[2] - holdHeight(body)));
-      }
-      expect(peakAnchor).toBeLessThan(0.001);
-      expect(peakHeight).toBeLessThan(0.001);
+      run(world, 60, 1.5);
+      const { lever, point, spin } = grabbedPoint(body, grabbed);
+      expect(Math.hypot(lever[0], lever[1]), type).toBeLessThan(0.001);
+      expect(Math.hypot(point[0] - grabbed[0], point[1] - grabbed[1]), type).toBeLessThan(0.001);
+      expect(Math.abs(point[2] - holdHeight(body)), type).toBeLessThan(0.001);
+      expect(spin, type).toBeLessThan(0.1);
     }
   });
 
-  it('tracks a pointer jump without visible overshoot at 30, 60 and 144 fps', () => {
+  it('swings after a sudden pointer move and calms within 1.5 s', () => {
+    const body = makeDie();
+    const grabbed = [0, 0, FACE_HALF];
+    const { world, canvas } = scene([body]);
+    pressWorld(canvas, 1, 0, 0);
+    run(world, 60, 1.5);
+    moveWorld(canvas, 1, 0.02, 0, 2000);
+    let previous = 0;
+    let crossings = 0;
+    for (let frame = 0; frame < 90; frame += 1) {
+      world.update(1 / 60);
+      const offsetX = -grabbedPoint(body, grabbed).lever[0];
+      if (previous !== 0 && offsetX !== 0 && Math.sign(offsetX) !== Math.sign(previous)) {
+        crossings += 1;
+      }
+      previous = offsetX;
+    }
+    expect(crossings).toBeGreaterThanOrEqual(1);
+    const { lever, point, spin } = grabbedPoint(body, grabbed);
+    expect(Math.hypot(lever[0], lever[1])).toBeLessThan(0.001);
+    expect(Math.hypot(point[0] - 0.02, point[1])).toBeLessThan(0.001);
+    expect(Math.abs(point[2] - holdHeight(body))).toBeLessThan(0.001);
+    expect(spin).toBeLessThan(0.1);
+  });
+
+  it('calms a spun held die without collisions', () => {
+    const body = makeDie();
+    const grabbed = [0, 0, FACE_HALF];
+    const { world, canvas } = scene([body]);
+    pressWorld(canvas, 1, 0, 0);
+    vec3.set(body.angularVelocity, 20, 0, 30);
+    run(world, 60, 1.5);
+    const { lever, point, spin } = grabbedPoint(body, grabbed);
+    expect(spin).toBeLessThan(0.1);
+    expect(Math.hypot(lever[0], lever[1])).toBeLessThan(0.001);
+    expect(Math.hypot(point[0], point[1])).toBeLessThan(0.001);
+  });
+
+  it('settles the grab point at 30, 60 and 144 fps', () => {
     for (const fps of [30, 60, 144]) {
       const body = makeDie();
       const { world, canvas } = scene([body]);
+      const grabbed = [FACE_HALF * 0.55, FACE_HALF * 0.3, FACE_HALF];
+      pressWorld(canvas, 1, grabbed[0], grabbed[1]);
+      run(world, fps, 1.5);
+      const { lever, point, spin } = grabbedPoint(body, grabbed);
+      expect(Math.hypot(lever[0], lever[1]), `${fps} fps`).toBeLessThan(0.001);
+      expect(Math.hypot(point[0] - grabbed[0], point[1] - grabbed[1]), `${fps} fps`).toBeLessThan(
+        0.001,
+      );
+      expect(Math.abs(point[2] - holdHeight(body)), `${fps} fps`).toBeLessThan(0.001);
+      expect(spin, `${fps} fps`).toBeLessThan(0.1);
+    }
+  });
+
+  it('tracks a pointer jump within the drag speed without overshoot at every frame rate', () => {
+    for (const fps of [30, 60, 144]) {
+      const body = makeDie();
+      const { world, canvas } = scene([body]);
+      const grabbed = [0, 0, FACE_HALF];
       pressWorld(canvas, 1, 0, 0);
-      run(world, fps, 0.4);
-      moveWorld(canvas, 1, 0.02, 0, 400);
+      run(world, fps, 1.5);
+      moveWorld(canvas, 1, 0.02, 0, 4000);
       let peak = 0;
       let peakSpeed = 0;
       for (let frame = 0; frame < fps / 2; frame += 1) {
         world.update(1 / fps);
-        peak = Math.max(peak, body.position[0] - 0.02);
-        peakSpeed = Math.max(
-          peakSpeed,
-          Math.hypot(body.linearVelocity[0], body.linearVelocity[1]),
+        const { lever, point } = grabbedPoint(body, grabbed);
+        const velocity = vec3.add(
+          new Float64Array(3),
+          body.linearVelocity,
+          vec3.cross(new Float64Array(3), body.angularVelocity, lever),
         );
+        peak = Math.max(peak, point[0] - 0.02);
+        peakSpeed = Math.max(peakSpeed, Math.hypot(velocity[0], velocity[1]));
       }
-      expect(peak).toBeLessThan(0.002);
-      expect(peakSpeed).toBeLessThanOrEqual(MAX_DRAG_SPEED * (1 + 1e-9));
-      expect(Math.abs(body.position[0] - 0.02)).toBeLessThan(0.001);
-    }
-  });
-
-  it('damps a spinning held die to rest within a second without collisions', () => {
-    const body = makeDie();
-    const { world, canvas } = scene([body]);
-    pressWorld(canvas, 1, 0, 0);
-    vec3.scale(body.angularVelocity, [0.6, 0, 0.8], 60);
-    let previous = 60;
-    for (let frame = 0; frame < 60; frame += 1) {
-      world.update(1 / 60);
-      const speed = Math.hypot(...body.angularVelocity);
-      expect(speed).toBeLessThanOrEqual(previous * (1 + 1e-9));
-      previous = speed;
-    }
-    expect(previous).toBeLessThan(0.1);
-
-    const anchor = () =>
-      vec3.add(
-        new Float64Array(3),
-        vec3.transformQuat(new Float64Array(3), [0, 0, FACE_HALF], body.orientation),
-        body.position,
+      expect(peak, `${fps} fps`).toBeLessThan(0.002);
+      expect(peakSpeed, `${fps} fps`).toBeLessThanOrEqual(MAX_DRAG_SPEED * (1 + 1e-9));
+      expect(Math.hypot(grabbedPoint(body, grabbed).point[0] - 0.02), `${fps} fps`).toBeLessThan(
+        0.001,
       );
-    const pinned = [body.position[0], body.position[1]];
-    run(world, 60, 0.2);
-    const drift = Math.hypot(body.position[0] - pinned[0], body.position[1] - pinned[1]);
-    expect(drift).toBeLessThan(0.001);
-    const settled = anchor();
-    expect(Math.hypot(settled[0], settled[1])).toBeLessThan(0.001);
+    }
   });
 });
 
 describe('release', () => {
   it('shares one die between two pointers in insertion order and releases each grab alone', () => {
     const body = makeDie({ position: [0, 0, 0.0139] });
+    const grabbed = [0, 0, FACE_HALF];
     const { world, canvas, pointer } = scene([body]);
+    const pointVelocity = (axis) => {
+      const { lever } = grabbedPoint(body, grabbed);
+      const velocity = vec3.add(
+        new Float64Array(3),
+        body.linearVelocity,
+        vec3.cross(new Float64Array(3), body.angularVelocity, lever),
+      );
+      return velocity[axis];
+    };
     pressWorld(canvas, 1, 0, 0);
     pressWorld(canvas, 2, 0, 0);
     const held = pointer.heldBodies();
@@ -264,12 +282,12 @@ describe('release', () => {
 
     moveWorld(canvas, 2, 0.02, 0, 16);
     world.update(1 / 60);
-    expect(body.linearVelocity[0]).toBeGreaterThan(0);
+    expect(pointVelocity(0)).toBeGreaterThan(0);
 
     canvas.fire('pointerup', { pointerId: 2, clientX: 0.02 / 0.001, clientY: 0, timeStamp: 32 });
     expect(pointer.heldBodies()).toEqual([body]);
     world.update(1 / 60);
-    expect(body.linearVelocity[0]).toBeLessThan(0);
+    expect(pointVelocity(0)).toBeLessThan(0);
 
     canvas.fire('pointerup', { pointerId: 1, clientX: 0, clientY: 0, timeStamp: 48 });
     expect(pointer.heldBodies()).toEqual([]);
