@@ -1,7 +1,7 @@
 ---
 name: "fix: let resting dice piles settle with warm starting and whole-world sleep"
 priority: "medium"
-state: "live-testing"
+state: "done"
 worktree: "fix/40-pile-warm-start-sleep"
 issuer: "#31"
 complexity: "moderate"
@@ -36,9 +36,25 @@ Verify warm starting (#41) and whole-world sleep (#42) end to end, and fix the p
 - `npm run build`
 
 # Notes
-## Live test in progress (state at watch checkpoint)
+## Live test result: PASS (run lt40-run2, results at /tmp/dice-lt40/results-pile-warm-start-sleep-phone.json, 36/36 checks)
 
-- Setup done: harness at /tmp/dice-lt40 (Playwright at /home/phamba/repos/dotfiles/pi-agent/skills/web-browser/node_modules, vite on :8790, SwiftShader WebGL flags, world spy via main.js route rewrite, in-page helpers: state sample, synthetic devicemotion tilt, sim-time clock wrapping the pointer drive).
-- Environment probe PASSED (7/8): app loads on a 390x844@DPR3 phone context, world spawns 2 d6, tilt dispatch sets world gravity exactly, mouse grab moves a die (31.9 mm in 0.75 s), canvas renders non-blank, console clean, sim runs ~0.94 s per wall s. The one probe failure was my context, not the product: Playwright's devices['iPhone 13'] viewport is 390x664 (browser chrome subtracted), which gave box H=0.115 m instead of the spec's 390x844 -> 0.146 m; fixed by overriding the viewport to 390x844 (still a real phone flow: touch, mobile UA, DPR 3).
-- Planned flow (assumption: the spec's "dropped into the phone box" is exercised as panel adds at level gravity, then tilts applied by synthetic devicemotion, matching a user tilting a phone; settle criterion |v|<0.005 m/s, |w|<0.1 rad/s per die, measured in simulated time; phone box 0.0675 x 0.1462 x 0.0675 m): level drop settle, tilts 15x, 15y, 30x, 30y (each: gravity applied, wake, settle within 3 s, whole-world sleep), frozen-while-asleep at 30x (bit-identical over 2 s, no events, contactCache null), grab wakes sleeping world at once + re-settle within 3 s after release, Roll stress at 30y, restore level, no NaN, console clean.
-- Driver run 1 aborted by a harness bug before any product check: my in-page clock wrapper referenced an undeclared variable (bi), which threw inside world.beforeStep every step and stopped the simulation; this is a test-harness defect, not a product defect. Fixing the wrapper and rerunning the driver; no product findings yet.
+Real-usage test of the merged commit (da52aff) through the app's real interface: Chrome phone context 390x844 at DPR 3 (touch, mobile UA, SwiftShader), 10 mixed dice built through the panel UI (d4:2 d6:2 d8:2 d10:2 d12:1 d20:1), tilts applied as synthetic devicemotion events (the app's only gravity input path), settle measured in simulated time via a per-step clock on `world.beforeStep` with the spec thresholds (every die |v| < 0.005 m/s and |w| < 0.1 rad/s). Box from the live viewport: 0.0675 x 0.1462 x 0.0675 m, matching the spec's 390x844@3 dims.
+
+- Settle within 3 s of simulated time, all cases: level drop 0.35 s; tilt 15 deg about x 0.40 s; 15 deg about y 0.62 s; 30 deg about x 0.48 s; 30 deg about y 0.00 s (see observations); Roll at 30 deg about y 0.80 s (harsher than the drop case: 15-40 rad/s spins, full scatter); level restore 0.32 s; grab release 0.20 s. Worst case is 0.80 s against the 3 s budget. At every settle the sampled states were genuinely at rest (max |v| <= 5e-4 m/s, max |w| <= 5e-2 rad/s).
+- Defect scenario: at both 30 deg tilts the d4s end at |w| <= 0.003 rad/s (pre-fix they spun at 1.6-7.5 rad/s in a corner); no die of any type keeps residual spin, and the per-step |w| jump monitor saw large jumps only during active impacts (17-23 rad/s mid-bounce), never at rest.
+- Whole-world sleep: the world fell asleep after every settle (0.4-0.5 s sim of stillness), velocities zeroed exactly.
+- Stay settled until woken: while asleep at 30 deg about x, bodies were bit-identical over 2 s wall (position and quaternion drift exactly 0), zero events, asleep stayed true.
+- Grab wakes at once: mousedown on a sleeping die woke the world within ~150 ms (first sample after mousedown), the die responded immediately (0.21 m/s), followed the pointer and lifted to hold height (z 0.011 -> 0.040 m, hold height = D - 2r = 0.0398 m); after release the pile re-settled in 0.20 s and the world re-slept.
+- Warm-start snapshots after wake: `contactCache === null` after sleep (direct read), and after both wake paths (grab release, Roll) the pile re-settled cleanly within 3 s with no kicks or jitter, so no stale impulses resurrect.
+- No NaN in any body state at any sampled point; console clean (no product errors); final render non-blank (screenshot /tmp/dice-lt40/final-settled.png).
+
+## Assumptions made while designing the usage tests
+- "Dropped into the phone box" is exercised as the app's real spawn flow: panel adds at level gravity (dice spawn in the upper half and fall), then tilts wake the pile from sleep; each tilt case measures from the tilt dispatch. Consecutive tilts reuse the pile, so configuration carries over between cases.
+- The 3 s settle budget is a simulated-time budget (spec's e2e wording); in the live app sim runs at ~0.94 s per wall s, so measured wall feel matches.
+- Roll at 30 deg was added as a harsher-than-spec warm-start stress, not a spec requirement; its 0.80 s settle is reported as evidence beyond the minimum.
+- Gravity tilt values are exact (9.81 sin/cos components); the sampled world gravity matched each expected vector to <= 4e-7.
+
+## Observations (no product defects filed)
+- tilt30y settle=0.00 s is weak evidence on its own: the pile was already wedged near the 30 deg-about-y equilibrium by the preceding 15y -> 30x -> grab phases, so dice barely moved. The 30 deg settle evidence comes from 30x (0.48 s, real slide across the box) and the full-scatter Roll at 30y (0.80 s).
+- While asleep, `world.contacts` retains the last awake step's contact list (69 entries at 30x); `step` performs no detection or solving while asleep (events 0, state bit-frozen), `contactCache` is cleared, and nothing app-facing reads `world.contacts`, so this is stale internal state, not user-visible behavior.
+- Environment difficulties, solved in harness: Playwright's devices['iPhone 13'] viewport is 390x664 (browser chrome subtracted), which gave a box H 21 percent short of the spec's 390x844 box; fixed by overriding the viewport to 390x844. Driver run 1 was aborted by a harness bug of mine (undeclared variable in the in-page clock wrapper killed the simulation); rerun clean, no product impact.
