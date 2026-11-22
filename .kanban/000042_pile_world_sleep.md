@@ -1,7 +1,7 @@
 ---
 name: "fix: whole-world sleep that freezes and wakes the dice world"
 priority: "medium"
-state: "reviewing"
+state: "to-merge"
 worktree: "fix/42-pile-world-sleep"
 issuer: "#40"
 complexity: "moderate"
@@ -43,8 +43,11 @@ Freeze the whole world once every die is still and wake it on every input, so se
 - `npx vitest run src/physics`
 
 # Notes
-- Deliverable: whole-world sleep in `src/physics/world.js`. Exports `SLEEP_SPEED = 0.01`, `SLEEP_TIME = 0.5`, `WAKE_GRAVITY_DELTA = 0.5` and a read-only `world.asleep`. After each step the fastest die point speed (`|v| + DIE_RADIUS*|w|`) below `SLEEP_SPEED` for `SLEEP_TIME` zeroes every velocity and marks the world asleep. An asleep `step` does no integration, contacts or events. Wakes and restarts the timer on a driven hold, any non-zero body velocity, `addBody`, `removeBody`, `setBox`, and a gravity change above 0.5 m/s^2 from the gravity at sleep time.
-- Verification: HEAD eb6d2ef. `npx vitest run src/physics` -> 86 passed in 8 files. `npm run build` green, `dist/index.html` references the hashed JS and CSS assets.
-- Assumptions: held-die wake is detected by running `world.beforeStep` while asleep and waking on any velocity it writes, because `pointer.js` keeps its `held` map private and the drive callback is the only in-scope signal; a held die that is already at rest still lets the world sleep.
-- Blockers: none.
-- Manual checks left to other roles: live check that grabbing a sleeping die moves it at once, that a settled pile stops all visible motion, and that Roll, Space and fling wake it.
+- Outcome: approved. No fixes needed.
+- Diff eb6d2ef touches only src/physics/world.js and world.test.js; no forbidden files, no changes to friction, restitution, Baumgarte, SOLVER_ITERATIONS or FIXED_DT, no motion low-pass filter.
+- Spec mapping verified: fastest point speed `|v| + DIE_RADIUS*|w|` after each step; sleep at SLEEP_SPEED=0.01 for SLEEP_TIME=0.5 zeroes every velocity and marks the world asleep; asleep step runs only beforeStep plus the velocity check, so no integration, contacts or events; wake and timer restart on held die, non-zero velocity, addBody, removeBody, setBox and gravity change above WAKE_GRAVITY_DELTA measured against the gravity captured at sleep time, so cumulative small tilts add up correctly.
+- Held-die wake assumption accepted: the drive callback's velocity writes are the hold signal, because pointer.js keeps `held` private, its `heldBodies()` accessor never reaches the world, and src/input/* and main.js are out of scope. A grab always writes a non-zero lift velocity, so a grab moves the die at once; behaviorally equivalent to "held set non-empty" in every observable case. If a later task wires heldBodies() into the world, this assumption can be retired.
+- Non-blocking observation: `world.contacts` keeps stale entries while asleep (detectContacts is skipped); no consumer outside src/physics reads world.contacts, so it is harmless.
+- Evidence: `npx vitest run src/physics` -> 86 passed in 8 files, exit 0. `npm run build` green, hashed assets emitted.
+- Deferred to live-tester: grabbing a sleeping die moves it at once, a settled pile shows no residual motion, Roll/Space/fling wake the world, strong accelerometer tilt (above 0.5 m/s^2) wakes it while small tilt does not.
+- Guidance for future reviewers: the held-die wake signal is the drive's velocity writes, not a held-set query; judge any change to that signal against the grab-moves-at-once requirement.
