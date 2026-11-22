@@ -42,7 +42,7 @@ function edt1d(f, out, n, c) {
 export function distanceTransform(mask, w, h, spacingX = 1, spacingY = 1) {
   const squared = new Float64Array(w * h);
   for (let i = 0; i < squared.length; i += 1) squared[i] = mask[i] ? 0 : INF;
-  const row = new Float64Array(w);
+  const row = new Float64Array(Math.max(w, h));
   const column = new Float64Array(h);
   for (let j = 0; j < h; j += 1) {
     const offset = j * w;

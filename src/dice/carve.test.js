@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DICE_TYPES, createShape } from './shapes.js';
 import { DIE_RADIUS } from '../physics/body.js';
-import { faceFrame, faceRects, toFace2D } from './labels.js';
+import { ATLAS_SIZE, buildLabelAtlas, faceFrame, faceRects, toFace2D } from './labels.js';
 import { diceFragmentSource, floorFragmentSource } from '../render/shaders.js';
 import {
   CARVE_DEPTH,
@@ -23,6 +23,93 @@ function diskMask(w, h, cx, cy, radius) {
     }
   }
   return mask;
+}
+
+// Pixels of a set that touch its edge: the nearest pixel of a set from any
+// point is always one of them, ties included.
+function boundaryPoints(mask, w, h) {
+  const xs = [];
+  const ys = [];
+  for (let j = 0; j < h; j += 1) {
+    for (let i = 0; i < w; i += 1) {
+      const p = j * w + i;
+      if (!mask[p]) continue;
+      if (
+        i === 0 ||
+        j === 0 ||
+        i === w - 1 ||
+        j === h - 1 ||
+        !mask[p - 1] ||
+        !mask[p + 1] ||
+        !mask[p - w] ||
+        !mask[p + w]
+      ) {
+        xs.push(i);
+        ys.push(j);
+      }
+    }
+  }
+  return { xs: Int32Array.from(xs), ys: Int32Array.from(ys) };
+}
+
+function nearestDistance({ xs, ys }, w, h) {
+  const out = new Float64Array(w * h);
+  const count = xs.length;
+  for (let j = 0; j < h; j += 1) {
+    for (let i = 0; i < w; i += 1) {
+      let best = Infinity;
+      for (let k = 0; k < count; k += 1) {
+        const dx = i - xs[k];
+        const dy = j - ys[k];
+        const d = dx * dx + dy * dy;
+        if (d < best) best = d;
+      }
+      out[j * w + i] = Math.sqrt(best);
+    }
+  }
+  return out;
+}
+
+// Brute-force signed distance in pixel units, negative inside the mask.
+function exactSignedDistance(mask, w, h) {
+  const inverted = new Uint8Array(w * h);
+  for (let p = 0; p < inverted.length; p += 1) inverted[p] = mask[p] ? 0 : 1;
+  const toOutside = nearestDistance(boundaryPoints(inverted, w, h), w, h);
+  const toInside = nearestDistance(boundaryPoints(mask, w, h), w, h);
+  const out = new Float64Array(w * h);
+  for (let p = 0; p < out.length; p += 1) {
+    out[p] = mask[p] ? -toOutside[p] : toInside[p];
+  }
+  return out;
+}
+
+function diskMaskAt(w, h, disks) {
+  const mask = new Uint8Array(w * h);
+  for (let j = 0; j < h; j += 1) {
+    for (let i = 0; i < w; i += 1) {
+      for (const [cx, cy, radius] of disks) {
+        const dx = i - cx;
+        const dy = j - cy;
+        if (dx * dx + dy * dy <= radius * radius) {
+          mask[j * w + i] = 1;
+          break;
+        }
+      }
+    }
+  }
+  return mask;
+}
+
+function exactnessReport(mask, w, h) {
+  const sdf = signedDistance(mask, w, h, 1, 1);
+  const exact = exactSignedDistance(mask, w, h);
+  let finite = true;
+  let worst = 0;
+  for (let p = 0; p < sdf.length; p += 1) {
+    if (!Number.isFinite(sdf[p])) finite = false;
+    else worst = Math.max(worst, Math.abs(sdf[p] - exact[p]));
+  }
+  return { finite, worst };
 }
 
 function decode(cell, w, i, j) {
@@ -98,6 +185,40 @@ describe('distanceTransform (Felzenszwalb-Huttenlocher)', () => {
     }
     expect(sdf[centre * w + centre]).toBeLessThan(-radius);
     expect(sdf[centre * w + centre]).toBeGreaterThan(-radius - 2);
+  });
+});
+
+describe('signedDistance on non-square masks', () => {
+  it('agrees with the brute-force field on a small mask, inside and out', () => {
+    const w = 64;
+    const h = 64;
+    const mask = diskMaskAt(w, h, [[20, 22, 9], [44, 40, 5]]);
+    const { finite, worst } = exactnessReport(mask, w, h);
+    expect(finite).toBe(true);
+    expect(worst).toBeLessThanOrEqual(0.5);
+  });
+
+  it('stays finite and exact with a glyph in the lower half of a tall mask', () => {
+    const w = 341;
+    const h = 512;
+    const mask = diskMaskAt(w, h, [[99, 148, 22], [99, 364, 22]]);
+    const { finite, worst } = exactnessReport(mask, w, h);
+    expect(finite).toBe(true);
+    expect(worst).toBeLessThanOrEqual(0.5);
+  }, 60000);
+
+  it('stays finite and exact with a glyph in each quadrant of both orientations', () => {
+    for (const [w, h] of [[160, 320], [320, 160], [200, 280]]) {
+      const mask = diskMaskAt(w, h, [
+        [0.3 * w, 0.3 * h, 10],
+        [0.7 * w, 0.3 * h, 8],
+        [0.3 * w, 0.7 * h, 12],
+        [0.7 * w, 0.8 * h, 6],
+      ]);
+      const { finite, worst } = exactnessReport(mask, w, h);
+      expect(finite).toBe(true);
+      expect(worst).toBeLessThanOrEqual(0.5);
+    }
   });
 });
 
@@ -283,6 +404,109 @@ describe('buildCarveAtlas', () => {
         expect([data[p], data[p + 1], data[p + 2], data[p + 3]]).toEqual([128, 128, 255, 255]);
       }
     }
+  });
+});
+
+describe('buildCarveAtlas on the real d6 label atlas', () => {
+  // Fakes the canvas rasteriser: the recorded label shapes are filled as solid
+  // ellipses, so the pip positions and sizes come from buildLabelAtlas itself.
+  function rasterisedLabelAtlas(shape) {
+    const ellipses = [];
+    const alpha = new Uint8ClampedArray(ATLAS_SIZE * ATLAS_SIZE);
+    let painted = false;
+    const paint = () => {
+      if (painted) return;
+      painted = true;
+      for (const { x, y, rx, ry } of ellipses) {
+        for (let j = Math.floor(y - ry); j <= Math.ceil(y + ry); j += 1) {
+          for (let i = Math.floor(x - rx); i <= Math.ceil(x + rx); i += 1) {
+            if (i < 0 || j < 0 || i >= ATLAS_SIZE || j >= ATLAS_SIZE) continue;
+            const dx = (i + 0.5 - x) / rx;
+            const dy = (j + 0.5 - y) / ry;
+            if (dx * dx + dy * dy <= 1) alpha[j * ATLAS_SIZE + i] = 255;
+          }
+        }
+      }
+    };
+    const ctx = {
+      fillStyle: '#000',
+      beginPath() {},
+      ellipse(x, y, rx, ry) {
+        ellipses.push({ x, y, rx, ry });
+      },
+      fill() {},
+      getImageData: (x, y, w, h) => {
+        paint();
+        const data = new Uint8ClampedArray(alpha.length * 4);
+        for (let p = 0; p < alpha.length; p += 1) data[p * 4 + 3] = alpha[p];
+        return { data, width: w, height: h };
+      },
+    };
+    const previous = globalThis.OffscreenCanvas;
+    globalThis.OffscreenCanvas = class {
+      constructor(width) {
+        this.width = width;
+        this.height = width;
+      }
+      getContext() {
+        return ctx;
+      }
+    };
+    try {
+      return { atlas: buildLabelAtlas(shape, [0.78, 0.22, 0.18]), ellipses };
+    } finally {
+      if (previous === undefined) delete globalThis.OffscreenCanvas;
+      else globalThis.OffscreenCanvas = previous;
+    }
+  }
+
+  it('carves every interior glyph pixel of every cell, pip centres aside', () => {
+    const shape = createShape('d6', DIE_RADIUS);
+    const { atlas, ellipses } = rasterisedLabelAtlas(shape);
+    const source = atlas.canvas.getContext('2d').getImageData(0, 0, ATLAS_SIZE, ATLAS_SIZE).data;
+    const { data } = buildCarveAtlas(shape, atlas);
+
+    const flat = [];
+    shape.faces.forEach((face, f) => {
+      const rect = atlas.rects[f];
+      const x0 = Math.round(rect.u0 * ATLAS_SIZE);
+      const x1 = Math.round(rect.u1 * ATLAS_SIZE);
+      const y0 = Math.round((1 - rect.v1) * ATLAS_SIZE);
+      const y1 = Math.round((1 - rect.v0) * ATLAS_SIZE);
+      const w = x1 - x0;
+      const h = y1 - y0;
+      const mask = new Uint8Array(w * h);
+      for (let j = 0; j < h; j += 1) {
+        for (let i = 0; i < w; i += 1) {
+          mask[j * w + i] = source[((y0 + j) * ATLAS_SIZE + x0 + i) * 4 + 3] >= 128 ? 1 : 0;
+        }
+      }
+      const sdf = signedDistance(mask, w, h, 1, 1);
+      const centres = ellipses
+        .filter((e) => e.x >= x0 && e.x < x1 && e.y >= y0 && e.y < y1)
+        .map((e) => [e.x - x0, e.y - y0]);
+
+      for (let j = 0; j < h; j += 1) {
+        for (let i = 0; i < w; i += 1) {
+          const p = j * w + i;
+          if (!Number.isFinite(sdf[p])) {
+            flat.push({ face: f, i, j, why: 'NaN' });
+            continue;
+          }
+          if (!mask[p] || sdf[p] > -1) continue;
+          const outRow = ATLAS_SIZE - 1 - (y0 + j);
+          const q = (outRow * ATLAS_SIZE + x0 + i) * 4;
+          if (data[q] !== 128 || data[q + 1] !== 128 || data[q + 2] !== 255) continue;
+          // The profile is stationary at the pip top, so its deepest samples
+          // round to a flat byte over a couple of pixels around the centre.
+          const nearCentre = centres.some(
+            ([cx, cy]) => Math.hypot(i + 0.5 - cx, j + 0.5 - cy) <= 2,
+          );
+          if (!nearCentre) flat.push({ face: f, i, j, value: face.value, sdf: sdf[p] });
+        }
+      }
+    });
+    expect(flat).toEqual([]);
   });
 });
 
