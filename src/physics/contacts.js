@@ -31,8 +31,6 @@ export const MAX_BIAS_SPEED = 1;
 
 export const EVENT_MIN_SPEED = 0.05;
 
-export const CONTACT_ANGULAR_DAMPING = 6;
-
 export const WARM_START_DISTANCE = 0.001;
 
 export const WARM_START_NORMAL_DOT = 0.99;
@@ -267,11 +265,8 @@ export function solveContacts(world, dt) {
     }
   }
 
-  const touching = new Set();
   for (const group of groups.values()) {
     for (const contact of group.contacts) group.impulse += contact.normal.impulse;
-    touching.add(group.a);
-    if (group.b) touching.add(group.b);
     if (group.speed <= EVENT_MIN_SPEED) continue;
     events.push({
       a: group.a,
@@ -282,7 +277,4 @@ export function solveContacts(world, dt) {
       impulse: group.impulse,
     });
   }
-
-  const damping = 1 / (1 + CONTACT_ANGULAR_DAMPING * dt);
-  for (const body of touching) vec3.scale(body.angularVelocity, body.angularVelocity, damping);
 }

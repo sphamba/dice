@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { boxFromViewport } from './box.js';
 import { DIE_RADIUS, createBody } from './body.js';
 import { DICE_TYPES, createShape } from '../dice/shapes.js';
-import { FIXED_DT, createWorld } from './world.js';
+import { FIXED_DT, SLEEP_TIME, createWorld } from './world.js';
+import { ROLL_RISE_MAX, ROLL_RISE_MIN, ROLL_SPEED_MAX, ROLL_SPEED_MIN, ROLL_SPIN_MAX, ROLL_SPIN_MIN, rollVelocity } from './roll.js';
 import * as quat from '../math/quat.js';
 import * as vec3 from '../math/vec3.js';
 
@@ -424,4 +425,76 @@ describe('sleep and wake', () => {
     expect(at).not.toBe(null);
     expect(at).toBeLessThanOrEqual(SETTLE_LIMIT);
   }, 30000);
+});
+
+const ROLL_BOXES = [
+  ['desktop', boxFromViewport(1280, 800, 1)],
+  ['phone', boxFromViewport(393, 852, 3)],
+];
+
+const ROLL_SEEDS = [20240901, 11, 42, 777, 1301, 88, 5150, 60607];
+
+const ROLL_WINDOW = 5;
+
+const ROLL_MEDIAN_MAX = 2;
+
+const randomRange = (min, max, random) => min + random() * (max - min);
+
+function randomAxis(out, random) {
+  return vec3.normalize(out, vec3.set(out, random() - 0.5, random() - 0.5, random() - 0.5));
+}
+
+function rolledWorld(box, seed) {
+  const random = mulberry32(seed);
+  const world = createWorld(box);
+  for (let index = 0; index < 2; index += 1) {
+    world.addBody(dropBody('d6', [(index - 0.5) * box.W * 0.5, 0, box.D * 0.6], randomQuat(random)));
+  }
+  for (let step = 0; step < 3 * STEPS_PER_SECOND; step += 1) world.step(FIXED_DT);
+  for (const body of world.bodies) {
+    rollVelocity(body.linearVelocity, {
+      box: world.box,
+      gravity: world.gravity,
+      position: body.position,
+      angle: random() * 2 * Math.PI,
+      speed: randomRange(ROLL_SPEED_MIN, ROLL_SPEED_MAX, random),
+      rise: randomRange(ROLL_RISE_MIN, ROLL_RISE_MAX, random),
+    });
+    vec3.scale(
+      body.angularVelocity,
+      randomAxis(vec(), random),
+      randomRange(ROLL_SPIN_MIN, ROLL_SPIN_MAX, random),
+    );
+  }
+  return world;
+}
+
+function sleepTime(world) {
+  for (let step = 0; step < ROLL_WINDOW * STEPS_PER_SECOND; step += 1) {
+    world.step(FIXED_DT);
+    if (world.asleep) return (step + 1) * FIXED_DT;
+  }
+  return null;
+}
+
+const median = (values) => {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = sorted.length >> 1;
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+};
+
+describe('roll out', () => {
+  for (const [name, box] of ROLL_BOXES) {
+    it(`sleeps two rolled d6 within 5 s on the ${name} box`, () => {
+      const sleeps = [];
+      for (const seed of ROLL_SEEDS) {
+        const at = sleepTime(rolledWorld(box, seed));
+        expect(at, `seed ${seed} still moving after ${ROLL_WINDOW} s`).not.toBe(null);
+        sleeps.push(at);
+      }
+      const middle = median(sleeps);
+      expect(middle).toBeGreaterThan(SLEEP_TIME);
+      expect(middle).toBeLessThan(ROLL_MEDIAN_MAX);
+    }, 60000);
+  }
 });

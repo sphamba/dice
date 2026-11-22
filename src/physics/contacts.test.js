@@ -1,3 +1,4 @@
+import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import * as mat3 from '../math/mat3.js';
 import * as vec3 from '../math/vec3.js';
@@ -290,13 +291,12 @@ describe('warm start ordering', () => {
   });
 });
 
-describe('settling', () => {
-  it('damps the spin of a body in contact', () => {
+describe('contact spin', () => {
+  it('leaves the spin of a body in contact to the contact impulses', () => {
     const body = makeBody([0, 0, DIE_RADIUS]);
     vec3.set(body.angularVelocity, 0, 0, 5);
     solveContacts(makeWorld(floorContact(body)), FIXED_DT);
-    expect(body.angularVelocity[2]).toBeGreaterThan(4);
-    expect(body.angularVelocity[2]).toBeLessThan(5);
+    expect(body.angularVelocity[2]).toBe(5);
   });
 
   it('leaves the spin of a body without contacts alone', () => {
@@ -304,6 +304,19 @@ describe('settling', () => {
     vec3.set(body.angularVelocity, 0, 0, 5);
     solveContacts(makeWorld(), FIXED_DT);
     expect(body.angularVelocity[2]).toBe(5);
+  });
+});
+
+describe('energy loss', () => {
+  it('has no viscous contact spin damping in the sources', () => {
+    const files = readdirSync(new URL('../', import.meta.url), { recursive: true })
+      .map((file) => String(file))
+      .filter((file) => file.endsWith('.js') && !file.endsWith('.test.js'));
+    expect(files.length).toBeGreaterThan(10);
+    for (const file of files) {
+      const source = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+      expect(source, `${file} contains CONTACT_ANGULAR_DAMPING`).not.toContain('CONTACT_ANGULAR_DAMPING');
+    }
   });
 });
 
