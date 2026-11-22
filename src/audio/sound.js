@@ -16,9 +16,31 @@ export const MIN_IMPULSE = 1e-4;
 
 export const MAX_IMPULSE = 0.015;
 
-export const LIMITER_THRESHOLD_DB = -3;
+export const LIMITER_CEILING = 10 ** (-3 / 20);
 
-export const LIMITER_CEILING = 10 ** (LIMITER_THRESHOLD_DB / 20);
+export const CLIPPER_RANGE = 4;
+
+const CURVE_POINTS = 4097;
+
+const MAX_CURVE = 1 - 2 ** -24;
+
+function clipperCurve() {
+  const curve = new Float32Array(CURVE_POINTS);
+  const half = (CURVE_POINTS - 1) / 2;
+  for (let index = 0; index < CURVE_POINTS; index += 1) {
+    const s = ((index - half) / half) * CLIPPER_RANGE;
+    const magnitude = Math.abs(s);
+    const shaped =
+      magnitude <= LIMITER_CEILING
+        ? s
+        : Math.sign(s) *
+          (LIMITER_CEILING +
+            (1 - LIMITER_CEILING) *
+              Math.tanh((magnitude - LIMITER_CEILING) / (1 - LIMITER_CEILING)));
+    curve[index] = Math.min(Math.max(shaped, -MAX_CURVE), MAX_CURVE);
+  }
+  return curve;
+}
 
 const MIN_DURATION = 0.05;
 
@@ -96,8 +118,6 @@ export function createSound() {
   const voices = [];
   const pairTimes = new Map();
   const bodyIds = new Map();
-  let voiceScale = 1;
-  let scaleMeasured = false;
 
   function idOf(body) {
     if (!bodyIds.has(body)) bodyIds.set(body, bodyIds.size);
@@ -112,14 +132,6 @@ export function createSound() {
     for (const [key, slot] of pairTimes) {
       if (context.currentTime - slot.time >= PAIR_GAP) pairTimes.delete(key);
     }
-  }
-
-  function peakOf(data) {
-    let peak = 0;
-    for (let index = 0; index < data.length; index += 1) {
-      peak = Math.max(peak, Math.abs(data[index]));
-    }
-    return peak;
   }
 
   function release(voice) {
@@ -141,13 +153,8 @@ export function createSound() {
     }
     const source = context.createBufferSource();
     source.buffer = renderModes(context, modes, event.speed);
-    if (!scaleMeasured) {
-      scaleMeasured = true;
-      const peak = peakOf(source.buffer.getChannelData(0));
-      if (peak > LIMITER_CEILING) voiceScale = LIMITER_CEILING / peak;
-    }
     const node = context.createGain();
-    node.gain.value = gainValue * voiceScale;
+    node.gain.value = gainValue * LIMITER_CEILING;
     source.connect(node);
     node.connect(master);
     const voice = { source, gain: node, gainValue };
@@ -163,13 +170,13 @@ export function createSound() {
         const AudioCtor = globalThis.AudioContext ?? globalThis.webkitAudioContext;
         if (typeof AudioCtor !== 'function') return;
         context = new AudioCtor();
-        master = context.createDynamicsCompressor();
-        master.threshold.value = LIMITER_THRESHOLD_DB;
-        master.knee.value = 0;
-        master.ratio.value = 20;
-        master.attack.value = 0.003;
-        master.release.value = 0.1;
-        master.connect(context.destination);
+        const shaper = context.createWaveShaper();
+        shaper.curve = clipperCurve();
+        shaper.oversample = '4x';
+        master = context.createGain();
+        master.gain.value = 1 / CLIPPER_RANGE;
+        master.connect(shaper);
+        shaper.connect(context.destination);
       }
       if (context.state !== 'running') await context.resume();
     },

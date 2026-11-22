@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import {
+  CLIPPER_RANGE,
   LIMITER_CEILING,
-  LIMITER_THRESHOLD_DB,
   MAX_DURATION,
   MAX_IMPULSE,
   MAX_VOICES,
@@ -28,7 +28,15 @@ const impact = (overrides = {}) => ({
 });
 
 function fakeAudio() {
-  const created = { buffers: [], sources: [], gains: [], contexts: [], compressors: 0, resumes: 0 };
+  const created = {
+    buffers: [],
+    sources: [],
+    gains: [],
+    shapers: [],
+    contexts: [],
+    compressors: 0,
+    resumes: 0,
+  };
   class FakeContext {
     constructor() {
       this.sampleRate = 4000;
@@ -46,16 +54,16 @@ function fakeAudio() {
 
     createDynamicsCompressor() {
       created.compressors += 1;
-      const param = () => ({ value: 0 });
-      created.compressor = {
-        threshold: param(),
-        knee: param(),
-        ratio: param(),
-        attack: param(),
-        release: param(),
-        connect() {},
+      return { connect() {} };
+    }
+
+    createWaveShaper() {
+      const shaper = { curve: null, oversample: 'none', out: null };
+      shaper.connect = (target) => {
+        shaper.out = target;
       };
-      return created.compressor;
+      created.shapers.push(shaper);
+      return shaper;
     }
 
     createBuffer(channels, length, sampleRate) {
@@ -66,7 +74,11 @@ function fakeAudio() {
     }
 
     createGain() {
-      const gain = { gain: { value: 1 }, connect() {}, disconnect() {} };
+      const gain = { gain: { value: 1 }, out: null };
+      gain.connect = (target) => {
+        gain.out = target;
+      };
+      gain.disconnect = () => {};
       created.gains.push(gain);
       return gain;
     }
@@ -93,6 +105,8 @@ function fakeAudio() {
   return { FakeContext, created };
 }
 
+const voiceGains = () => audio.created.gains.slice(1);
+
 let audio;
 
 beforeEach(() => {
@@ -108,16 +122,21 @@ test('stays silent until resume creates the audio context', () => {
   const sound = createSound();
   sound.play([impact()], BOX);
   expect(audio.created.sources).toHaveLength(0);
-  expect(audio.created.compressors).toBe(0);
+  expect(audio.created.shapers).toHaveLength(0);
 });
 
-test('creates one context on resume and routes through a compressor', async () => {
+test('creates one context on resume and routes through the clipper', async () => {
   const sound = createSound();
   await sound.resume();
   await sound.resume();
-  expect(audio.created.compressors).toBe(1);
   expect(audio.created.contexts).toHaveLength(1);
   expect(audio.created.resumes).toBe(1);
+  expect(audio.created.compressors).toBe(0);
+  expect(audio.created.shapers).toHaveLength(1);
+  const [master] = audio.created.gains;
+  expect(master.gain.value).toBeCloseTo(1 / CLIPPER_RANGE, 9);
+  expect(master.out).toBe(audio.created.shapers[0]);
+  expect(audio.created.shapers[0].out).toBe(audio.created.contexts[0].destination);
 });
 
 test('does not resume without an audio context constructor', async () => {
@@ -172,10 +191,22 @@ test('raises the gain with the impulse', async () => {
   await sound.resume();
   sound.play([impact({ impulse: 1e-3 })], BOX);
   sound.play([impact({ impulse: 1e-1 })], BOX);
-  const [quiet, loud] = audio.created.gains.map((node) => node.gain.value);
+  const [quiet, loud] = voiceGains().map((node) => node.gain.value);
   expect(quiet).toBeGreaterThan(0);
   expect(loud).toBeGreaterThan(quiet);
-  expect(loud).toBeLessThanOrEqual(1);
+  expect(loud).toBeLessThanOrEqual(LIMITER_CEILING);
+});
+
+test('sets every voice gain to the ceiling times the linear impulse gain', async () => {
+  const sound = createSound();
+  await sound.resume();
+  for (const impulse of [0.002, 0.006, MAX_IMPULSE]) {
+    sound.play([impact({ impulse })], BOX);
+  }
+  const gains = voiceGains().map((node) => node.gain.value / LIMITER_CEILING);
+  expect(gains[0]).toBeCloseTo(gainForImpulse(0.002), 6);
+  expect(gains[1] / gains[0]).toBeCloseTo(3, 6);
+  expect(gains[2]).toBe(1);
 });
 
 test('maps the gain linearly in the impulse below the clamp', () => {
@@ -195,28 +226,54 @@ test('is silent at and below the minimum impulse', () => {
   expect(gainForImpulse(MIN_IMPULSE / 2)).toBe(0);
 });
 
-test('configures the compressor as a peak limiter', async () => {
+test('builds a 4x-oversampled clipper curve of 4097 points', async () => {
   const sound = createSound();
   await sound.resume();
-  const limiter = audio.created.compressor;
-  expect(limiter.threshold.value).toBe(LIMITER_THRESHOLD_DB);
-  expect(limiter.knee.value).toBe(0);
-  expect(limiter.ratio.value).toBe(20);
-  expect(limiter.attack.value).toBeCloseTo(0.003, 9);
-  expect(limiter.release.value).toBeCloseTo(0.1, 9);
+  const shaper = audio.created.shapers[0];
+  expect(shaper.oversample).toBe('4x');
+  expect(shaper.curve).toBeInstanceOf(Float32Array);
+  expect(shaper.curve.length).toBe(4097);
 });
 
-test('keeps one constant voice scale so loud overlaps stay below the ceiling', async () => {
+test('keeps the curve linear at and below the ceiling', async () => {
+  const sound = createSound();
+  await sound.resume();
+  const { curve } = audio.created.shapers[0];
+  const half = (curve.length - 1) / 2;
+  for (let index = 0; index <= half; index += 1) {
+    const s = (index / half) * CLIPPER_RANGE;
+    if (s > LIMITER_CEILING) continue;
+    expect(curve[half + index]).toBeCloseTo(s, 6);
+    expect(curve[half + index] + curve[half - index]).toBeCloseTo(0, 6);
+  }
+  expect(curve[half]).toBe(0);
+});
+
+test('shapes the curve monotonically and keeps every value inside the unit range', async () => {
+  const sound = createSound();
+  await sound.resume();
+  const { curve } = audio.created.shapers[0];
+  const half = (curve.length - 1) / 2;
+  expect(curve[curve.length - 1]).toBeGreaterThan(curve[half]);
+  for (let index = 1; index < curve.length; index += 1) {
+    expect(curve[index]).toBeGreaterThanOrEqual(curve[index - 1]);
+  }
+  for (let index = 1; index <= half; index += 1) {
+    if ((index / half) * CLIPPER_RANGE > LIMITER_CEILING) continue;
+    expect(curve[half + index]).toBeGreaterThan(curve[half + index - 1]);
+  }
+  for (const value of curve) expect(Math.abs(value)).toBeLessThan(1);
+});
+
+test('keeps one voice in the linear part of the clipper', async () => {
   const sound = createSound();
   await sound.resume();
   sound.play([impact({ impulse: MAX_IMPULSE })], BOX);
   const data = audio.created.buffers[0].getChannelData(0);
   const peak = data.reduce((max, value) => Math.max(max, Math.abs(value)), 0);
-  sound.play([impact({ impulse: MAX_IMPULSE })], BOX);
-  const [first, second] = audio.created.gains.map((node) => node.gain.value);
-  expect(first).toBeGreaterThan(0);
-  expect(peak * first).toBeLessThanOrEqual(LIMITER_CEILING + 1e-9);
-  expect(second).toBe(first);
+  const [voice] = voiceGains().map((node) => node.gain.value);
+  expect(peak * voice).toBeLessThanOrEqual(LIMITER_CEILING + 1e-9);
+  expect((peak * voice) / CLIPPER_RANGE).toBeLessThan(LIMITER_CEILING);
 });
 
 test('plays only the strongest event of a pair in one batch', async () => {
@@ -229,7 +286,7 @@ test('plays only the strongest event of a pair in one batch', async () => {
   );
   expect(audio.created.sources).toHaveLength(1);
   sound.play([impact({ impulse: 0.002 })], BOX);
-  const [strongest, reference] = audio.created.gains.map((node) => node.gain.value);
+  const [strongest, reference] = voiceGains().map((node) => node.gain.value);
   expect(strongest / reference).toBeCloseTo(3, 6);
 });
 
