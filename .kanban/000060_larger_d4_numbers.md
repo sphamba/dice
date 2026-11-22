@@ -41,17 +41,15 @@ Calculated result with the test glyph box (0.56 em by 0.71 em): em 2.149 mm to 3
 # Notes
 ## Live-check progress (subagent, browser only, no repo changes)
 
-Cookie: work only in /tmp, no npm/git.
+Cookie: /tmp only, no npm/git, server already at http://127.0.0.1:4319/.
 
-Done so far:
-- Server http://127.0.0.1:4319/ answers 200.
-- Playwright at /home/phamba/.pi/agent/skills/web-browser/node_modules/playwright-core works with default `chromium.launch()` (channel 'chrome-headless-shell' is unsupported for this build; plain chromium is fine).
-- Set `dice.set` = d4 only via addInitScript + reload; the Roll button (getByRole button /roll/i, count 1) works and the die settles in ~6 s.
-- Learned from src/input/pointer.js: dragging on the canvas does NOT orbit the camera; it grabs and flings the die. The camera is a fixed orthographic top-down view (src/render/camera.js, CAMERA_MARGIN), there is no orbit and no wheel zoom, so the die stays small (~100 CSS px) in the viewport.
-- Adaptation: viewport 1000x900, deviceScaleFactor 3, several Roll clicks (6 s settle each), full-page screenshots /tmp/shot-1..6.png, plus two grab-and-fling drags -> /tmp/shot-7.png, /tmp/shot-8.png.
+Findings so far:
+- Playwright works with plain `chromium.launch()` (channel 'chrome-headless-shell' is NOT supported by this playwright-core build).
+- `dice.set` = d4-only via addInitScript + reload works; Roll button works; die settles in ~6 s.
+- Dragging the canvas does NOT orbit a camera: per src/input/pointer.js it grabs/flings the die. The camera is fixed orthographic top-down (src/render/camera.js), no orbit, no wheel zoom, so the die is only ~105 CSS px wide. To get real pixels I raise deviceScaleFactor instead of zooming.
+- Run A (dsf 3, 8 states incl. 2 flings): /tmp/shot-1..8.png, crops /tmp/crop-*-crop.png. One crop viewed: a d4 face shows 3 numbers, but too few pixels to judge contact/crispness.
+- Run B (dsf 6, 4 rolls, 6000x5400 shots): /tmp/hi-1..4.png; crops (each ~500-650 px, die bbox found by background-diff masking the two UI corners): /tmp/hi-1-crop.png, /tmp/hi-2-crop.png, /tmp/hi-4-crop.png (hi-3 has no foreground above threshold — die likely off/edge or under the UI mask).
 
-Next step (interrupted here): crop the die region with PIL/ImageMagick to get real high-res pixels, then read the crops with vision and judge per image: three numbers visible on one face, digits crisp, no digit-to-digit contact, no digit-to-bevel contact.
+Next step (interrupted here): read /tmp/hi-*-crop.png with vision and judge the criterion per image, then write the final report.
 
-Files: /tmp/shots.mjs (driver), /tmp/shot-*.png.
-
-Nothing was modified in the repo.
+Scripts: /tmp/shots.mjs, /tmp/hishops.mjs, /tmp/crop.py, /tmp/crophi.py. No repo file was touched.
