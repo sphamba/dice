@@ -20,9 +20,9 @@ const PIP_LAYOUTS = {
   6: [[-1, 1], [-1, 0], [-1, -1], [1, 1], [1, 0], [1, -1]],
 };
 
-// d4 numbers sit along the corner direction, pulled in so the whole glyph box
-// stays on the flat inset triangle of the bevelled face.
-export const D4_LABEL_CENTER = 0.21;
+// d4 numbers sit along the corner direction, pulled in so the digit ink stays
+// on the flat inset triangle of the bevelled face.
+export const D4_LABEL_CENTER = 0.305;
 const D4_MAX_WIDTH = 0.19;
 const D4_MAX_HEIGHT = 0.24;
 

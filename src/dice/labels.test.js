@@ -324,11 +324,25 @@ describe('buildLabelAtlas d4 corner numbers', () => {
   });
 });
 
-const D4_MARGIN = 0.0003;
+const D4_CLEARANCE_MIN = 0.0001;
+const D4_CLEARANCE_MAX = 0.00025;
 const D4_GAP = 0.0002;
 const D4_MIN_EM = 0.0035;
 const D4_ADVANCE_EM = 0.56;
 const D4_CAP_EM = 0.71;
+
+// Ink of the limiting digit 4 (Arimo Bold), font space in em: y up, baseline at
+// y = 0, origin at the pen position. Advance and the baseline offset of
+// textBaseline 'middle' are measured in Chromium.
+const D4_INK_ADVANCE_EM = 0.55615234375;
+const D4_INK_MIDDLE_EM = 0.31;
+const D4_INK = [
+  [[0.458984, 0.140137], [0.458984, 0], [0.328125, 0], [0.328125, 0.140137],
+    [0.015137, 0.140137], [0.015137, 0.243164], [0.305664, 0.687988], [0.458984, 0.687988],
+    [0.458984, 0.242188], [0.550781, 0.242188], [0.550781, 0.140137]],
+  [[0.126953, 0.242188], [0.328125, 0.242188], [0.328125, 0.467285], [0.331543, 0.555176],
+    [0.33252, 0.563965], [0.303223, 0.510742], [0.286621, 0.484863]],
+];
 const BOX_CYCLE = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
 
 function edgeDistances(polygon, [px, py]) {
@@ -351,6 +365,19 @@ function glyphBox(label, scale, center) {
   const hh = 0.5 * D4_CAP_EM * label.fontPx;
   return BOX_CYCLE.map(([u, v]) => {
     const [x, y] = apply(label.at, u * hw, v * hh);
+    return [(x - center[0]) / scale[0], (center[1] - y) / scale[1]];
+  });
+}
+
+// The same glyph outline painted into face-2D units through the label's paint
+// transform, with the center alignment and the middle baseline applied.
+function glyphInk(label, scale, center) {
+  return D4_INK.flat().map(([gx, gy]) => {
+    const [x, y] = apply(
+      label.at,
+      (gx - D4_INK_ADVANCE_EM / 2) * label.fontPx,
+      (D4_INK_MIDDLE_EM - gy) * label.fontPx,
+    );
     return [(x - center[0]) / scale[0], (center[1] - y) / scale[1]];
   });
 }
@@ -419,7 +446,7 @@ function measureD4() {
       minEm = Math.min(minEm, label.fontPx / scale[1]);
       const quad = glyphBox(label, scale, center);
       quads.push(quad);
-      for (const point of quad) {
+      for (const point of glyphInk(label, scale, center)) {
         worstMargin = Math.min(worstMargin, ...edgeDistances(inset, point));
       }
     }
@@ -434,9 +461,10 @@ function measureD4() {
 }
 
 describe('buildLabelAtlas d4 flat-face fit', () => {
-  it('keeps every glyph box inside the inset triangle with a 0.3 mm margin', () => {
+  it('keeps every digit between 0.10 and 0.25 mm from the inset triangle border', () => {
     const { worstMargin, overlaps } = measureD4();
-    expect(worstMargin).toBeGreaterThanOrEqual(D4_MARGIN);
+    expect(worstMargin).toBeGreaterThanOrEqual(D4_CLEARANCE_MIN);
+    expect(worstMargin).toBeLessThanOrEqual(D4_CLEARANCE_MAX);
     expect(overlaps).toBe(0);
   });
 
