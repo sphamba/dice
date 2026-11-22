@@ -1,7 +1,7 @@
 ---
 name: "fix: move the d4 numbers away from the corners"
 priority: "medium"
-state: "to-live-test"
+state: "live-testing"
 worktree: "fix/57-d4-numbers-off-corners"
 issuer: "user"
 complexity: "simple"
