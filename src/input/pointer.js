@@ -14,8 +14,8 @@ export const FLING_WINDOW_MS = 80;
 // Held-body damping rates in 1/s, so the fixed-step response is frame-rate independent.
 const HOLD_DAMPING = 120;
 
-// Light enough to keep a visible swing after a pointer move, strong enough to calm it in ~1 s.
-const HOLD_SWING_DAMPING = 12;
+// Light enough to keep a visible swing after a pointer move, strong enough to calm it in ~0.2 s.
+const HOLD_SWING_DAMPING = 61;
 
 const FACE_EPS = 1e-9;
 

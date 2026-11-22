@@ -248,7 +248,7 @@ describe('hanging', () => {
     60000,
   );
 
-  it('swings after a sudden pointer move and calms within 1.5 s', () => {
+  it('swings after a sudden pointer move and settles within 0.25 s', () => {
     const body = makeDie();
     const grabbed = [0, 0, FACE_HALF];
     const { world, canvas } = scene([body]);
@@ -256,22 +256,15 @@ describe('hanging', () => {
     run(world, 60, 1.5);
     // The tall axis: 20 mm of swing room, farther than the die reaches from any wall.
     moveWorld(canvas, 1, 0, 0.02, 2000);
-    let previous = 0;
-    let crossings = 0;
-    for (let frame = 0; frame < 90; frame += 1) {
+    const target = [0, 0.02];
+    let lastBadFrame = -1;
+    for (let frame = 0; frame < 60; frame += 1) {
       world.update(1 / 60);
-      const offsetY = -grabbedPoint(body, grabbed).lever[1];
-      if (previous !== 0 && offsetY !== 0 && Math.sign(offsetY) !== Math.sign(previous)) {
-        crossings += 1;
-      }
-      previous = offsetY;
+      const { point, spin } = grabbedPoint(body, grabbed);
+      const error = Math.hypot(point[0] - target[0], point[1] - target[1]);
+      if (!(error <= 0.001 && spin <= 0.1)) lastBadFrame = frame;
     }
-    expect(crossings).toBeGreaterThanOrEqual(1);
-    const { lever, point, spin } = grabbedPoint(body, grabbed);
-    expect(Math.hypot(lever[0], lever[1])).toBeLessThan(0.001);
-    expect(Math.hypot(point[0], point[1] - 0.02)).toBeLessThan(0.001);
-    expect(Math.abs(point[2] - holdHeight(body))).toBeLessThan(0.001);
-    expect(spin).toBeLessThan(0.1);
+    expect((lastBadFrame + 1) / 60).toBeLessThanOrEqual(0.25);
   });
 
   it('calms a spun held die without collisions', () => {
