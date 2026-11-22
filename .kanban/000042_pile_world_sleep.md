@@ -1,12 +1,14 @@
 ---
 name: "fix: whole-world sleep that freezes and wakes the dice world"
 priority: "medium"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/42-pile-world-sleep"
 issuer: "#40"
 complexity: "moderate"
 shortName: "pile-world-sleep"
 splitter: "done"
+changes: "{\"base\":\"main\",\"ins\":183,\"del\":2,\"files\":2}"
+commits: "[{\"hash\":\"bdf6809\",\"subject\":\"fix(physics): sleep the whole world once every die is still\",\"when\":\"2026-11-22T02:14:20+01:00\"}]"
 ---
 
 # Summary
