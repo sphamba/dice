@@ -269,6 +269,13 @@ describe('waking', () => {
     expect(body.position[0]).toBeGreaterThan(startX);
   });
 
+  it('wakes on wake()', () => {
+    const { world } = restingWorld();
+    expect(world.asleep).toBe(true);
+    world.wake();
+    expect(world.asleep).toBe(false);
+  });
+
   it('wakes on a non-zero velocity', () => {
     const { world, body } = restingWorld();
     vec3.set(body.linearVelocity, 0.5, 0, 0);

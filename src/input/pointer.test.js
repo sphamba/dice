@@ -304,6 +304,49 @@ describe('release', () => {
     expect(Math.hypot(...body.angularVelocity)).toBeLessThanOrEqual(60);
   });
 
+  it('keeps the world awake while a die is held perfectly still', () => {
+    const body = makeDie({ type: 'd8' });
+    const { world, canvas } = scene([body]);
+    pressWorld(canvas, 1, 0, 0);
+    let everAsleep = false;
+    for (let frame = 0; frame < 90; frame += 1) {
+      world.update(1 / 60);
+      everAsleep = everAsleep || world.asleep;
+    }
+    expect(everAsleep).toBe(false);
+    expect(world.asleep).toBe(false);
+  });
+
+  it('drops the die on release after a long still hold', () => {
+    const body = makeDie({ type: 'd8' });
+    const { world, canvas, pointer } = scene([body]);
+    pressWorld(canvas, 1, 0, 0);
+    run(world, 60, 1.5);
+    const hangHeight = body.position[2];
+    canvas.fire('pointerup', { pointerId: 1, clientX: 0, clientY: 0, timeStamp: 2000 });
+    expect(pointer.heldBodies()).toEqual([]);
+    expect(world.asleep).toBe(false);
+    world.update(1 / 60);
+    expect(body.linearVelocity[2]).toBeLessThan(0);
+    expect(body.position[2]).toBeLessThan(hangHeight);
+  });
+
+  for (const type of ['pointerup', 'pointercancel']) {
+    it(`wakes a sleeping world on ${type}`, () => {
+      const canvas = fakeCanvas();
+      const world = createWorld(BOX);
+      const body = makeDie({ position: [0, 0, DIE_RADIUS] });
+      world.addBody(body);
+      run(world, 60, 3);
+      expect(world.asleep).toBe(true);
+      const pointer = createPointer(canvas, { world, toWorld });
+      pressWorld(canvas, 1, 0, 0);
+      expect(pointer.heldBodies()).toEqual([body]);
+      canvas.fire(type, { pointerId: 1, clientX: 0, clientY: 0, timeStamp: 0 });
+      expect(world.asleep).toBe(false);
+    });
+  }
+
   it('keeps the other grab alive when one pointer is cancelled', () => {
     const body = makeDie();
     const { canvas, pointer } = scene([body]);

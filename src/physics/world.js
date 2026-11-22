@@ -120,6 +120,7 @@ export function createWorld({ W, H, D }) {
     get asleep() {
       return asleep;
     },
+    wake,
     addBody(body) {
       world.bodies.push(body);
       wake();

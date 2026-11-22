@@ -168,6 +168,8 @@ export function createPointer(canvas, { world, toWorld }) {
   // Pulls the held material point toward the pointer, at the hold height. Gravity is left
   // to turn the rest of the die about that point, so the center hangs below it.
   function drive(dt) {
+    // A held die is deliberately still: that stillness must not be read as the world resting.
+    if (held.size > 0) world.wake();
     const gain = (1 - Math.exp(-HOLD_DAMPING * dt)) / dt;
     const swingDecay = 1 / (1 + HOLD_SWING_DAMPING * dt);
     for (const entry of held.values()) {
@@ -251,6 +253,8 @@ export function createPointer(canvas, { world, toWorld }) {
     body.linearVelocity[2] = 0;
     const spin = randomSpin(Math.hypot(velocity[0], velocity[1]));
     for (let i = 0; i < 3; i += 1) body.angularVelocity[i] += spin[i];
+    // A calm release applies no velocity, so the wake has to be explicit.
+    world.wake();
   }
 
   canvas.addEventListener('pointerdown', onDown);
