@@ -33,17 +33,9 @@ The GTAO contact darkening is too strong. Add an AO strength constant of 0.5 so 
 - Live check (browser): the contact darkening next to a flat-resting d6 is about half of its value on main, it is still symmetric, and there are no console or GL errors.
 
 # Notes
-## Live-test progress (held at watch checkpoint #2)
+## PM hint
+- Keep the check small. This is a one-constant change. Do not build a full mask model.
+- Use one simple measure: with one flat d6 at rest, read floor luma at fixed sample points 2 mm outside each of the 4 die edges (use the die centre and quat from the world, not a colour mask), and one reference point beyond AO_RADIUS. Compare head vs base darkening ratio (0.35-0.65) and the 4-side spread.
+- If the paired run is not green within 10 minutes, report what you measured and finish. File a card only for a real product defect.
 
-**Scope unchanged:** live check only — 2 mm contact darkening next to a flat-resting d6 ≈ half of pre-fix, symmetric, no console/GL errors. No unit suites, no code edits.
-
-**Done since last checkpoint:**
-- `node --check` clean on harness + driver. Smoke run (MODE=smoke) completed green on mechanics: dual servers up, HTTP 200 ×6, createWorld spy + seeded PRNG + fixed-dt rewrite applied, panel click worked, world settled asleep, single-rAF full-canvas readback OK, glErr=0, console clean except a harness-induced `GPU stall due to ReadPixels` performance warning, fps 19.3, floor P50==P95==49.33 lum (flat floor confirmed), 2 dice spawned by default.
-- Smoke exposed two harness bugs, both diagnosed:
-  1. Shader needles wrong: the served shaders.js contains the template literal `const float AO_STRENGTH = ${AO_STRENGTH};`, so the evaluated `= 0.5;` never appears literally. Correct needles: `export const AO_STRENGTH = 0.5;` and `ao = mix(1.0, ao, AO_STRENGTH);`. The baseline needle also wrongly matched the pre-existing `mix(1.0, ao, uDirectAo)` lighting line. Baseline worktree /tmp/dice-base-48 verified genuinely at b798ac2 — servers are fine, only the check strings were wrong. Fix queued.
-  2. Red-die mask geometry mismatch in the smoke analyze: expected die 0 centre at GL px (447,190) (world −0.2,−15.0,8.0 mm; z=8 mm = exactly half the 16 mm edge → die 0 is flat-resting), but the red mask centroid came out (275,356) with redCount 22491 (a full 16 mm die at 17.32 px/mm should be ~277 px wide, ~76k px). Cause not yet identified — the frame capture probe was written to get raw evidence.
-- Frame probe: first attempt failed (`Buffer` is not defined in-page — page context has no Node globals); fixed with chunked `btoa`. Second attempt captured the full 900×900 frame to /tmp/dice-lt48/probe-frame.png (PNG_OK); it crashed only afterwards printing die pixels (`sample()` returns single-body `p`/`q`, not a `bodies` array — probe bug only). Next step: inspect the PNG to see actual die size/colour/position and fix the mask expectations.
-
-**Findings so far:** no product defects yet; all issues so far are harness bugs (needles, mask expectations, probe script). No console/GL errors from the app itself.
-
-**Next on release:** inspect probe-frame.png, fix the mask model in harness.mjs + driver needles, rerun smoke, then the full paired head/base run.
+**State:** smoke run green on mechanics (dual servers, seeded world, readback, glErr 0, console clean). Harness bugs found and diagnosed: shader needles (use `export const AO_STRENGTH = 0.5;` and `ao = mix(1.0, ao, AO_STRENGTH);`) and the red-mask expectations. No product defects so far.

@@ -35,19 +35,10 @@ Scale all six die types to 80% of their current size (d6 edge 16 mm to 12.8 mm, 
 - Live check (browser): all six die types render at 80% of their previous on-screen size with the same look (bevel, labels, AO), roll, settle, can be grabbed and hang, with no console or GL errors.
 
 # Notes
-## Deliverable
-- All six dice at 80%: `DIE_RADIUS = 0.0128*sqrt(3)/2` (d6 edge 12.8 mm, circumradius 11.085 mm) in `src/physics/body.js`; `BEVEL_RADIUS = DIE_RADIUS/(8*sqrt(3))` = 0.8 mm in `src/dice/labels.js` (was 0.001 m). Mass/inertia, hold height, roll headroom, AO radius, label layout and die impact modes needed no code change: each already derives from `DIE_RADIUS`/`shape.radius`.
-- New tests in `src/dice/shapes.test.js`: d6 edge = 12.8 mm at DIE_RADIUS; every type's circumradius equals DIE_RADIUS. Hard-coded 13.9 mm fixtures in pointer/body/contacts/world/sound/modes tests replaced with the imported constant.
+## Review outcome: fixed
 
-## Verification
-- HEAD ce32812. Scoped suites (dice, physics incl. 3 s pile e2e, input, audio, render): 259/259 green. `npm run build` green; both hashed assets referenced in dist/index.html.
-- Live check PASS on all criteria: page loads with zero console/page/GL errors (webgl2, no context loss); served-module constants exact (DIE_RADIUS, bevel 0.8 mm, AO 1.2*R, d6 edge 12.8 mm, all six circumradii); all six types added via panel and rendering; synthetic grab-drag-hold-fling with the held die hanging motionless; clean settle. Dev server (port 4607, PIDs 466758/466774) killed, repo tree clean.
-
-## Assumptions
-- `DIE_REFERENCE_RADIUS = 0.0139` in modes.js is the sound model's calibration reference, not an app size, so it stays; the app dice click ~+25% higher because sound passes `shape.radius`.
-- Physics thresholds and speed caps (SLEEP_SPEED, restitution threshold, contact slop, warm-start distance, drag/fling caps) stay absolute per spec.
-- Two test fixtures were scale-adapted after probe evidence, not tuned to pass: the stacked-d6 fixture now drops the upper die 2.5 edge heights above the lower (the old 0.04 m gap, die-relative; at the old absolute gap the smaller stack legitimately topples apart), and the pointer swing test moves along the tall box axis (the old x target left 14 mm to the wall while the die reaches 22.2 mm, so the die legitimately wedged on the wall; probes confirmed both mechanisms).
-- The zero-headroom liftSpeed assertion tolerance went from 5e-13 to 5e-7: headroom retains a ~3.5e-18 m floating-point residual at the exact-lid position and sqrt amplifies it to ~7e-9 m/s (physical lifts are ~1 m/s).
-
-## Blockers
-- None.
+- Core change verified: `DIE_RADIUS = 0.0128*sqrt(3)/2` (d6 edge 12.8 mm, circumradius 11.085 mm) in `src/physics/body.js`; `BEVEL_RADIUS = DIE_RADIUS/(8*sqrt(3))` = 0.8 mm exactly, as a fraction of DIE_RADIUS. New `shapes.test.js` tests assert the 12.8 mm edge and per-type circumradius = DIE_RADIUS.
+- All size-dependent consumers derive from the constant, no new hard-coded mm: hold height `box.D - 2*body.radius` (pointer.js:191), roll headroom (roll.js:39), AO `1.2*DIE_RADIUS` (renderer.js:47), mass/inertia via density formula, label layout face-relative. Sound passes `shape.radius`; `DIE_REFERENCE_RADIUS = 0.0139` in modes.js confirmed as calibration reference only (scale ≈ 1.25, the spec's +25%). Physics thresholds untouched.
+- Finding (fixed in a6d9e2e): `integrator.test.js` still hard-coded the old `radius: 0.0139` fixture, missed by the developer's fixture sweep; replaced with the imported DIE_RADIUS.
+- Accepted documented adaptations: stacked-d6 fixture gap made die-relative (2.5 edge heights), swing test moved to the tall box axis, liftSpeed zero-headroom tolerance 5e-13 → 5e-7 (FP residual ~7e-9 m/s vs physical ~1 m/s). None weaken what the tests assert.
+- Evidence: scoped suites (dice, physics, input, audio, render) 259/259 green in 15.7 s; `npm run build` green. Live browser check deferred to the live-tester role (developer reports a prior live PASS; re-verify 80% on-screen size, bevel/labels/AO, grab/hang, no console or GL errors).
