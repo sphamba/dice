@@ -1,13 +1,15 @@
 ---
 name: "feat: carve the numbers and pips with a baked normal-map atlas"
 priority: "medium"
-state: "merging"
+state: "to-live-test"
 worktree: "feat/49-carved-labels-normal-atlas"
 issuer: "user"
 complexity: "complex"
 shortName: "carved-labels-normal-atlas"
 blockedBy: ""
 splitter: "done"
+changes: "{\"base\":\"main\",\"ins\":548,\"del\":12,\"files\":6}"
+commits: "[{\"hash\":\"6a22be8\",\"subject\":\"feat: carve labels into a baked normal-map atlas with cavity shading\",\"when\":\"2026-11-22T14:05:27+01:00\"}]"
 ---
 
 # Summary
