@@ -300,7 +300,7 @@ describe('rebound', () => {
   });
 });
 
-const PILE_SEEDS = [20240601, 7, 99];
+const PILE_SEEDS = [20240601, 7, 99, 1234, 55];
 
 const PILE_COLUMNS = 2;
 
@@ -388,6 +388,7 @@ describe('sleep and wake', () => {
       if (world.asleep) sleptAt = (step + 1) * FIXED_DT;
     }
     expect(sleptAt).not.toBe(null);
+    expect(world.contactCache).toBe(null);
 
     const rest = bodies.map((body) => Float64Array.from(body.position));
     world.events.length = 0;
