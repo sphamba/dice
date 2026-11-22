@@ -1,7 +1,7 @@
 ---
 name: "fix: remove the sharp hull pixels outside the rounded die silhouette"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "user"
 complexity: "moderate"
