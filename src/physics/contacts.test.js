@@ -5,7 +5,10 @@ import { createBody } from './body.js';
 import {
   BAUMGARTE,
   EVENT_MIN_SPEED,
-  FRICTION_BOX,
+  FRICTION_DIE,
+  FRICTION_FLOOR,
+  FRICTION_LID,
+  FRICTION_WALL,
   RESTITUTION_BOX,
   SLOP,
   SOLVER_ITERATIONS,
@@ -97,14 +100,36 @@ describe('friction', () => {
 
     expect(body.linearVelocity[0]).toBeGreaterThan(0);
     expect(body.linearVelocity[0]).toBeLessThan(1);
-    nearRel(tangentImpulse, FRICTION_BOX * normalImpulse);
-    expect(tangentImpulse).toBeLessThanOrEqual(FRICTION_BOX * normalImpulse * (1 + 1e-12));
+    nearRel(tangentImpulse, FRICTION_FLOOR * normalImpulse);
+    expect(tangentImpulse).toBeLessThanOrEqual(FRICTION_FLOOR * normalImpulse * (1 + 1e-12));
   });
 
   it('does not apply friction without a normal impulse', () => {
     const body = makeBody([0, 0, 0.01], [1, 0, 0]);
     solveContacts(makeWorld(floorContact(body)), FIXED_DT);
     expect(Array.from(body.linearVelocity)).toEqual([1, 0, 0]);
+  });
+});
+
+describe('surface friction', () => {
+  it('picks the coefficient from the contact surface', () => {
+    const pair = (surface) => {
+      const a = makeBody([0, 0, 0.01], [1, 0, -0.5]);
+      const b = surface === 'die' ? makeBody([0, 0, -0.01], [-1, 0, 0.5]) : null;
+      return { a, b, surface, point: [0, 0, 0], normal: [0, 0, 1], depth: 0 };
+    };
+    const cases = [
+      ['floor', FRICTION_FLOOR],
+      ['wall', FRICTION_WALL],
+      ['lid', FRICTION_LID],
+      ['die', FRICTION_DIE],
+    ];
+    for (const [surface, friction] of cases) {
+      const world = makeWorld(pair(surface));
+      solveContacts(world, FIXED_DT);
+      expect(world.contactCache[0].surface).toBe(surface);
+      expect(world.contactCache[0].friction).toBe(friction);
+    }
   });
 });
 
@@ -122,22 +147,30 @@ describe('friction disk', () => {
 
     expect(body.linearVelocity[0]).toBeGreaterThan(0);
     expect(body.linearVelocity[1]).toBeGreaterThan(0);
-    expect(tangentImpulse).toBeLessThanOrEqual(FRICTION_BOX * normalImpulse * (1 + 1e-12));
-    nearRel(tangentImpulse, FRICTION_BOX * normalImpulse);
+    expect(tangentImpulse).toBeLessThanOrEqual(FRICTION_FLOOR * normalImpulse * (1 + 1e-12));
+    nearRel(tangentImpulse, FRICTION_FLOOR * normalImpulse);
   });
 });
 
 describe('incline', () => {
   const GRAVITY = 9.81;
 
-  const slideSpeed = (degrees, seconds = 1) => {
+  const slideSpeed = (surface, degrees, seconds = 1) => {
     const radians = (degrees * Math.PI) / 180;
+    const up = surface === 'lid' ? -1 : 1;
     const body = makeBody([0, 0, 0]);
-    const world = makeWorld(floorContact(body));
+    const world = makeWorld({
+      a: body,
+      b: null,
+      surface,
+      point: Array.from(body.position),
+      normal: [0, 0, up],
+      depth: 0,
+    });
     const gravity = Float64Array.from([
       GRAVITY * Math.sin(radians),
       0,
-      -GRAVITY * Math.cos(radians),
+      -up * GRAVITY * Math.cos(radians),
     ]);
     const steps = Math.round(seconds / FIXED_DT);
     for (let step = 0; step < steps; step += 1) {
@@ -148,12 +181,16 @@ describe('incline', () => {
     return body.linearVelocity[0];
   };
 
-  it('holds a sliding contact below the critical angle of about 5.7 degrees', () => {
-    expect(Math.abs(slideSpeed(5))).toBeLessThan(0.02);
+  it('holds a floor contact at 20 degrees, below the critical 21.8 degrees', () => {
+    expect(Math.abs(slideSpeed('floor', 20))).toBeLessThan(0.02);
   });
 
-  it('lets the same contact slide above the critical angle', () => {
-    expect(slideSpeed(10)).toBeGreaterThan(0.3);
+  it('lets a floor contact slide at 25 degrees', () => {
+    expect(slideSpeed('floor', 25)).toBeGreaterThan(0.3);
+  });
+
+  it('lets a lid contact slide at 10 degrees, above the critical 5.7 degrees', () => {
+    expect(slideSpeed('lid', 10)).toBeGreaterThan(0.3);
   });
 });
 
@@ -301,7 +338,7 @@ describe('warm starting', () => {
     const warm = warmStartImpulses(
       [cachedContact(body, 0.02, [0.001, 0])],
       freshContact(body),
-      FRICTION_BOX,
+      FRICTION_FLOOR,
     );
     expect(warm.normal).toBe(0.02);
     expect(warm.tangents[0]).toBeCloseTo(0.001, 12);
@@ -314,7 +351,7 @@ describe('warm starting', () => {
     const warm = warmStartImpulses(
       [cachedContact(body, 0.02, [0.001, 0])],
       freshContact(body, far),
-      FRICTION_BOX,
+      FRICTION_FLOOR,
     );
     expect(warm.normal).toBe(0);
     expect(warm.tangents[0]).toBeCloseTo(0, 12);
@@ -325,7 +362,7 @@ describe('warm starting', () => {
     const body = makeBody([0, 0, 0.0139]);
     const cached = cachedContact(body, 0.02, [0.001, 0]);
     cached.normal = { direction: Float64Array.from([1, 0, 0]), impulse: 0.02 };
-    const warm = warmStartImpulses([cached], freshContact(body), FRICTION_BOX);
+    const warm = warmStartImpulses([cached], freshContact(body), FRICTION_FLOOR);
     expect(warm.normal).toBe(0);
     expect(warm.tangents[0]).toBeCloseTo(0, 12);
     expect(warm.tangents[1]).toBeCloseTo(0, 12);
@@ -336,9 +373,9 @@ describe('warm starting', () => {
     const warm = warmStartImpulses(
       [cachedContact(body, 0.02, [1, 0])],
       freshContact(body),
-      FRICTION_BOX,
+      FRICTION_FLOOR,
     );
-    nearRel(warm.tangents[0], FRICTION_BOX * 0.02);
+    nearRel(warm.tangents[0], FRICTION_FLOOR * 0.02);
     expect(warm.tangents[1]).toBeCloseTo(0, 12);
   });
 

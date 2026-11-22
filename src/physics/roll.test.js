@@ -114,7 +114,7 @@ describe.each(BOXES)('roll toss on the %s box', (name, box) => {
       let highest = -Infinity;
       for (let step = 0; step < SETTLE_SECONDS * STEPS_PER_SECOND; step += 1) {
         world.step(FIXED_DT);
-        if (world.contacts.some((contact) => contact.surface === 'lid')) lidSteps += 1;
+        if (world.contacts.some((contact) => contact.surface === 'lid' && contact.depth > 0)) lidSteps += 1;
         apex = Math.max(apex, body.position[2]);
         highest = Math.max(highest, highestVertex(body));
       }

@@ -9,9 +9,19 @@ export const RESTITUTION_BOX = 0.3;
 
 export const RESTITUTION_DIE = 0.4;
 
-export const FRICTION_BOX = 0.1;
+export const FRICTION_FLOOR = 0.4;
+
+export const FRICTION_WALL = 0.4;
+
+export const FRICTION_LID = 0.1;
 
 export const FRICTION_DIE = 0.1;
+
+const FRICTION_BY_SURFACE = {
+  floor: FRICTION_FLOOR,
+  wall: FRICTION_WALL,
+  lid: FRICTION_LID,
+};
 
 export const BAUMGARTE = 0.2;
 
@@ -86,7 +96,7 @@ function prepare(contact, dt, cache) {
     point,
     ra: vec3.sub(vec(), point, a.position),
     rb: b ? vec3.sub(vec(), point, b.position) : vec(),
-    friction: b ? FRICTION_DIE : FRICTION_BOX,
+    friction: b ? FRICTION_DIE : FRICTION_BY_SURFACE[contact.surface] ?? FRICTION_FLOOR,
     approach: 0,
     target: 0,
     normal: { direction: normal, impulse: 0 },

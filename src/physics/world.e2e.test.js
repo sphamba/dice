@@ -173,7 +173,7 @@ describe('mixed dice', () => {
 });
 
 describe('tilted gravity', () => {
-  it('slides a settled die down a 10 degree tilt and stays contained', () => {
+  it('slides a settled die down a 30 degree tilt and stays contained', () => {
     const world = createWorld({ W: 0.5, H: 0.5, D: 0.2 });
     const body = dropBody('d6', [0, 0, 0.05]);
     world.addBody(body);
@@ -181,7 +181,7 @@ describe('tilted gravity', () => {
     for (let step = 0; step < 3 * STEPS_PER_SECOND; step += 1) world.step(FIXED_DT);
     const startX = body.position[0];
 
-    const radians = (10 * Math.PI) / 180;
+    const radians = (30 * Math.PI) / 180;
     world.setGravity([GRAVITY * Math.sin(radians), 0, -GRAVITY * Math.cos(radians)]);
     for (let step = 0; step < 0.5 * STEPS_PER_SECOND; step += 1) world.step(FIXED_DT);
 
