@@ -1,7 +1,7 @@
 ---
 name: "fix: grabbed die in free hang can rest with CoM ~9 mm sideways of the grab point"
 priority: "medium"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "#50"
 complexity: "simple"
