@@ -1,7 +1,7 @@
 ---
 name: "fix: scale the roll lift to the box headroom so rolls never hit the lid"
 priority: "high"
-state: "to-merge"
+state: "merging"
 worktree: "fix/37-dice-pinned-mid"
 issuer: "#33"
 complexity: "simple"
