@@ -1,12 +1,14 @@
 ---
 name: "fix: carve bake writes flat normals where signedDistance returns NaN"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/54-carve-sdf-nan-flat-glyphs"
 issuer: "#49"
 complexity: "moderate"
 shortName: "carve-sdf-nan-flat-glyphs"
 splitter: "done"
+changes: "{\"base\":\"main\",\"ins\":226,\"del\":2,\"files\":2}"
+commits: "[{\"hash\":\"f570c92\",\"subject\":\"fix: size the EDT row scratch to the longest pass so tall masks stay finite\",\"when\":\"2026-11-22T14:49:10+01:00\"}]"
 ---
 
 # Summary
