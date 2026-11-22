@@ -1,7 +1,7 @@
 ---
 name: "fix: halve the ambient occlusion darkening"
 priority: "medium"
-state: "reviewing"
+state: "to-merge"
 worktree: "fix/48-halve-ao-strength"
 issuer: "user"
 complexity: "simple"
@@ -31,11 +31,10 @@ The GTAO contact darkening is too strong. Add an AO strength constant of 0.5 so 
 - Live check (browser): the contact darkening next to a flat-resting d6 is about half of its value on main, it is still symmetric, and there are no console or GL errors.
 
 # Notes
-- Deliverable: `AO_STRENGTH = 0.5` exported from `src/render/shaders.js`, interpolated as a GLSL `const float AO_STRENGTH` into the shared forward lighting fragment source; `float ao = sampleAo(); ao = mix(1.0, ao, AO_STRENGTH);` now feeds the lighting formula. GTAO pass, blur, radius, falloff, `FINAL_POWER`, lighting constants, fallback and #46 mobile rules unchanged.
-- Tests: `src/render/ao.test.js` adds a JS mirror of the mix (ao 1 -> 1, ao 0.4 -> 0.7) plus a source check that both forward fragment sources declare and apply `AO_STRENGTH`. Red first (3 failures), then green.
-- Verification at HEAD fb6ea5b (fix(render): halve the ambient occlusion darkening): `npx vitest run src/render` 39/39 pass, `npm test` 317/317 pass, `npm run build` green, asset check `src="./assets/index-C9KzSj35.js"` / `href="./assets/index-DFCdjPSa.css"`.
-- Live browser check (headless-shell + SwiftShader, dev port 5199): PASS on every item, no page/console/GL errors (`gl.getError() = 0`). Flat-resting d6 at 2 mm deficit 5.47 lum at strength 1.0 versus 2.75 lum at 0.5 (ratio 0.503); edge-resting d6 4.80 versus 2.44 (ratio 0.508); per-direction spread 0.10 lum at 0.5 (symmetric); strength 0.0 control gives 0.00 lum deficit, so the measured deficit is purely AO. Exactly one mix site, none in the GTAO or blur sources.
-- Assumption: the constant lives in `shaders.js` rather than `renderer.js` because the shader templates are declared there and `renderer.js` already imports that module, so a uniform was not needed.
-- Assumption: the live check reproduced the baseline by swapping the shader literal in memory; its absolute lum values run lower than the spec figures (5.47 versus ~6, 6.52 versus ~13) but the 0.50 ratio holds on both contact poses.
-- Blockers: none.
-- Manual checks left to other roles: none.
+- Review outcome: approved. Diff is 26 added lines in `src/render/shaders.js` and `src/render/ao.test.js`; nothing else touched.
+- `AO_STRENGTH = 0.5` exported from shaders.js and interpolated as a GLSL `const float` into `LIGHTING_FS`; the mix sits in `litColor` immediately after the upsample `sampleAo()` and before the lighting formula. Grep shows exactly one mix site; GTAO, blur, radius, falloff, `FINAL_POWER`, lighting constants and fallback untouched.
+- Mobile rules intact: the added line has no loops, no `%`, no divisions.
+- Tests match the spec: JS mirror asserts ao 1 stays 1 and ao 0.4 becomes 0.7 (via `toBeCloseTo(0.7, 12)`); source check asserts both forward fragment sources declare and apply `AO_STRENGTH`.
+- Settled interpretation: GLSL interpolated const instead of a uniform is the spec's "passed as a uniform if needed" branch; developer's assumption is sound and recorded.
+- Evidence at HEAD fb6ea5b: `npx vitest run src/render` 39/39 pass, `npm test` 317/317 pass, `npm run build` green.
+- Deferred to live-tester: browser check that flat-resting darkening at 2 mm is about half of main, symmetry, and no console/GL errors.
