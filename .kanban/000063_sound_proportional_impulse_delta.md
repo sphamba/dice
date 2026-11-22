@@ -2,7 +2,7 @@
 name: "feat: emit impact impulse as the delta over the warm start"
 priority: "high"
 state: "done"
-worktree: "feat/63-sound-proportional-impulse-delta"
+worktree: ""
 issuer: "#62"
 complexity: "simple"
 shortName: "sound-proportional-impulse-delta"
