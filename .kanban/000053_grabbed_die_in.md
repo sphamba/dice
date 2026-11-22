@@ -1,11 +1,13 @@
 ---
 name: "test: lock the free-hang rest of a held die (the wall lean is physical)"
 priority: "medium"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/53-grabbed-die-in"
 issuer: "#50"
 complexity: "simple"
 blockedBy: ""
+changes: "{\"base\":\"main\",\"ins\":76,\"del\":0,\"files\":1}"
+commits: "[{\"hash\":\"2e2f752\",\"subject\":\"test(input): cover the free hang from 20 grabbed points and orientations per die\",\"when\":\"2026-11-22T14:44:08+01:00\"}]"
 ---
 
 # Summary
