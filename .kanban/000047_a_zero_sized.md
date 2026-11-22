@@ -1,10 +1,12 @@
 ---
 name: "fix: a zero-sized viewport resize permanently freezes dice at the box centre"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/47-a-zero-sized"
 issuer: "#38"
 complexity: "simple"
+changes: "{\"base\":\"main\",\"ins\":43,\"del\":0,\"files\":2}"
+commits: "[{\"hash\":\"8625cc5\",\"subject\":\"test(physics): cover the non-finite box case, the resize sequence and the zero-viewport load healing\",\"when\":\"2026-11-22T12:18:37+01:00\"},{\"hash\":\"65421d1\",\"subject\":\"fix(physics): ignore a zero-sized box in setBox\",\"when\":\"2026-11-22T12:11:44+01:00\"}]"
 ---
 
 # Summary
