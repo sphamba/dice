@@ -44,11 +44,10 @@ The die corners still look sharp. Make the dice shaders emulate the displacement
 - Live check: in a 4x crop, the corners of a flat d6 and a tilted d8/d20 are round with radius about 1.6 mm. Where two dice touch, no sharp corner cuts into the other die. No console or GL errors, and no #46 overlay.
 
 # Notes
-- Outcome: approved. Every Spec bullet maps to diff or test evidence; no fixes needed.
-- Constant: `BEVEL_RADIUS = DIE_RADIUS/(4*sqrt(3))` (= 1.6 mm, 12.5% of the 12.8 mm d6 edge) now lives next to `DIE_RADIUS` in `src/physics/body.js`; all users (`labels.js`, `renderer.js`, tests) import it from there; `body.test.js` asserts the ratio.
-- Rounded depth: `bevelDrop`/`roundedSurface`/`surfaceDepth` in `BEVEL_FRAG`; `gl_FragDepth` written in the dice pass and the AO prepass (shaders.js:195, 354); flat part keeps the face-plane depth (drop 0 at |q| = 0, r at |q| = r, clamp beyond — JS mirror tested including the mid-band tangent-sphere value). AO upsample compares the same surface z (`sampleAo(z)`); the depth round-trip `(x - z)/y` ↔ `x - d*y` is consistent across prepass, GTAO, blur and upsample.
-- Band handling: the `|q| > uBevelRadius` discard is removed in both passes per the PM hint (holes on tilted dice); `|q|` clamps to r for the rim-frozen normal and the drop. Accepted interpretation: the Spec bullet "discard where |q| > r" is overridden by the PM hint. Hull alpha stays the only outline test in the dice pass, the hull discard stays in the prepass (both source-checked).
-- Face scale: `renderer.js` keeps taking s from face 0; new `bevel.test.js` 'face inset scale' proves every face of every type shares rho, so face 0 is exact.
-- #46 mobile GLSL rules hold on every new line: `sqrt(max(.., 0.0))`, `inversesqrt(max(dot(q, q), 1e-12))`, `max(uDepthRange.y, 1e-6)`; no new loops, no % by a uniform.
-- Evidence: `npx vitest run src/render src/dice src/physics` 238 passed (17 files); `npm test` 353 passed (28 files); `npm run build` green; glslangValidator compile+link PASS for all five programs (dice, aoPrepass, gtao, blur, floor).
-- Live: the developer's crops in /tmp/pw-live/out re-checked visually (flat d6 corner round, held d8 edges continuous, no holes or cracks); measured radius 1.4-1.7 mm (developer's boundary-fit) vs the 1.6 mm model. Formal live-GL, touch and console sign-off stays with the live-tester role.
+## PM hint
+- After 21 minutes these Notes still hold only the review. Write your live-test progress here at each checkpoint.
+- Keep the check small: corner radius of a flat d6 (about 1.6 mm), no holes or cracks on tilted d4/d8/d20, no sharp corner cut where two dice touch, no console or GL errors, no #46 overlay, on desktop and phone. Finish within 10 minutes with a results table. File a card only for a real product defect.
+
+## Review outcome: approved
+- BEVEL_RADIUS 1.6 mm in src/physics/body.js. gl_FragDepth with the rounded drop in the dice pass and the AO prepass. The |q| > r discard is removed, and |q| is clamped to r. The AO upsample uses the rounded z.
+- npm test 353 passed, build green, all five programs compile and link.
