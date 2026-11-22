@@ -1,7 +1,7 @@
 ---
 name: "fix: whole-world sleep that freezes and wakes the dice world"
 priority: "medium"
-state: "doing"
+state: "to-review"
 worktree: "fix/42-pile-world-sleep"
 issuer: "#40"
 complexity: "moderate"
@@ -43,3 +43,8 @@ Freeze the whole world once every die is still and wake it on every input, so se
 - `npx vitest run src/physics`
 
 # Notes
+- Deliverable: whole-world sleep in `src/physics/world.js`. Exports `SLEEP_SPEED = 0.01`, `SLEEP_TIME = 0.5`, `WAKE_GRAVITY_DELTA = 0.5` and a read-only `world.asleep`. After each step the fastest die point speed (`|v| + DIE_RADIUS*|w|`) below `SLEEP_SPEED` for `SLEEP_TIME` zeroes every velocity and marks the world asleep. An asleep `step` does no integration, contacts or events. Wakes and restarts the timer on a driven hold, any non-zero body velocity, `addBody`, `removeBody`, `setBox`, and a gravity change above 0.5 m/s^2 from the gravity at sleep time.
+- Verification: HEAD eb6d2ef. `npx vitest run src/physics` -> 86 passed in 8 files. `npm run build` green, `dist/index.html` references the hashed JS and CSS assets.
+- Assumptions: held-die wake is detected by running `world.beforeStep` while asleep and waking on any velocity it writes, because `pointer.js` keeps its `held` map private and the drive callback is the only in-scope signal; a held die that is already at rest still lets the world sleep.
+- Blockers: none.
+- Manual checks left to other roles: live check that grabbing a sleeping die moves it at once, that a settled pile stops all visible motion, and that Roll, Space and fling wake it.

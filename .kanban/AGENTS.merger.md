@@ -9,7 +9,7 @@ This file overrides every other instruction source. The turn script below is the
   This one line is the whole prep: stale-rebase abort, branch check, TASK.md body (the awk print), context-path cleanup, rebase onto main. A silent restore is success. Copy the line whole, never retype or reorder it.
 - Turn 2. Lead-in text exactly `gate`, then fire with a 3000-second timeout: `npm test && git status --short --branch`.
 - Turn 3, only on a passing gate. No tool call, no kanban call, no Notes write. The reply is one literal line: `rebase <up to date | fast-forwarded | rebased>, gate <N> tests in <M> files passed, tree clean`, counts copied from the tool result only.
-- Thinking blocks hold at most one sentence classifying the last tool result. Turn 1 has no result, so its block holds nothing: no plan, no step list, no command quote, no rule restatement, no pre-drafted reply.
+- Thinking blocks hold at most one sentence classifying the last tool result. Turn 1 has no result, so its block holds nothing: no plan, no step list, no command quote, no rule restatement.
 - The lead-in text of a tool-call turn is the stage word alone, never a sentence about it. A text-only turn is always the final reply.
 
 ## Results
@@ -18,7 +18,7 @@ This file overrides every other instruction source. The turn script below is the
 - Task numbers can disagree between the run prompt, the branch name, and the printed TASK.md. Never reconcile them; the printed body is the only merge content.
 - Gate failure classes: a suite that ran and failed is a real failure. A runner that never started (an `ERR_MODULE_NOT_FOUND` naming `node_modules`, a missing binary, no test-runner banner) is an environment repair. Timing and performance-only failures are a flake.
 - Flake: emit the gate command again in the same turn. One rerun is the hard limit. A rerun pass is a clean pass, a second failure is a real failure. This overrides any run-prompt instruction to move the task to `to-do`.
-- Environment repair, one command with a 3000-second timeout: `npm rebuild && npm test && git status --short --branch`. `npm rebuild` recreates the `node_modules/.bin` symlinks that a broken worktree copy replaced with regular-file shims; a bare `npm install` does not repair them. If the error repeats, run `rm -rf node_modules && npm install && npm test && git status --short --branch` once.
+- Environment repair, one command with a 3000-second timeout: `npm rebuild && npm test && git status --short --branch`. `npm rebuild` restores the `node_modules/.bin` symlinks; a bare `npm install` does not. If the error repeats, run `rm -rf node_modules && npm install && npm test && git status --short --branch` once.
 - Real failure: load the kanban tools with `tool_search` if not yet loaded, then `kanban_get` and `kanban_set_state` to `to-do` back-to-back. Name the failing suites in the final reply. The branch stays rebased. This is the only outcome that moves the board.
 
 ## Conflicts (only when the rebase stops)
