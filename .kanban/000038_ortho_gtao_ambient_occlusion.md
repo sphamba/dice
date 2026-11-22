@@ -1,12 +1,14 @@
 ---
 name: "feat: replace directional shadows with orthographic GTAO ambient occlusion"
 priority: "medium"
-state: "merging"
+state: "to-live-test"
 worktree: "feat/38-ortho-gtao-ambient-occlusion"
 issuer: "user"
 complexity: "complex"
 shortName: "ortho-gtao-ambient-occlusion"
 splitter: "done"
+changes: "{\"base\":\"main\",\"ins\":623,\"del\":149,\"files\":7}"
+commits: "[{\"hash\":\"d99928f\",\"subject\":\"test(render): cover AO pipeline wiring with a fake GL context\",\"when\":\"2026-11-22T10:16:55+01:00\"},{\"hash\":\"8459161\",\"subject\":\"fix: use the constant ortho view vector for specular shading\",\"when\":\"2026-11-22T02:49:02+01:00\"},{\"hash\":\"23506b7\",\"subject\":\"fix: build the AO setup at startup so the GTAO pipeline renders\",\"when\":\"2026-11-22T01:37:37+01:00\"},{\"hash\":\"eaeca6c\",\"subject\":\"feat: replace directional shadows with orthographic GTAO ambient occlusion\",\"when\":\"2026-11-22T00:51:18+01:00\"}]"
 ---
 
 # Summary
