@@ -38,8 +38,30 @@ signedDistance in src/dice/carve.js returns NaN for glyphs far from ink, and bui
 - `npm run build`
 
 # Notes
-- Review verdict: approved. Root cause confirmed in the diff: `edt1d`'s column pass writes h samples into the shared `row` scratch sized `w`, so for h > w every row index >= w read `undefined` -> NaN; NaN then failed `sdf[p] < 0` in `carveCell` and baked flat (128,128,255). Fix is the minimal one-line re-size to `Math.max(w, h)` in `distanceTransform`; no end-clamp, matches the "fix the root cause" spec bullet.
-- Spec bullets all map to diff/test evidence: 341x512 two-disk repro (upper+lower half, finite, <= 0.5 px vs brute-force exact at every pixel), non-square quadrant masks (160x320, 320x160, 200x280), and a `buildCarveAtlas` bake of the real d6 label atlas (real `buildLabelAtlas` pip geometry via a fake OffscreenCanvas/ellipse/fill ctx that matches the labels.js contract) asserting no NaN and no flat interior glyph pixel (sdf <= -1). `edt1d`/`distanceTransform` have no other callers (grep).
-- Accepted adaptation (recorded assumption): the atlas test exempts flat pixels within 2 px of a pip centre, not only the exact centre, because the round profile is stationary at the pip top and quantises to a flat byte (dev measured 1.51-1.59 px); stated in Notes, accepted. Node has no canvas, so the atlas test rasterises the recorded ellipses; d6 labels are pure ellipses, so geometry matches production.
-- Verification (re-run at review): `npx vitest run src/dice src/render` 9 files/118 tests pass; `npm test` 28 files/346 tests pass; `npm run build` OK (dist assets index-CPThTu4l.js, index-DFCdjPSa.css). Worktree clean at 3b30f29.
-- Deferred to live-test role: task #49 d10 (phone) wall-shading re-check and a visual check that lower-half glyphs now carve in the live GL render.
+Live test in progress (checkpoint write).
+
+## Scope fixed from TASK.md
+Change under test: one-line fix in `distanceTransform` (src/dice/carve.js:45), EDT row scratch resized to `Math.max(w, h)` so tall atlas cells (341x512) stop baking NaN-sdf pixels as flat normals. Deferred items from Notes I must cover: (1) task #49 d10 (phone) wall-shading re-check, (2) visual/live check that lower-half glyphs now carve in the GL render.
+
+## Batched inspection done
+- Changed files: src/dice/carve.js (1 line), src/dice/carve.test.js (new tests). Commit f570c92 in cwd worktree, clean.
+- Serve command: `npx vite --port <p>` from cwd; UI selectors from precedent: `.panel-toggle`, `.panel-step[aria-label="Add d6"]`, `.panel-roll`; canvas #view; error overlay #unsupported.
+- Precedent harness /tmp/dice-lt49 (harness.mjs + driver.mjs + atlas-probe.mjs) is proven: world spy via main.js route rewrite, readPixels-in-rAF capture, d6 pip dimple check (halfMoonLuma toward/away), number wall-shading check (glyphSpread vs bodySpread), phone 390x844 dpr3 viewport. Copying it with LT_CWD/LT_OUT/LT_PORT env retarget, new out dir /tmp/dice-lt54.
+- Pre-fix reference values from #49's own live run (same harness, pre-fix code): d10 phone FAIL glyphSpread=19.7 vs bodySpread=68.7; d6 phone lower-half pips diff only 7.1 vs upper ~22; d6 desktop probe value=4 lower pips diff NEGATIVE (-4.3, -4.6); d6/d8/d12/d20 desktop+phone all passed with weak gates.
+
+## Check list (mapped to acceptance/deferred items, committed now)
+- A1 probe: webgl2 context, capture sane, console clean.
+- A2 in-page atlas probe (app's real buildLabelAtlas+buildCarveAtlas via real modules in browser, d6+d10): per-face, per-glyph interior samples (alpha>=128, >=1px inside edge, avoiding pip centre per dev-quantisation note) must have ZERO exact-flat (128,128,255) bakes in the LOWER cell half; pre-fix reference: lower half flat per #49 evidence 1+2. Upper half also 0.
+- A3 desktop d6 live GL: every visible pip dimpled (away-toward luma diff > 3) AND lower-half (gy=-1) pips >= 0.6x upper-half mean diff (pre-fix signature: 7.1 vs 22, or negative).
+- A4 desktop d10 live GL: numbers carved gate (glyphSpread >= 10 and > bodySpread+5) - observation only pre-fix passed weakly here.
+- A5 phone d6 live GL: same gate as A3 (pre-fix 7.1 diffs fail the balance gate).
+- A6 phone d10 live GL: #49 wall-shading re-check, same gate (pre-fix FAILED: 19.7 vs 68.7). Headline deferred item.
+- A7 phone d8/d12/d20 live GL: same numbers gate (passed pre-fix weakly; expect higher glyphSpread post-fix).
+- A8 console clean + no GL errors per page; frames + zoom crops saved as evidence.
+
+## Assumptions
+- Glyph ridge-centre pixels bake flat by design (profile height stationary along the deepest line, gradient zero), so interior sampling avoids exact pip centres and 2px quantisation zones (dev note: 1.51-1.59 px); digit-stroke samples are eroded interiors, ridge lines may contribute flat samples - if A2/A7 show isolated flat samples I will check whether they lie on stroke skeletons before calling a defect.
+- Top face after settle is random; d6 value 1 has no clearly-lower pip, so re-spawn (max 3 tries) until value != 1.
+- SwiftShader headless rendering is the usage surface; no unit tests are run.
+
+Next: write /tmp/dice-lt54 harness+driver (copy of lt49 with retargeted env), syntax check, smoke run (probe phase only), then full run.
