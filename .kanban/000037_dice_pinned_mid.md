@@ -1,10 +1,12 @@
 ---
 name: "fix: scale the roll lift to the box headroom so rolls never hit the lid"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/37-dice-pinned-mid"
 issuer: "#33"
 complexity: "simple"
+changes: "{\"base\":\"main\",\"ins\":206,\"del\":18,\"files\":3}"
+commits: "[{\"hash\":\"c53486d\",\"subject\":\"test(roll): cover the zero and negative headroom lift guard\",\"when\":\"2026-11-22T01:38:12+01:00\"},{\"hash\":\"bdfa647\",\"subject\":\"fix(roll): plan the toss rise from the box headroom\",\"when\":\"2026-11-22T01:34:07+01:00\"},{\"hash\":\"696fede\",\"subject\":\"fix(roll): scale the toss lift to the box depth\",\"when\":\"2026-11-21T21:34:22+01:00\"}]"
 ---
 
 # Summary
