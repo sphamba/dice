@@ -1,11 +1,12 @@
 ---
 name: "fix: carve bake writes flat normals where signedDistance returns NaN"
 priority: "high"
-state: "to-do"
-worktree: ""
+state: "doing"
+worktree: "fix/54-carve-sdf-nan-flat-glyphs"
 issuer: "#49"
 complexity: "moderate"
 shortName: "carve-sdf-nan-flat-glyphs"
+splitter: "done"
 ---
 
 # Summary
@@ -13,33 +14,25 @@ signedDistance in src/dice/carve.js returns NaN for glyphs far from ink, and bui
 
 # Specs
 # Defect
-
-`buildCarveAtlas` (src/dice/carve.js) bakes FLAT normals for every glyph pixel whose signed distance is NaN. NaN fails every `sdf[p] < 0` comparison, so `height` stays 0 and the pixel is forced to flat `(128,128,255)` with cavity 255. Rendered dice then show painted labels with NO carving, on arbitrary glyph positions (any glyph landing in the lower half of its atlas cell).
+`buildCarveAtlas` (`src/dice/carve.js`) bakes flat normals for every glyph pixel whose signed distance is NaN. NaN fails every `sdf[p] < 0` comparison, so the pixel stays flat `(128,128,255)` with cavity 255. Glyphs in the lower half of each atlas cell show paint with no carving.
 
 # Evidence
+1. Minimal repro `/tmp/dice-lt49/repro.mjs` (shipped `signedDistance`/`carveCell`): mask 341x512 px, two 22 px disks at (99,148) and (99,364). sdf at the upper disk centre = -22.023 (correct), at the lower disk centre = NaN. The lower disk is 361/361 flat, the upper disk 124/361 flat.
+2. In-page atlas probe `/tmp/dice-lt49/atlas-probe.mjs`: in every atlas cell, glyphs below the cell midline bake flat. Deterministic.
+3. Live render (#49): some d6 pips flat, others dimpled on the same face. The #49 d10 (phone) wall-shading FAIL has the same cause.
 
-1. Minimal repro (Node, shipped modules): `/tmp/dice-lt49/repro.mjs` imports `signedDistance`/`carveCell` from src/dice/carve.js. Mask 341x512 px (one d6 cell), two 22 px disks at (99,148) upper and (99,364) lower, spacing 1:
-   - `sdf` at upper disk centre = -22.023 (correct).
-   - `sdf` at lower disk centre = **NaN**.
-   - `carveCell` output: lower disk 361/361 sample points flat; upper disk partially flat (124/361) — NaN spreads through the distance transform.
-2. In-page atlas probe (`/tmp/dice-lt49/atlas-probe.mjs`, rebuilds both atlases with the exact shipped functions): in EVERY atlas cell, glyphs below the cell midline bake flat (25/25 sample points flat at label alpha 255), glyphs in the upper half carve correctly. All six d6 faces show it; deterministic across rebuilds.
-3. Live render (task #49 run 1): some d6 pips have flat interiors (luma 254, carve normal (0,0,1)) while other pips on the SAME face show the dimple gradient (+10..+22 luma on the away side). Which pips are flat depends on the rolled face.
-4. The task #49 FAIL "numbers carved (wall shading): d10 (phone): glyphSpread=19.7 vs bodySpread=68.7" is the same defect (d10 digits landing in cell lower halves bake flat, collapsing the glyph luma spread). Same root cause — no second card needed.
+# Change
+- Trace where NaN enters the Felzenszwalb-Huttenlocher EDT (`edt1d`, `INF = 1e20`, the parabola intersection `s`, or a wrong index or row/column stride in the 2D pass for non-square masks). Fix the root cause with the smallest change. Do not hide it with a clamp at the end of `signedDistance` only.
 
-# Suspected root cause (trace still to do)
+# Tests (`src/dice/carve.test.js`)
+- The repro case as a unit test: 341x512 mask, two 22 px disks (upper and lower half). sdf is finite at every pixel, and within 0.5 px of the exact Euclidean value at every pixel, inside and outside.
+- The same check on a non-square mask with the glyph in each quadrant.
+- `buildCarveAtlas` on the real label atlas: no NaN in the sdf, and every glyph pixel with label alpha above 0.5 that is more than 1 px inside the edge has a non-flat normal or is at the exact centre of a pip.
+- The existing carve, render, bevel, AO and #46 tests stay green.
 
-`edt1d` (Felzenszwalb-Huttenlocher 1D EDT) uses `INF = 1e20`; NaN is suspected to enter via INF−INF arithmetic in the parabola intersection `s = (f[q]+c·q² − f[v[k]]−c·v[k]²) / (2c(q−v[k]))` or via `v[k]` underflow poisoning `z[k]`, for rows/regions far from glyph ink. `signedDistance` then propagates it.
-
-# Fix direction
-
-- Make the EDT non-finite-safe (clamp inputs to a large finite value or use a guarded INF; assert `Number.isFinite` on `s`), or replace the FH pass for far-from-ink regions with a finite upper bound.
-- Guard at the boundary: in `signedDistance`, clamp non-finite results to a large finite distance before `sdf = toInside - toOutside`.
-- Regression tests: repro.mjs case must give finite sdf and a carved lower disk; keep the existing carve unit tests (they only cover glyphs in cell upper halves, which is why this slipped through).
-
-# Acceptance
-
-- repro.mjs: sdf finite everywhere; lower disk carves (0 flat sample points).
-- In-page atlas probe: flatCarve = 0/25 for every glyph of every face value on all dice types.
-- Task #49 check "numbers carved (wall shading): d10 (phone)" passes; d6 pips show dimple asymmetry on every rolled face.
+# Acceptance criteria
+- `npx vitest run src/dice src/render`
+- `npm test`
+- `npm run build`
 
 # Notes
