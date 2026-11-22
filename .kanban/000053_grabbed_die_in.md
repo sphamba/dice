@@ -5,6 +5,7 @@ state: "doing"
 worktree: "fix/53-grabbed-die-in"
 issuer: "#50"
 complexity: "simple"
+blockedBy: "question"
 ---
 
 # Summary
