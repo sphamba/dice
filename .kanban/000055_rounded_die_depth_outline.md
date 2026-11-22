@@ -1,7 +1,7 @@
 ---
 name: "fix: render the rounded die shape with true rounded depth and a visibly rounded outline"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "user"
 complexity: "complex"
