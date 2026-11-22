@@ -1,13 +1,15 @@
 ---
 name: "fix: let resting dice piles settle with warm starting and whole-world sleep"
 priority: "medium"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/40-pile-warm-start-sleep"
 issuer: "#31"
 complexity: "moderate"
 shortName: "pile-warm-start-sleep"
 blockedBy: ""
 splitter: "done"
+changes: "{\"base\":\"main\",\"ins\":226,\"del\":3,\"files\":4}"
+commits: "[{\"hash\":\"da52aff\",\"subject\":\"test(physics): run the pile settle cases on all five measured seeds and assert the sleep drops warm starts\",\"when\":\"2026-11-22T10:15:26+01:00\"},{\"hash\":\"d29f7a9\",\"subject\":\"fix(physics): settle a tilted pile by measuring approaches before warm start\",\"when\":\"2026-11-22T03:01:51+01:00\"}]"
 ---
 
 # Summary
