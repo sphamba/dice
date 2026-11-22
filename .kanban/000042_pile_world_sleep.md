@@ -1,7 +1,7 @@
 ---
 name: "fix: whole-world sleep that freezes and wakes the dice world"
 priority: "medium"
-state: "live-testing"
+state: "done"
 worktree: "fix/42-pile-world-sleep"
 issuer: "#40"
 complexity: "moderate"
@@ -45,16 +45,21 @@ Freeze the whole world once every die is still and wake it on every input, so se
 - `npx vitest run src/physics`
 
 # Notes
-Live test in progress (watch checkpoint). Setup: worktree served with `npx vite --port 8772` from cwd; headless Chromium 1280x800, SwiftShader GL flags, 24 fps measured (sim runs ~0.8x wall); createWorld exposed via route-rewrite spy on served main.js; in-page __sample/__tilt/__screen helpers; harness in /tmp/dice-lt42 (adapted from the lt41 harness). Environment probe passed: synthetic devicemotion dispatch changes world.gravity through the app's own deviceToWorldGravity path (desktop sign=+1), grab lifts a die, screenshots non-blank (sd 0.178).
+Outcome: approved. Live usage test of the whole-world sleep passed every check; no product defects found, no cards filed. The three FAIL rows seen mid-run were instrument artifacts (two sampling-latency misses and one wrong physical expectation), each superseded by a frame-granular re-measurement. Artifacts: /tmp/dice-lt42/ (results-world-sleep.json, -rerun.json, -rerun2.json, traces in the run logs).
 
-Results so far (17/20 checks, results-world-sleep.json):
-- PASS load: default 2 d6 spawn; world asleep=false initially.
-- PASS sleep: world sleeps ~0.9 s wall after the dice settle; velocities exactly zero.
-- PASS frozen: settled pile bit-identical over 2 s (position and quaternion drift exactly 0), stayed asleep the whole window, events stayed empty, render pixel-identical (AE=0 between screenshots 1 s apart).
-- PASS grab: grabbing a sleeping die moves it at once (14.2 mm displacement within ~0.9 s of mousedown, dz +14.1 mm lift toward hold height), world wakes; re-sleeps 0.9 s after release.
-- PASS fling: flung die flies (0.084 m/s just after release, 14.3 mm travel over 0.6 s), world stays awake, re-sleeps after settle.
-- PASS tilt small: 2 deg tilt (|dg| ~ 0.34 m/s^2 < 0.5) applied while asleep updates gravity but does not wake (asleep held true over 1.5 s watch).
-- FAIL under triage (2 checks + 1 related): after clicking Roll (and after Space key), world shows asleep=false but maxSpeed=0.000 m/s at +800 ms and re-sleeps almost immediately (0.0 s / 0.2 s later); render AE=0 between two frames 200 ms apart during the roll window (world frozen), yet both roll screenshots differ from the pre-roll sleeping screenshot by 65666 px (dice moved at some earlier point). Two independent wake paths (Roll click, Space key) show the same signature, while grab and fling paths show real velocities. Hypotheses queued: (a) onRoll fires but velocity writes do not stick (would contradict the wake-on-nonzero-velocity path), (b) my sampler misses a fast transient, (c) an unrelated wake fires with zero velocity. Next step per triage rule: print live values at the decision point (velocity/asleep trace every ~100 ms for 2 s after Roll, plus events trace - empty events during the window would prove contacts never ran), check the captured console/pageerror log, then classify harness bug vs product defect before touching anything.
-- Driver bug (mine, not product): strong-tilt phase crashed on a delta() call passed position arrays instead of bodies; strong-tilt wake/slide checks, add/remove-die wake, resize (setBox) wake, and the final console audit did not run yet. Driver fixed locally; rerun will cover only the invalidated checks.
+Setup: served the worktree with `npx vite --port 8772`; headless Chromium 1280x800 with SwiftShader GL flags, 24 fps (sim ~0.8x wall); the world was exposed by a route-rewrite spy on served main.js (observation-only); devicemotion was dispatched synthetically through the app's own deviceToWorldGravity path (desktop sign=+1, verified in probe). Instrument for the wake checks: in-page trace sampled every ~50 ms, started BEFORE the trigger (per the PM hint).
 
-Test-design assumptions (for the record): synthetic devicemotion stands in for real accelerometer tilt (values routed through the app's own conversion, verified in probe); the createWorld spy is observation-only; add/remove-die and resize wakes are treated as in-scope user flows of the same wake list the task defers (Roll/Space/fling/tilt are the deferred core); headless SwiftShader rendering is an acceptable stand-in for user-visible rendering.
+Results (all PASS in final form):
+- Sleep: default 2 d6 settle and the world sleeps ~0.9 s wall after stillness; velocities exactly zero at sleep.
+- Settled pile shows no residual motion: positions and quaternions bit-identical over a 2 s watch, asleep flag never dropped, events stayed empty, render pixel-identical (AE=0 between screenshots 1 s apart; image non-blank, sd 0.178).
+- Grab a sleeping die: moves at once (14.2 mm displacement within ~0.9 s of mousedown, dz +14.1 mm lift toward hold height); the grab wakes the world; world re-sleeps 0.9 s after a gentle release.
+- Roll wakes: frame trace from the click shows first die motion 109 ms after trigger (linear+angular peak 25.5), contact events up to 5/frame (sound/haptics input), dice settle ~0.36 s after trigger, world re-sleeps ~1 s later. Matches the #37 measurement (settle 0.2-0.5 s); the run-1 FAIL was a +800 ms sample taken after settle, as the PM hint predicted.
+- Space wakes: first motion 50 ms after keypress, peak 27.5, events up to 9/frame, settle ~0.35 s, re-sleep ~0.9 s after that. (Roll button blurred first via a click on an empty canvas spot, as the panel ignores Space on focused buttons.)
+- Fling wakes: flung die leaves at 0.084 m/s and travels 14.3 mm over 0.6 s; world stays awake through the fling and re-sleeps after settle.
+- Tilt: 2 deg (|dg| ~ 0.34 m/s^2 < 0.5) applied while asleep updates gravity and does NOT wake (asleep held over a 1.5 s watch). 5 deg (|dg| ~ 0.86 m/s^2 > 0.5) wakes within 50 ms. The "dice slide" expectation was dropped as an invalid instrument: friction is 0.1 (contacts.js FRICTION_DIE), which holds dice up to ~5.7 deg, so no slide at 5 deg is correct physics; the trace confirms wake then correct re-sleep 0.6 s later.
+- Add/remove/resize wake: Add d6 woke the world 79 ms after click (bodies 2 -> 3), Remove d6 woke 64 ms after click (3 -> 2), viewport resize (setBox) woke with box W 0.0800 -> 0.0724 m; each re-sleeps after the new motion settles (re-sleep latencies 0.6-1.4 s wall, consistent with settle + 0.5 s threshold).
+- Console: clean (only [vite] debug chatter).
+
+Assumptions made while designing the tests: synthetic devicemotion stands in for real accelerometer tilt (values routed through the app's own conversion, sign verified in probe); the createWorld spy is observation-only; add/remove-die and resize wakes are in-scope user flows of the same wake list the task defers (Roll/Space/fling/tilt are the deferred core); headless SwiftShader rendering stands in for user-visible rendering; motion detector thresholds mix linear m/s and angular rad/s (both are motion). No observed behavior contradicts the task's stated assumptions.
+
+Technical difficulties hit while testing (all resolved in-run, none product-side): (1) +800 ms samples after Roll/Space/Add/Remove landed after the fast settle and re-sleep, producing false FAILs; fixed with pre-trigger in-page traces. (2) Driver bug: strong-tilt drift check passed position arrays to a distance helper; fixed. (3) setViewportSize failed on a maximized headless window; fixed by restoring window state via CDP before resizing.
