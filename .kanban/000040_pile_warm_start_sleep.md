@@ -1,7 +1,7 @@
 ---
 name: "fix: let resting dice piles settle with warm starting and whole-world sleep"
 priority: "medium"
-state: "reviewing"
+state: "to-merge"
 worktree: "fix/40-pile-warm-start-sleep"
 issuer: "#31"
 complexity: "moderate"
@@ -34,12 +34,13 @@ Verify warm starting (#41) and whole-world sleep (#42) end to end, and fix the p
 - `npm run build`
 
 # Notes
-## Review progress (checkpoint)
+## Review outcome: fixed (review commit da52aff on top of d29f7a9)
 
-- Scope read: one commit d29f7a9, diff touches `src/physics/contacts.js` (approach measured before warm start; restitution only on fresh contacts), `src/physics/world.js` (sleep drops `contactCache`), plus tests. Constants untouched, `src/input/motion.js` untouched.
-- `npx vitest run src/physics`: 103 passed (16.5 s). `npm run build`: ok, same assets as claimed.
-- Seeds probe: spec demands at least the 5 measured seeds (20240601, 7, 99, 1234, 55); the test used only 3. I edited the test to all 5: all 5 pile cases pass (16 s), so nothing was masked - the shortfall was cost only. Fix to be committed.
-- Red evidence verified by me on a main-sources copy of the worktree: the two new contacts.test.js regressions fail pre-fix (2 failed, 24 passed) and 2 of 5 pile settle cases fail pre-fix. Red claims hold.
-- Focused d4-corner regression (spec bullet): probed a lone d4 started from three captured pre-fix corner-spin states - it settles even on pre-fix code; subsets of 7-9 dice still reproduce, so no cheap isolated repro exists. Developer's reading (root-cause unit tests in contacts.test.js + e2e pile cases at 30 degrees in world.e2e.test.js) is a sound interpretation; will record as assumption, not a violation.
-- Box dims: test uses 393x852 (the e2e convention since task #5; app sizes from live viewport) vs spec's 390x844 - negligible, will note.
-- Remaining: decide on a direct `contactCache === null` sleep assertion, rerun scoped physics tests with the seed fix, commit, final Notes.
+- Fix verified at the source: `solveContacts` now measures every approach before any warm-start replay, restitution applies to fresh contacts only (a contact carried over from the previous step is resting or rocking), and `sleep` drops `world.contactCache`. Constants, friction 0.10, restitution, Baumgarte, SOLVER_ITERATIONS, FIXED_DT untouched; no `src/input/motion.js` change.
+- Green evidence: `npx vitest run src/physics` 103/103 (22 s), `npm run build` ok. Developer's full `npm test`: 284 passed, 24 files.
+- Red evidence re-verified by me on a main-sources copy of the worktree: both new `contacts.test.js` regressions fail pre-fix (2 failed, 24 passed); pile settle fails pre-fix (2 of 5 gravity cases with all 5 seeds). Red claims hold.
+- Spec seeds fixed: the test used 3 of the 5 required seeds; extended to 20240601, 7, 99, 1234, 55 - all five gravity cases pass at 5 seeds, so nothing was masked, the shortfall was cost only (da52aff).
+- Sleep/wake coverage tightened: added a direct `world.contactCache === null` assertion after sleep, so the stale-impulse spec bullet is guarded even if the re-settle test alone would still pass (da52aff).
+- Focused-regression interpretation (assumption, probed): a lone d4 started from three captured pre-fix corner-spin states settles even on pre-fix code, and 7-9 die subsets still reproduce, so the 10-die pile e2e cases at 30 degree tilts are the minimal end-to-end repro of the defect scenario; the root causes themselves are pinned by the two focused unit tests in `contacts.test.js`. Spec's "next to the e2e test" read as "alongside the e2e tests".
+- Box dims assumption (probed): tests use 393x852 at DPR 3, the e2e convention since task #5; the app sizes the box from the live viewport, so the spec's 390x844 differs by under 1 percent in edge length.
+- Guidance: capture exact body states from a failing e2e run before hunting minimal repros - solver defects here can need the full pile jostle and shrink no further than 7 dice.
