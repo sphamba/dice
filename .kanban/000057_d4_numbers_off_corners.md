@@ -6,7 +6,7 @@ worktree: ""
 issuer: "user"
 complexity: "simple"
 shortName: "d4-numbers-off-corners"
-blockedBy: "#54, #55"
+blockedBy: "#55"
 ---
 
 # Summary
