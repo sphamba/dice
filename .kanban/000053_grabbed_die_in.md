@@ -30,17 +30,11 @@ When a grabbed die is held in the air with no contact (clearance > 0), the physi
 - `npm test`
 
 # Notes
-## Live test progress (checkpoint)
+## PM hint
+- This task changes tests only. Keep the live check to the two holds (open floor and wall lean) plus release. Budget 10 minutes, then the results table. File no card for a wall lean.
 
-Task #53 live test started. Progress so far:
-
-- Task file read. Change under test is test-only (HEAD 2e2f752, `src/input/pointer.test.js`); the manual checks left to live testing are: (1) hold a die near a side wall and confirm the lean is accepted, (2) hold in open floor space and confirm the CoM settles below the pointer.
-- Inspection pass done: hold mechanics read from `src/input/pointer.js` (grab point pulled to pointer xy at hold z = D - 2*radius, line 193; HOLD_DAMPING 120 1/s, HOLD_SWING_DAMPING 12 1/s, FLING_WINDOW 80 ms), box scale from `src/physics/box.js` (mpp = 0.0254/440, D = min(W,H)), default set {d6: 2} from `src/ui/panel.js`.
-- Plan: viewport 1100x1100 dpr 1 gives a 63.5 mm cube (the box from the defect report). Derived: hold z = 41.33 mm, free-hang floor clearance >= ~19 mm, center-hold wall clearance >= ~14 mm, wall press p mm from wall gives expected lean offset ~= vertex extent (6.4-11.1 mm) - p.
-- Harness built at /tmp/dice-lt53-live (copied from the #52 precedent, port 8801, CWD retargeted to this worktree, world spy + event log + trace + panel helpers reused, one new helper chooseGrabNear for center and wall-side press points). Syntax checked.
-- No checks have run yet; no defects found so far.
-
-Next: env probe, then free-hang hold at box center (CoM xy < 2 mm of pointer xy, |w| < 0.1 rad/s, floor clearance > 5 mm), then wall-lean hold near the left wall (wall clearance ~0, CoM offset > 0.5 mm, held stable), then release from both holds drops and settles.
+## Progress
+- Harness /tmp/dice-lt53-live (port 8801), viewport 1100x1100 = 63.5 mm box, hold z 41.33 mm. No checks run yet.
 
 # Open questions
 
