@@ -16,6 +16,9 @@ const near = (actual, expected, eps = 1e-9) => expect(Math.abs(actual - expected
 
 const BOX = { W: 0.0681, H: 0.1476, D: 0.0681 };
 
+// Walls far outside the swing, so a free hang has no contact of any kind.
+const WIDE_BOX = { W: 0.2, H: 0.2, D: BOX.D };
+
 // Circumradius over root three: the d6 face is a square of this half-edge at this height.
 const FACE_HALF = DIE_RADIUS / Math.sqrt(3);
 
@@ -121,6 +124,32 @@ function grabbedPoint(body, offset) {
 // The topmost vertex of a die is on the upper surface, so a press at its user-space xy picks it.
 const topVertex = (shape) => shape.vertices.reduce((best, v) => (v[2] > best[2] ? v : best));
 
+function seededRandom(seed) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// A point inside a face whose world normal points up, away from the face edges.
+function grabPoint(shape, orientation, random) {
+  const up = shape.faces.filter((face) =>
+    vec3.transformQuat(new Float64Array(3), face.normal, orientation)[2] > 0.3,
+  );
+  const face = up[Math.floor(random() * up.length)];
+  const center = [0, 0, 0];
+  for (const index of face.indices) {
+    for (let axis = 0; axis < 3; axis += 1) center[axis] += shape.vertices[index][axis] / face.indices.length;
+  }
+  const vertex = shape.vertices[face.indices[0]];
+  const t = 0.35 + 0.5 * random();
+  return center.map((value, axis) => value + (vertex[axis] - value) * t);
+}
+
 describe('face picking', () => {
   it('keeps a tilted grab anchored to the pressed material point', () => {
     const orientation = quat.setAxisAngle(new Float64Array(4), [1, 0, 0], 0.6);
@@ -171,6 +200,53 @@ describe('hanging', () => {
       expect(spin, type).toBeLessThan(0.1);
     }
   });
+
+  it(
+    'hangs from 20 grabbed points and orientations per die type without a contact',
+    () => {
+      const random = seededRandom(53);
+      for (const type of DICE_TYPES) {
+        const shape = createShape(type, DIE_RADIUS);
+        for (let trial = 0; trial < 20; trial += 1) {
+          const axis = vec3.normalize(
+            new Float64Array(3),
+            Float64Array.from([random() * 2 - 1, random() * 2 - 1, random() * 2 - 1]),
+          );
+          const orientation = quat.setAxisAngle(
+            new Float64Array(4),
+            axis,
+            random() * 2 * Math.PI,
+          );
+          const local = grabPoint(shape, orientation, random);
+          const body = makeDie({
+            type,
+            position: [0, 0, WIDE_BOX.D - 2 * DIE_RADIUS],
+            orientation,
+          });
+          const canvas = fakeCanvas();
+          const world = createWorld(WIDE_BOX);
+          world.addBody(body);
+          const pointer = createPointer(canvas, { world, toWorld });
+          const worldPoint = vec3.add(
+            new Float64Array(3),
+            vec3.transformQuat(new Float64Array(3), local, orientation),
+            body.position,
+          );
+          pressWorld(canvas, 1, worldPoint[0], worldPoint[1]);
+          const label = `${type} trial ${trial}`;
+          expect(pointer.heldBodies(), label).toEqual([body]);
+          run(world, 60, 3);
+          const offset = Math.hypot(
+            body.position[0] - worldPoint[0],
+            body.position[1] - worldPoint[1],
+          );
+          expect(offset, label).toBeLessThan(0.001);
+          expect(Math.hypot(...body.angularVelocity), label).toBeLessThan(0.1);
+        }
+      }
+    },
+    60000,
+  );
 
   it('swings after a sudden pointer move and calms within 1.5 s', () => {
     const body = makeDie();
