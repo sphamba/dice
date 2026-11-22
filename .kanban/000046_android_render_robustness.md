@@ -1,7 +1,7 @@
 ---
 name: "fix: restore rendering on Android and show render errors on the page"
 priority: "critical"
-state: "to-live-test"
+state: "live-testing"
 worktree: "fix/46-android-render-robustness"
 issuer: "#39"
 complexity: "moderate"
