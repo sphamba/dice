@@ -57,9 +57,35 @@ Make every die look like it has rounded edges and corners (fillet radius 1.0 mm)
 - Live check (browser): no console or GL errors. Every die type shows a lighter or darker shaded band along every edge and smooth corners. The outline corners of a d6 resting on a face are rounded, not square. The numbers and pips stay readable, and the d4 corner numbers are not covered by the bevel band. Picking and drag still work on the full sharp shape.
 
 # Notes
-# Review (re-review, outcome: approved)
-- Scope: 39ea3ff+a25104c vs main, clean tree; touches only labels.js, renderer.js, shaders.js and their tests. Spec map re-verified on the current tree: faceInsetData (rho, s=1-r/rho, toFace2D inset, pad to 5, right axis) with CCW/strictly-inside/1e-9-plane/padding tests; attributes loc 3-7 (vec2 facePos, vec3 tangent, 3x vec4 inset, constant per face); 5-edge inset loop with max(dot(e,e),1e-12) guard; nts=normalize(vec3(q,r)), n=T*x+B*y+N*z, B=cross(N,T); litColor(base,n) with constant (0,0,1) view vector (token-enforced by ao.test.js); bevel normal written to the AO prepass target; per-body hull via setHullUniform in both drawAoPasses and drawDicePass; uHull[20]/uHullCount, monotone chain, s*v model-projected xy; alpha=clamp((r-d)/fwidth(d)+0.5) with SAMPLE_ALPHA_TO_COVERAGE around the forward dice draw; prepass discard past r; hemisphere ambient x AO + Schlick rim pow(1-n.z,5)*0.3; no crease AO; no physics/picking/label-layout/mesh changes; aoPrepassVertexSource removed with zero leftover references.
-- Evidence (replayed): npx vitest run src/render src/dice 86/86 exit 0; npm test 298/298 exit 0; npm run build green. All spec acceptance commands pass.
-- Prior findings still hold: d4 comment fix (39ea3ff) in tree - band 1.41 mm reaches past digit tips, readability interpretation ("numbers stay readable", not band-boundary-outside-glyph-box) recorded; per-face bevel scale uniform (spread <= 1e-16) validates bevelScale[0] for the hull; max hull 20 (d12) fits uHull[20]; getContext('webgl2') leaves antialias on; page background equals CLEAR_COLOR so premultiplied-alpha compositing assumption is sound.
-- Deferred to live test: band/rim readability on all six dice, rounded d6 outline corners, console/GL cleanliness, no AO halos, picking/drag on the full sharp shape.
-- Guidance: when a shared JS mirror backs a shader function, keep the mirror's epsilon and clamp structure line-identical to the GLSL so test evidence transfers; comment-only corrections still count as the fixed outcome.
+# Live test (task #39, in progress - held at watch checkpoint)
+
+## Setup
+- Served the worktree with vite on :8797 (curl 200 on /, main.js, shaders.js, renderer.js, labels.js). Playwright (require from tarot/app) desktop 1280x800 dpr 1; 1 mm = 17.32 px. Harness + drivers in /tmp/dice-lt39/ (harness.mjs, driver.mjs, driver2.mjs, driver3.mjs; logs + results-*.json alongside).
+- Console page listener + pageerror; GL errors via getContext spy with a per-frame getError poll; world spy (route rewrite of main.js createWorld import, marker verified against the served body).
+- Per-type flow: add via panel button (aria-labels), wait for settle, capture, remove. Six types one at a time (max 10 dice rule respected).
+
+## Results so far
+- A (load): GL errors none; console clean. Default set spawns 2 d6 as expected.
+- Geometric outline check (all 6 dice, teleported face-down at origin, stable pose): every sharp silhouette hull vertex lies strictly OUTSIDE the rounded outline (cut = dist(V, hull(s*v)) - r > 0). Cut magnitudes match the homothetic inset geometry: d4 1.828 mm, d6 0.414 mm, d8 0.414 mm, d12 0.236 mm, d20 0.236 mm (d10: see below). A square-outline bug (s=1 or missing dilation) would give cut = -1 mm on every vertex, so this discriminates.
+- d6 quantitative pixel check (calibration profile printed in driver2.log): die/floor luminance boundary measured at t=174.5 px vs analytic rounded-outline position 174.4 px - the outline sits exactly where the spec's hull(s*v)+r predicate puts it.
+- Picking/drag (d6): control (empty floor pointerdown picks nothing) PASS; center pick holds and lifts to hold height PASS; held die follows drag target (0.00 mm error) PASS; drops back to rest on release PASS; pick at a point inside the sharp hull but 0.273 mm outside the rounded outline lifts the die and follows a drag PASS - picking works on the full sharp shape.
+- GL errors after all captures and at session end: none. Console: only SwiftShader "GPU stall due to ReadPixels" driver warnings, triggered by this harness's own screenshot readbacks (harness artifact, not product output; filtered and reported as such).
+
+## Harness issues hit (fixed, not product defects)
+- Sample/shoot race: dice not fully asleep creep up to ~10 mm/s between sampling and screenshot (run 1 color checks sampled the floor). Fixed by teleporting each die to a deterministic face-down pose at the world origin via the world spy and requiring 3 consecutive 200 ms polls with |dp| < 0.2 mm before capture.
+- Color classification is a harness limit: die face colors (RGB 41-52) fall inside the AO-darkening range of the floor near contact, so nearest-reference classification is ambiguous. Replaced with a boundary-step detector on the luminance profile with the expected outline position computed analytically (bisect on dist(p, hull(s*v)) <= r).
+- First boundary detector had a -3 px systematic bias (argmax of a 3 px-baseline gradient returns the first sample of the full-drop plateau); d6 profile shows the true boundary at the expected position. Fixed in driver3.mjs with a sub-pixel midpoint-crossing detector (inside-out scan, bidirectional, tolerant of a rim bump, and it flags - rather than passes - a hypothetical square outline via extended level windows).
+- Node heap OOM on run 2 first attempt: PNM header parser loop did not advance the cursor (infinite string build). Fixed.
+- d10 run-1 "min cut 0.000 mm": near-collinear silhouette vertex (angle ~180 deg) has cut ~0 by geometry - there is no corner there. Run 2 prints per-vertex angles; assertion now requires cut > 0 for all vertices and a visible cut for true corners (<165 deg).
+
+## Still to do (driver3.mjs written, not yet run)
+- Full boundary-position sweep on all rays of all 6 types with the fixed detector (expected within +-2 px of the analytic rounded outline).
+- Visual inspection of 2.5x crops: band visibility on every edge, smooth corners, numbers/pips readability, d4 corner numbers not covered by the band, no AO halos.
+- Final console/GL audit; write results and file any defects.
+
+## Assumptions made
+- Desktop 1280x800 dpr 1 viewport (acceptance names no viewport); phone form factor not exercised.
+- Picking/drag exercised on d6 only (representative; pick code is shape-generic).
+- Teleporting a die through the world spy is a harness action to make poses deterministic; it does not touch rendering paths.
+- "Numbers and pips stay readable" and "d4 corner numbers not covered" judged visually from 2.5x crops.
+- Console criterion filters the SwiftShader ReadPixels readback warnings that this harness's own screenshots trigger; any other console message fails the check.
