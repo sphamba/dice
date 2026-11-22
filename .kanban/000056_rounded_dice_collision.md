@@ -1,12 +1,12 @@
 ---
 name: "feat: collide dice as rounded shapes (core polyhedron plus bevel radius)"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "user"
 complexity: "complex"
 shortName: "rounded-dice-collision"
-blockedBy: "#55"
+blockedBy: ""
 ---
 
 # Summary
