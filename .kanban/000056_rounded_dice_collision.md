@@ -43,9 +43,24 @@ Collision uses the sharp vertices today. Collide each die as its rounded shape s
 
 # Notes
 ## Progress
-- Commit 7d79485: coreVertices on the cached shape in shapes.js (inset s = 1 - BEVEL_RADIUS/rho, frozen). shapes.test.js 52/52 green incl. 2 new tests.
-- Red tests staged: collision.test.js rounded corner/edge/die-die threshold tests, world.test.js face-rest-height + containBody corner tests (7 red as intended).
-- Next: commit 2 = collision.js rounded contacts (box on cores, SAT window 2r, face/edge depth+points), commit 3 = containBody margins + e2e helper measurement.
+- Commit 1 (7d79485) done: `coreVertices` on the shape, keyed by the existing cache; shapes suite 52/52 green.
+- Commit 2 in progress, uncommitted: collision.js rework applied (frames on cores, box margin/depth/point on the rounded surface, SAT accept widened to −(2r+SLOP), face-contact threshold/depth/point rounded, edge depth from the SAT axis). Tests red, triage done, fixes designed, not yet applied.
+- Full suite right now: 26 failed / 336 passed.
+
+## Triage (measured, root causes)
+1. My test fixture bug: rounded tests in collision.test.js build dice with `cube()` (R = 0.01) but position them from DIE_RADIUS-based constants; and the composed cornerDown quat has a 2.5e-9 residual. Production verified correct by probe on the fixed poses: edge rest 2 floor contacts depth ≈ 0, corner 1 contact depth ≈ 5e-18 with point at the origin, die-die touch depth 1e-6 normal −z, apart 0 contacts. Fix: DIE_RADIUS dice + direct half-angle quat (verified 1.1e-16).
+2. SAT axis choice: with negative core overlaps now accepted, `1.05 × negative` edge score beats the face axis on the same geometry (4 clipped points → 1). Fix: score = max(overlap, 0) × EDGE_BIAS, legacy behaviour kept for real overlaps.
+3. Edge-contact depth from the SAT axis overlap reports up to 2r penetration for dice that are merely close. Solver contract read (contacts.js:118-121): depth < 0 is a speculative velocity cap, depth > 0 is a Baumgarte push — so positive false depth = kicks. This explains the roll/e2e/sleep cascade. Fix: edge depth = 2r − |ca−cb| with a SLOP + closing·dt window, mirroring the box path.
+4. world.test.js has the same composed cornerDown; same one-line fix.
+
+## Verification
+- Probe (instrumented copy, /tmp): corner/edge/die-die poses all match the card's acceptance values (depth 0 at true touch, contact point r from the core, 2r core-gap touch depth 1e-6).
+
+## Assumptions
+- Not tuning constants to mask e2e failures per the PM hint: the 26 failures are a wrong depth convention in the in-progress commit, with the root-cause fix queued; if any e2e still fails after that lands, I will stop and write an Open question with measured times.
+
+## Blockers
+- None. Next: apply fixes 1-4, probe the crossing-cubes pose for its new depth expectation, full suite, commit 2.
 
 # Open questions
 
