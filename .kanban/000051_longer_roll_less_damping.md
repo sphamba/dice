@@ -1,13 +1,15 @@
 ---
 name: "fix: remove the contact spin damping, bounce in wall containment and raise restitution so rolled dice roll out longer"
 priority: "medium"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/51-longer-roll-less-damping"
 issuer: "user"
 complexity: "moderate"
 shortName: "longer-roll-less-damping"
 blockedBy: ""
 splitter: "done"
+changes: "{\"base\":\"main\",\"ins\":132,\"del\":24,\"files\":5}"
+commits: "[{\"hash\":\"426761d\",\"subject\":\"fix(physics): bounce wall containment and raise restitution to 0.5\",\"when\":\"2026-11-22T14:08:54+01:00\"},{\"hash\":\"5941942\",\"subject\":\"fix(physics): drop the non-physical contact spin damping\",\"when\":\"2026-11-22T14:00:06+01:00\"}]"
 ---
 
 # Summary
