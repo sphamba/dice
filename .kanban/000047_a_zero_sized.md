@@ -1,7 +1,7 @@
 ---
 name: "fix: a zero-sized viewport resize permanently freezes dice at the box centre"
 priority: "high"
-state: "doing"
+state: "to-review"
 worktree: "fix/47-a-zero-sized"
 issuer: "#38"
 complexity: "simple"
@@ -30,3 +30,10 @@ A resize observed while the viewport reports 0x0 makes applySize call setBox wit
 - `npm run build`
 
 # Notes
+- Deliverable: `world.setBox` now ignores a box with any edge <= 0, keeping the last valid box, so a 0x0 viewport resize (boxFromViewport returns W=H=D=0 when shortest<=0) can no longer crush bodies to (0,0,0) and sleep them there.
+- Verification: HEAD 65421d1. Red first: `npx vitest run src/physics/world.test.js -t 'zero-sized'` failed on the zero box; after the guard, `npx vitest run src/physics/world.test.js src/physics/world.e2e.test.js` 46 passed, `npm run build` green with asset grep on dist/index.html.
+- Regression test: "ignores a zero-sized box and keeps the last valid one" in src/physics/world.test.js (box kept, position untouched, real d6 body still rests above z=0 after one simulated second).
+- Assumption: main.js applySize still forwards the degenerate box to renderer.resize for that one 0-viewport event. The frame is invisible (canvas 0 wide) and the next valid resize rebuilds the camera cleanly, so no main.js skip was added.
+- Assumption: a world created on a 0 viewport starts with a 0 box and is healed by the first valid resize, because setBox then clamps the bodies inside and wakes them.
+- Blockers: none.
+- Manual checks left to other roles: a live page under a 0-size viewport emulation switch, then a real resize, to confirm dice re-settle instead of staying at the box centre.
