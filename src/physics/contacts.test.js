@@ -10,6 +10,8 @@ import {
   SLOP,
   SOLVER_ITERATIONS,
   solveContacts,
+  WARM_START_DISTANCE,
+  warmStartImpulses,
 } from './contacts.js';
 import { FIXED_DT } from './world.js';
 
@@ -220,6 +222,85 @@ describe('settling', () => {
     vec3.set(body.angularVelocity, 0, 0, 5);
     solveContacts(makeWorld(), FIXED_DT);
     expect(body.angularVelocity[2]).toBe(5);
+  });
+});
+
+describe('warm starting', () => {
+  const NORMAL = Float64Array.from([0, 0, 1]);
+  const TANGENT_Y = Float64Array.from([0, 1, 0]);
+  const TANGENT_NEGATIVE_X = Float64Array.from([-1, 0, 0]);
+  const POINT = Float64Array.from([0, 0, 0.0139]);
+
+  const cachedContact = (body, normalImpulse, frictionImpulses = [0, 0]) => ({
+    a: body,
+    b: null,
+    surface: 'floor',
+    point: POINT,
+    normal: { direction: NORMAL, impulse: normalImpulse },
+    tangents: [
+      { direction: TANGENT_Y, impulse: frictionImpulses[0] },
+      { direction: TANGENT_NEGATIVE_X, impulse: frictionImpulses[1] },
+    ],
+  });
+
+  const freshContact = (body, point = POINT) => ({
+    a: body,
+    b: null,
+    surface: 'floor',
+    point,
+    normal: NORMAL,
+  });
+
+  it('starts a matched contact at the old normal impulse', () => {
+    const body = makeBody([0, 0, 0.0139]);
+    const warm = warmStartImpulses(
+      [cachedContact(body, 0.02, [0.001, 0])],
+      freshContact(body),
+      FRICTION_BOX,
+    );
+    expect(warm.normal).toBe(0.02);
+    expect(warm.tangents[0]).toBeCloseTo(0.001, 12);
+    expect(warm.tangents[1]).toBeCloseTo(0, 12);
+  });
+
+  it('starts an unmatched contact at zero', () => {
+    const body = makeBody([0, 0, 0.0139]);
+    const far = Float64Array.from([WARM_START_DISTANCE * 2, 0, 0.0139]);
+    const warm = warmStartImpulses(
+      [cachedContact(body, 0.02, [0.001, 0])],
+      freshContact(body, far),
+      FRICTION_BOX,
+    );
+    expect(warm.normal).toBe(0);
+    expect(warm.tangents[0]).toBeCloseTo(0, 12);
+    expect(warm.tangents[1]).toBeCloseTo(0, 12);
+  });
+
+  it('clamps the warm-started friction impulse to the friction disk', () => {
+    const body = makeBody([0, 0, 0.0139]);
+    const warm = warmStartImpulses(
+      [cachedContact(body, 0.02, [1, 0])],
+      freshContact(body),
+      FRICTION_BOX,
+    );
+    nearRel(warm.tangents[0], FRICTION_BOX * 0.02);
+    expect(warm.tangents[1]).toBeCloseTo(0, 12);
+  });
+
+  it('records the solved impulses on the world for the next step', () => {
+    const body = makeBody([0, 0, 0.01], [0, 0, -1]);
+    const world = makeWorld(floorContact(body));
+    solveContacts(world, FIXED_DT);
+    expect(world.contactCache).toHaveLength(1);
+    expect(world.contactCache[0].a).toBe(body);
+    nearRel(world.contactCache[0].normal.impulse, world.events[0].impulse);
+  });
+
+  it('drops the snapshot when the step has no contacts', () => {
+    const world = makeWorld();
+    world.contactCache = [{}];
+    solveContacts(world, FIXED_DT);
+    expect(world.contactCache).toBe(null);
   });
 });
 

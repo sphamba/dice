@@ -23,6 +23,10 @@ export const EVENT_MIN_SPEED = 0.05;
 
 export const CONTACT_ANGULAR_DAMPING = 6;
 
+export const WARM_START_DISTANCE = 0.001;
+
+export const WARM_START_NORMAL_DOT = 0.99;
+
 const AXIS_X = Float64Array.from([1, 0, 0]);
 
 const AXIS_Z = Float64Array.from([0, 0, 1]);
@@ -67,7 +71,7 @@ function tangentBasis(first, second, normal) {
   return vec3.cross(second, normal, first);
 }
 
-function prepare(contact, dt) {
+function prepare(contact, dt, cache) {
   const a = contact.a;
   const b = contact.b ?? null;
   const point = Float64Array.from(contact.point);
@@ -104,7 +108,57 @@ function prepare(contact, dt) {
   prepared.target = depth < 0
     ? (bounce > 0 ? bounce : depth / dt)
     : bounce + Math.min((BAUMGARTE * Math.max(depth - SLOP, 0)) / dt, MAX_BIAS_SPEED);
+  warmStart(prepared, cache, contact);
   return prepared;
+}
+
+function findCached(cache, contact) {
+  if (!cache) return null;
+  for (const cached of cache) {
+    if (cached.a !== contact.a || cached.b !== contact.b) continue;
+    if (cached.surface !== contact.surface) continue;
+    if (vec3.dot(cached.normal, contact.normal) <= WARM_START_NORMAL_DOT) continue;
+    if (vec3.distance(cached.point, contact.point) > WARM_START_DISTANCE) continue;
+    return cached;
+  }
+  return null;
+}
+
+// Impulses a new contact carries over from the previous step of the same contact.
+export function warmStartImpulses(cache, contact, friction) {
+  const cached = findCached(cache, contact);
+  if (!cached) return { normal: 0, tangents: [0, 0] };
+  const normalImpulse = Math.max(cached.normal.impulse, 0);
+  const first = vec();
+  const second = vec();
+  tangentBasis(first, second, contact.normal);
+  const previous = vec();
+  for (const tangent of cached.tangents) {
+    vec3.scaleAndAdd(previous, previous, tangent.direction, tangent.impulse);
+  }
+  const tangents = [vec3.dot(previous, first), vec3.dot(previous, second)];
+  const limit = friction * normalImpulse;
+  const magnitude = Math.hypot(tangents[0], tangents[1]);
+  if (magnitude > limit) {
+    tangents[0] *= limit / magnitude;
+    tangents[1] *= limit / magnitude;
+  }
+  return { normal: normalImpulse, tangents };
+}
+
+function warmStart(prepared, cache, contact) {
+  if (!cache) return;
+  const warm = warmStartImpulses(cache, contact, prepared.friction);
+  if (warm.normal > 0) {
+    prepared.normal.impulse = warm.normal;
+    applyPair(prepared, prepared.normal.direction, warm.normal);
+  }
+  prepared.tangents.forEach((tangent, index) => {
+    const impulse = warm.tangents[index];
+    if (Math.abs(impulse) <= MIN_IMPULSE) return;
+    tangent.impulse = impulse;
+    applyPair(prepared, tangent.direction, impulse);
+  });
 }
 
 function applyPair(contact, direction, magnitude) {
@@ -158,9 +212,13 @@ function groupKey(ids, contact) {
 
 export function solveContacts(world, dt) {
   const contacts = world.contacts ?? [];
-  if (contacts.length === 0 || !(dt > 0)) return;
+  if (contacts.length === 0 || !(dt > 0)) {
+    world.contactCache = null;
+    return;
+  }
 
-  const prepared = contacts.map((contact) => prepare(contact, dt));
+  const prepared = contacts.map((contact) => prepare(contact, dt, world.contactCache));
+  world.contactCache = prepared;
   const events = (world.events ??= []);
   const groups = new Map();
   const ids = new Map();
