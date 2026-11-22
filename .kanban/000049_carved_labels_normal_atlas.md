@@ -2,7 +2,7 @@
 name: "feat: carve the numbers and pips with a baked normal-map atlas"
 priority: "medium"
 state: "done"
-worktree: "feat/49-carved-labels-normal-atlas"
+worktree: ""
 issuer: "user"
 complexity: "complex"
 shortName: "carved-labels-normal-atlas"
