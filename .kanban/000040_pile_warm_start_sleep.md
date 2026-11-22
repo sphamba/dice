@@ -34,22 +34,12 @@ Verify warm starting (#41) and whole-world sleep (#42) end to end, and fix the p
 - `npm run build`
 
 # Notes
-## Deliverable
-- `src/physics/contacts.js`, two root fixes. Every approach is now measured before the first replay: `solveContacts` prepares all contacts, then applies warm start in a second pass. Before, a replay applied mid-prepare inflated the approach of the contacts behind it (a die-die contact measured 1.585 m/s while the die hit at 1.259 m/s). Restitution applies to a fresh contact only, so a contact carried over from the previous step is inelastic. Replay itself is kept unchanged.
-- `src/physics/world.js`: the sleep drops `world.contactCache`, so a wake cannot replay impulses that describe a motion that has stopped.
-- Tests: `contacts.test.js` gains the persistent-contact rule and the approach-ordering regression; `world.e2e.test.js` gains the floor and die-on-die rebound, five pile cases (level, 15 and 30 degrees about x and y, three seeds each, settled within 3 s and held to 6 s, contained, finite), the sleep/idle/wake case and the re-settle-without-launching case.
+## Review progress (checkpoint)
 
-## Verification
-- HEAD d29f7a9. `npx vitest run src/physics`: 103 passed. `npm test`: 284 passed (24 files). `npm run build`: built in 102 ms, assets `index-BsRmDAHG.js` and `index-DA_12YQk.css`.
-- Red evidence for the two new unit tests: on the pre-fix code they both fail (2 failed, 24 passed).
-
-## Assumptions
-- Tilt is gravity rotated 15 or 30 degrees about x or y through `world.setGravity`.
-- The pile fixture spawns 10 mixed dice on a 2x5 grid with random orientations and drop heights, with no initial overlap.
-- The rebound tolerances are 5% around the measured first apex at a 0.1 m drop: floor 0.01001 m, die-on-die 0.02827 m. The floor apex is identical to the old code at 0.02, 0.05, 0.1 and 0.2 m drops. The die-on-die apex is within 3.3% at drops of 0.1 m and above. At smaller drops the old code took extra bounces inside one impact chain (15 and 27 events against 3), so its apex was higher.
-
-## Blockers
-- none
-
-## Manual checks left to other roles
-- none
+- Scope read: one commit d29f7a9, diff touches `src/physics/contacts.js` (approach measured before warm start; restitution only on fresh contacts), `src/physics/world.js` (sleep drops `contactCache`), plus tests. Constants untouched, `src/input/motion.js` untouched.
+- `npx vitest run src/physics`: 103 passed (16.5 s). `npm run build`: ok, same assets as claimed.
+- Seeds probe: spec demands at least the 5 measured seeds (20240601, 7, 99, 1234, 55); the test used only 3. I edited the test to all 5: all 5 pile cases pass (16 s), so nothing was masked - the shortfall was cost only. Fix to be committed.
+- Red evidence verified by me on a main-sources copy of the worktree: the two new contacts.test.js regressions fail pre-fix (2 failed, 24 passed) and 2 of 5 pile settle cases fail pre-fix. Red claims hold.
+- Focused d4-corner regression (spec bullet): probed a lone d4 started from three captured pre-fix corner-spin states - it settles even on pre-fix code; subsets of 7-9 dice still reproduce, so no cheap isolated repro exists. Developer's reading (root-cause unit tests in contacts.test.js + e2e pile cases at 30 degrees in world.e2e.test.js) is a sound interpretation; will record as assumption, not a violation.
+- Box dims: test uses 393x852 (the e2e convention since task #5; app sizes from live viewport) vs spec's 390x844 - negligible, will note.
+- Remaining: decide on a direct `contactCache === null` sleep assertion, rerun scoped physics tests with the seed fix, commit, final Notes.
