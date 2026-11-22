@@ -346,6 +346,12 @@ ${BEVEL_FRAG}
 void main() {
   vec3 nGeo = normalize(vNormal);
   vec2 q = insetOffset(vFacePos);
+  // Rounded outline: coverage alpha from the distance to the body's 2D hull.
+  // Alpha to coverage only masks a multisampled buffer, so the fragments it
+  // would leave uncovered are dropped here instead of writing color and depth.
+  float d = hullDistance(vWorldPos.xy);
+  float alpha = clamp((uBevelRadius - d) / max(fwidth(d), 1e-7) + 0.5, 0.0, 1.0);
+  if (alpha <= 0.0) discard;
   // Emulated displacement of the rounded shape: inside the band the surface
   // sits bevelDrop(q) below the face plane along the face normal, and beyond
   // |q| = uBevelRadius the fragment belongs to another face's band or to the
@@ -363,9 +369,6 @@ void main() {
     vec3 c = carve.rgb * 2.0 - 1.0;
     n = normalize(t * c.x + b * c.y + nGeo * c.z);
   }
-  // Rounded outline: coverage alpha from the distance to the body's 2D hull.
-  float d = hullDistance(vWorldPos.xy);
-  float alpha = clamp((uBevelRadius - d) / max(fwidth(d), 1e-7) + 0.5, 0.0, 1.0);
   outColor = vec4(litColor(mix(uColor, label.rgb, label.a), n, carve.a, surface.z), alpha);
 }
 `;

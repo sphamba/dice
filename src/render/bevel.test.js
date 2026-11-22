@@ -203,7 +203,10 @@ describe('rounded surface depth (emulated displacement)', () => {
     // The hull outline stays the only transparency test: the sharp mesh covers
     // every interior pixel exactly once, so a band discard punches holes.
     expect(aoPrepassFragmentSource).toContain('if (hullDistance(vWorldPos.xy) > uBevelRadius) discard;');
-    expect(diceFragmentSource).not.toContain('discard;');
+    // The forward pass drops fully uncovered outline fragments itself: alpha to
+    // coverage does nothing on a single-sample drawing buffer.
+    expect(diceFragmentSource.match(/discard;/g), 'one silhouette discard').toHaveLength(1);
+    expect(diceFragmentSource).toContain('if (alpha <= 0.0) discard;');
   });
 });
 
