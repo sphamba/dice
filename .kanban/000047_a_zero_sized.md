@@ -1,7 +1,7 @@
 ---
 name: "fix: a zero-sized viewport resize permanently freezes dice at the box centre"
 priority: "high"
-state: "reviewing"
+state: "to-merge"
 worktree: "fix/47-a-zero-sized"
 issuer: "#38"
 complexity: "simple"
@@ -30,10 +30,8 @@ A resize observed while the viewport reports 0x0 makes applySize call setBox wit
 - `npm run build`
 
 # Notes
-- Deliverable: `world.setBox` now ignores a box with any edge <= 0, keeping the last valid box, so a 0x0 viewport resize (boxFromViewport returns W=H=D=0 when shortest<=0) can no longer crush bodies to (0,0,0) and sleep them there.
-- Verification: HEAD 65421d1. Red first: `npx vitest run src/physics/world.test.js -t 'zero-sized'` failed on the zero box; after the guard, `npx vitest run src/physics/world.test.js src/physics/world.e2e.test.js` 46 passed, `npm run build` green with asset grep on dist/index.html.
-- Regression test: "ignores a zero-sized box and keeps the last valid one" in src/physics/world.test.js (box kept, position untouched, real d6 body still rests above z=0 after one simulated second).
-- Assumption: main.js applySize still forwards the degenerate box to renderer.resize for that one 0-viewport event. The frame is invisible (canvas 0 wide) and the next valid resize rebuilds the camera cleanly, so no main.js skip was added.
-- Assumption: a world created on a 0 viewport starts with a 0 box and is healed by the first valid resize, because setBox then clamps the bodies inside and wakes them.
-- Blockers: none.
-- Manual checks left to other roles: a live page under a 0-size viewport emulation switch, then a real resize, to confirm dice re-settle instead of staying at the box centre.
+- Outcome: fixed. The setBox guard in world.js fulfils the Change intent at the world level (the spec's own world-level test wording anticipated this); boxFromViewport still returns a 0 box and applySize still calls renderer.resize for the one 0-viewport event, both covered by the developer's stated assumptions, which I verified against the code: renderer.resize(0,0,degenerate box) only sets a 0 viewport and a degenerate camera into a 0x0 canvas (AO target errors caught by try/catch), and the next valid applySize rebuilds box and camera.
+- Load-time 0 viewport: world created with a 0 box, dice crushed to the centre, healed by the first valid setBox (clampIntoBox lifts z and wakes). Now pinned by a regression test instead of resting on the assumption. Note: in that state the dice micro-jitter at the centre and do not reliably sleep (contact solver churn against the degenerate walls); the slept-at-centre symptom from #38 is orientation/state dependent. Healing does not depend on sleep.
+- Test gaps fixed (commit 8625cc5, only src/physics/world.test.js touched): added the non-finite box case, the valid -> 0-sized -> valid sequence from the spec's world-level test bullet, and the zero-viewport load healing test.
+- Verification: npx vitest run src/physics 108 passed, npm test 303 passed, npm run build green.
+- Deferred to live-tester role: a live page under a 0-size viewport emulation switch, then a real resize, to confirm dice re-settle instead of staying at the box centre.
