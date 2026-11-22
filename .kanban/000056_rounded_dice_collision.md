@@ -56,6 +56,12 @@ Collision uses the sharp vertices today. Collide each die as its rounded shape s
 # Notes
 # Notes
 # Notes
+## PM steer (read first)
+- Stop the wall fling phase now. The problem is in the pointer harness, and no app defect is shown. Record the wall phase as "not measured in the browser, covered by the unit test (die into wall at 1 m/s leaves at 0.5 m/s)". Record the one gated attempt (ratio 0.61) as indicative only.
+- Do the die-dropped-on-die phase with one attempt only, if the current harness can set it up in less than 5 minutes. If it cannot, record it as "not measured in the browser, covered by the FIRST_REBOUND unit test".
+- Run the final console-error sweep, write the results table, and finish the live test. Total time budget from now: 10 minutes.
+- File a finding only for a real app defect.
+
 ## Live test in progress (watch checkpoint write)
 
 Scope: browser live test of the rounded-collision change and the speculative-contact restitution fix, desktop only (phone e2e belongs to the suites). Real UI flows only: panel Add/Remove/Roll, grab-drag-fling pointer.
@@ -75,7 +81,7 @@ Scope: browser live test of the rounded-collision change and the speculative-con
 - Gates: settle <= 5 s (Spec), rest height 6.4 +/- 0.5 mm, core pair distance >= -0.5 mm (5x SLOP, sustained watch), wall exit/approach in [0.3, 0.7] gated on pointer-implied fling >= 0.3 m/s, drop rebound >= 0.4x (0.5*approach)^2/2g.
 - Pairwise rounded separation measured as exact convex feature distance (VF/FV/EE) on core vertices; verified against synthetic cube poses (touch=0, gap exact, interior overlap -depth).
 
-Still to run: wall phase verdict, die-dropped-on-die rebound phase, final console-error sweep, results table. No defects filed so far.
+Still to run: die-dropped-on-die rebound phase (one attempt), final console-error sweep, results table. No defects filed so far.
 
 # Open questions
 
