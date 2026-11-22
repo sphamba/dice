@@ -2,7 +2,7 @@
 name: "fix: warm-start the contact solver for resting piles"
 priority: "medium"
 state: "done"
-worktree: "fix/41-pile-warm-starting"
+worktree: ""
 issuer: "#40"
 complexity: "moderate"
 shortName: "pile-warm-starting"
