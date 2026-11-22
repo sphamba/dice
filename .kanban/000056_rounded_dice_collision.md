@@ -1,7 +1,7 @@
 ---
 name: "feat: collide dice as rounded shapes (core polyhedron plus bevel radius)"
 priority: "high"
-state: "doing"
+state: "to-review"
 worktree: "feat/56-rounded-dice-collision"
 issuer: "user"
 complexity: "complex"
