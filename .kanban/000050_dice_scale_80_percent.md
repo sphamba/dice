@@ -1,7 +1,7 @@
 ---
 name: "feat: shrink every die to 80% of its current size"
 priority: "medium"
-state: "reviewing"
+state: "to-merge"
 worktree: "feat/50-dice-scale-80-percent"
 issuer: "user"
 complexity: "complex"
@@ -35,10 +35,10 @@ Scale all six die types to 80% of their current size (d6 edge 16 mm to 12.8 mm, 
 - Live check (browser): all six die types render at 80% of their previous on-screen size with the same look (bevel, labels, AO), roll, settle, can be grabbed and hang, with no console or GL errors.
 
 # Notes
-## Review outcome: fixed
+## Review outcome: approved (re-review)
 
-- Core change verified: `DIE_RADIUS = 0.0128*sqrt(3)/2` (d6 edge 12.8 mm, circumradius 11.085 mm) in `src/physics/body.js`; `BEVEL_RADIUS = DIE_RADIUS/(8*sqrt(3))` = 0.8 mm exactly, as a fraction of DIE_RADIUS. New `shapes.test.js` tests assert the 12.8 mm edge and per-type circumradius = DIE_RADIUS.
-- All size-dependent consumers derive from the constant, no new hard-coded mm: hold height `box.D - 2*body.radius` (pointer.js:191), roll headroom (roll.js:39), AO `1.2*DIE_RADIUS` (renderer.js:47), mass/inertia via density formula, label layout face-relative. Sound passes `shape.radius`; `DIE_REFERENCE_RADIUS = 0.0139` in modes.js confirmed as calibration reference only (scale ≈ 1.25, the spec's +25%). Physics thresholds untouched.
-- Finding (fixed in a6d9e2e): `integrator.test.js` still hard-coded the old `radius: 0.0139` fixture, missed by the developer's fixture sweep; replaced with the imported DIE_RADIUS.
-- Accepted documented adaptations: stacked-d6 fixture gap made die-relative (2.5 edge heights), swing test moved to the tall box axis, liftSpeed zero-headroom tolerance 5e-13 → 5e-7 (FP residual ~7e-9 m/s vs physical ~1 m/s). None weaken what the tests assert.
-- Evidence: scoped suites (dice, physics, input, audio, render) 259/259 green in 15.7 s; `npm run build` green. Live browser check deferred to the live-tester role (developer reports a prior live PASS; re-verify 80% on-screen size, bevel/labels/AO, grab/hang, no console or GL errors).
+- Core change verified in the diff: `DIE_RADIUS = 0.0128*sqrt(3)/2` (d6 edge 12.8 mm, circumradius 11.085 mm) in `src/physics/body.js:7`; `BEVEL_RADIUS = DIE_RADIUS/(8*sqrt(3))` in `labels.js:127` is exactly 0.8 mm (was 1 mm). New `shapes.test.js` block asserts the 12.8 mm edge and per-type circumradius = DIE_RADIUS.
+- All size-dependent consumers read the constant, no new hard-coded mm: hold height `box.D - 2*body.radius` (pointer.js:191), roll headroom (roll.js:39), AO `AO_RADIUS_SCALE(1.2) * DIE_RADIUS` (renderer.js:40,47), spawn bounds (main.js), mass/inertia via the density formula. Label layout untouched, face-relative.
+- Sound: `dieModes` scales by `DIE_REFERENCE_RADIUS / size` (modes.js:73-76) → 0.0139/0.011085 = 1.254, the spec's ~+25% pitch rise; the 0.0139 constant is the calibration reference the spec design keeps. Physics thresholds (sleep, restitution, slop, warm start) untouched.
+- Test fixture sweep complete: every former hard-coded die size in tests now imports DIE_RADIUS (pointer, body, contacts, integrator, world, world.e2e, sound, modes). Accepted prior adaptations stand: die-relative stacked-d6 gap (2.5 edge heights), swing test on the tall box axis, liftSpeed zero-headroom tolerance 5e-13 → 5e-7.
+- Evidence: scoped suites (10 changed files) 183/183 exit 0 in 26.7 s; full `npm test` 27 files, 316/316 exit 0; `npm run build` exit 0. Live browser check (80% on-screen size, bevel/labels/AO look, grab/hang, no console or GL errors) deferred to the live-tester role.

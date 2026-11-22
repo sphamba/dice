@@ -18,14 +18,19 @@ After holding a die motionless for about 0.5 s the whole world falls asleep; rel
 - The same freeze can also trap a pendulum mid-swing: the sleep gate compares a body-point speed that includes the DIE_RADIUS lever arm, so a slowly decaying swing can dip under the threshold and freeze the die off-vertical while still held.
 
 # Fix direction
-- While any held entry exists (`held.length > 0`), skip the sleep accumulation entirely (the world must never sleep while a die is held).
-- Call `wake()` in `onRelease` and in the pointercancel handler, so a release always resumes the simulation.
+- While any held entry exists, the world must not sleep. Use the smallest change that does this (for example, the drive wakes the world each step while it holds a die).
+- Call `wake()` on release and on pointercancel, so a release always resumes the simulation.
 - Keep the existing sleep behavior for free dice (do not regress task #42).
 
+# Tests (`src/input/pointer.test.js`)
+- Grab a die, hold the pointer still for 2 s of simulated time: `world.asleep` stays false the whole time.
+- Release after that hold: vz < 0 after one step.
+- Release and pointercancel each wake a sleeping world.
+- The whole-world sleep tests for free dice stay green.
+
 # Acceptance criteria
-- Grab a die, hold it perfectly still for more than 1 s: the world stays awake (`world.asleep === false` the whole time).
-- Release after that long still hold: the die falls immediately (vz goes negative within one step).
-- Release and pointercancel wake a sleeping world.
-- Existing settle/sleep behavior for free dice is unchanged (unit tests for whole-world sleep still pass).
+- `npx vitest run src/input src/physics`
+- `npm test`
+- `npm run build`
 
 # Notes
