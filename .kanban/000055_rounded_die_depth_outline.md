@@ -1,7 +1,7 @@
 ---
 name: "fix: render the rounded die shape with true rounded depth and a visibly rounded outline"
 priority: "high"
-state: "doing"
+state: "to-review"
 worktree: "fix/55-rounded-die-depth-outline"
 issuer: "user"
 complexity: "complex"
@@ -42,22 +42,14 @@ The die corners still look sharp. Make the dice shaders emulate the displacement
 - Live check: in a 4x crop, the corners of a flat d6 and a tilted d8/d20 are round with radius about 1.6 mm. Where two dice touch, no sharp corner cuts into the other die. No console or GL errors, and no #46 overlay.
 
 # Notes
-# Deliverable
-Dice now shade as the rounded solid with true rounded depth, per specs: BEVEL_RADIUS doubled to DIE_RADIUS/(4·sqrt(3)) = 1.6 mm (25.6 px on the 1280x800 desktop scale, 27.7 device px at 393x852 DPR 3) and moved next to DIE_RADIUS in src/physics/body.js; all users (labels.js, renderer.js, labels.test.js, bevel.test.js) import it from there. Dice fragment shader and AO prepass write the emulated rounded-surface depth with gl_FragDepth: inside the bevel band the surface sits r - sqrt(r^2 - |q|^2) below the face plane along the face normal (bevelDrop), fragments with |q| > uBevelRadius discard so the neighbouring face owns its band, and the prepass declares uniform vec2 uDepthRange for the window-depth conversion. AO upsample is depth-aware against the rounded surface: sampleAo takes the surface z, litColor takes a z parameter, dice pass the rounded surface.z, the floor passes vWorldPos.z.
+## PM hint
+- Remove the `|q| > uBevelRadius` discard in the dice pass and in the AO prepass. On the sharp mesh, each pixel inside the silhouette is covered by exactly one front face, so no neighbouring face draws that pixel. On a tilted die (most visible on d4, dihedral 70.5 deg, where the in-plane band reaches about 1.43 r), the discard leaves holes along edges and at corners.
+- The projected rounded hull (`uHull`) already gives the exact top-down outline of s·P ⊕ ball(r), because the projection of a Minkowski sum is the Minkowski sum of the projections. Keep it as the only transparency test.
+- For `|q| > r`, clamp `|q|` to r for the normal and for `bevelDrop`. Keep the existing hull discard in the AO prepass.
+- Live check: add a 4x crop of a tilted d4 and a tilted d8 and look for holes or cracks along the edges. Run the live script in the background with a longer timeout, or split it into one run per viewport.
 
-# Verification
-- Red-first: new failing tests written before the change (BEVEL_RADIUS value test in body.test.js; rounded-depth source checks + tangent-sphere JS mirror + one-common-inset-scale test in bevel.test.js; upsample callsite checks in ao.test.js); all failed for the missing behaviour first.
-- Full suite green after the change: 353 passed (npm test).
-- npm run build green; dist/index.html references the hashed js/css assets.
-- Committed as 30cb97b (9 files, +113/-23), branch fix/55-rounded-die-depth-outline.
-- Live check in progress: playwright-core + chromium headless shell against vite preview of dist; script measures the flat-d6 corner arc radius on both viewports, crops 4x corner/die/junction shots, grabs and holds d20/d8 for tilted shots, collects console errors and checks the #ui overlay. First run hit the 300 s tool timeout mid-run, no verdict yet; rerun with a longer timeout pending.
-
-# Assumptions
-- Panel selector rows are in DICE_TYPES order (d4,d6,d8,d10,d12,d20) and '+' is the 2nd button in each row.
-- Screenshot pixels are device pixels; desktop 1280x800 hits the MIN_BOX_EDGE guard (1 CSS px = 0.0625 mm), phone 393x852 DPR 3 does not.
-
-# Blockers
-- None.
-
-# Manual checks left to other roles
-- Visual verdict on the 4x crops (roundness, no sharp corner cuts, no double outline) once the live check completes.
+## State
+- Commit 30617cb: BEVEL_RADIUS = DIE_RADIUS/(4*sqrt(3)) = 1.6 mm moved to src/physics/body.js; gl_FragDepth with the rounded drop in the dice pass and the AO prepass; AO upsample uses the rounded surface z. The `|q| > uBevelRadius` discard removed in both passes (hull discard kept in the AO prepass), `|q|` clamped to r for the normal and bevelDrop. npm test 353 passed, build green.
+- Live check complete, one viewport per run (desktop 1280x800, phone 393x852 DPR 3), no timeout problems. 4x crops: flat d6 corner shows smooth round arcs; held tilted d4, d8 and d20 show continuous edges with the band wrapping the silhouette; no holes or cracks in both viewports. Touch test with two overlapping d10: no sharp corner cuts into the other die. No console or GL errors, no #46 overlay; only message is the known pre-existing navigator.vibrate feature-policy warning.
+- Measured corner radius: rotation-invariant boundary-profile arc fit (edge-normal minima give the die frame and a, diagonal peak gives the arc; validated against a synthetic rounded-square oracle: measured r 24.75, maxDev 1.9 px at truth 25.6). Desktop 21.8-24.3 px, phone 24.3-26.7 device px, i.e. 1.4-1.7 mm vs the 1.6 mm model; a ~1 px anti-aliased boundary bias amplified 2.4x through the 1/tan(22.5 deg) diagonal divisor explains the low side. A sharp corner would measure r = 0; the corners measure decisively round. Max deviation from the fitted arc center 6.2 px (synthetic floor 1.9 px).
+- Evidence files: /tmp/pw-live/out/ (desktop- and phone-d6-corner-4x.png, held-d4-4x.png, held-d8-4x.png, desktop-held-d20-4x.png, touch crops), /tmp/pw-live/report-measure-{desktop,phone}.json.
