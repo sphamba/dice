@@ -78,6 +78,17 @@ describe('liftSpeed', () => {
     );
     expect(liftSpeed(box, NO_GRAVITY, rest, ROLL_RISE_MAX)).toBe(0);
   });
+
+  it('gives no lift when the headroom is zero or negative', () => {
+    const up = Float64Array.from([0, 0, 1]);
+    const [, box] = BOXES[0];
+    const atLid = Float64Array.from([0, 0, box.D - DIE_RADIUS]);
+    expect(headroom(box, atLid, up)).toBeCloseTo(0, 12);
+    expect(liftSpeed(box, GRAVITY, atLid, ROLL_RISE_MAX)).toBeCloseTo(0, 12);
+    const pastLid = Float64Array.from([0, 0, box.D]);
+    expect(headroom(box, pastLid, up)).toBe(0);
+    expect(liftSpeed(box, GRAVITY, pastLid, ROLL_RISE_MAX)).toBe(0);
+  });
 });
 
 describe.each(BOXES)('roll toss on the %s box', (name, box) => {
