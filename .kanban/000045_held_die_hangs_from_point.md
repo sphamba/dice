@@ -46,17 +46,11 @@ Drive only the grabbed material point toward the pointer, so gravity swings the 
 
 # Notes
 ## PM hint
-- The world can also fall asleep WHILE a die is held still (the drive output is near zero after the swing calms). A sleeping world freezes the pendulum at its current angle. Before you blame a wall lean for the d10/d20 angles (23.7/12.3 deg), log `asleep` during the hold. If the world was asleep, add this case to the same defect card: the world must never sleep while any die is held, and a release must wake it.
-- After the final re-run, file the one card and finish. Do not add new scenarios.
+- Finish now. Do not change the harness again. Let run 6 complete, then file the ONE defect card (world sleeps while a die is held still; release does not wake it), write the results table, and finish.
+- If run 6 does not finish within 5 more minutes, stop it, report the checks that passed, file the card, and finish.
 
-**Release probe verdict (debug-release.mjs): the run-4 d12 "release freeze" is a HARNESS SAMPLING BUG, not a product defect.**
-- The pointerup registered (logged, id 1) and the die FELL: center z 24.7 -> 8.0 mm (floor rest) between the up and the first poll. A hang-height fall takes < 65 ms; the release check polls every 100 ms, so it only sees the landed die (vz = 0.000). The old check effectively asserted "a bounce must occur". The run-2 d8 freeze stays REAL: that die remained at the hang height with p unchanged, which a fall cannot produce - the card stands on the run-2 d8 record + the source proof (world.js SLEEP_TIME 0.5 s, step() early return, onRelease no wake).
-- Probe-side convergence math forgot to rotate the grab offset by the body quat (driver uses grabPointState, correct). Probe-only.
+**Release probe verdict:** the run-4 d12 "release freeze" is a harness sampling bug. The run-2 d8 freeze is real (die stayed at hang height, p unchanged). Source proof: world.js SLEEP_TIME 0.5 s, step() early return, onRelease has no wake.
 
-**Harness fixes applied after run 4 (64/68) and run 5 (70/72):**
-1. Release + pointercancel checks now assert vz < -0.02 OR position drop > 5 mm (run 6 evidence: cancel released with drop 13.6 mm where vz read 0.000).
-2. d10/d12 CoM-hang fails were WALL LEANS (awake, clearance 0.00 mm, gpErr < 0.3 mm) - allowed per spec ("contacts stay active while held"). Contact-aware verdict: free hang -> xy < 1.5 mm + theta < 5 deg; in contact -> grab point held < 2 mm.
-3. Violent fling redesigned direction-aware: sweep away from the die's near wall (>= 17 mm flight room, first trace row provably pre-impact), sweep widened to 1200 px after run 5 showed 900 px lands at 2.6-3.2 m/s, below the clamp bar.
-4. Swing window extended to +3.5 s (die still in asymptotic tail at +2.0 s: rxy 3.09 mm, calm check already passed).
+**Harness fixes after run 4 (64/68) and run 5 (70/72):** release/cancel drop criterion, contact-aware hang verdict (wall leans allowed per spec), direction-aware violent fling at 1200 px, swing window +3.5 s.
 
-**Run 6 in progress: 54 checks so far, all PASS (cancel now passes with the drop criterion; multi-pointer clean so far).** Shallow + panel/console phases still running. When it finishes: if green, file the ONE card (world sleeps while a die is held still; release does not wake it; frozen die at hang height; evidence: run-2 d8 p unchanged + world.js:18-20,141-149 + onRelease), results table, done.
+**Run 6:** 54 checks so far, all PASS. Shallow + panel/console phases still running.
