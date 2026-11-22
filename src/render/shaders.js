@@ -1,6 +1,9 @@
 // GLSL ES 3.00 sources. Attribute locations are fixed by layout() qualifiers:
 // 0 = position, 1 = normal, 2 = uv.
 
+// Fraction of the GTAO darkening kept in the forward pass (1 = full, 0 = none).
+export const AO_STRENGTH = 0.5;
+
 const LIGHTING_FS = `
 uniform vec3 uLightDir;
 uniform float uAmbient;
@@ -11,6 +14,8 @@ uniform highp sampler2D uAoDepth;
 uniform vec2 uAoSize;
 uniform vec2 uViewport;
 uniform vec2 uDepthRange;
+
+const float AO_STRENGTH = ${AO_STRENGTH};
 
 in vec3 vWorldPos;
 in vec3 vNormal;
@@ -47,6 +52,7 @@ vec3 litColor(vec3 base, vec3 n) {
   vec3 halfDir = normalize(viewDir + toLight);
   float specular = pow(max(dot(n, halfDir), 0.0), 40.0) * 0.22 * step(0.0, ndotl);
   float ao = sampleAo();
+  ao = mix(1.0, ao, AO_STRENGTH);
   // Hemisphere ambient; the Schlick rim picks out the bevel band (zero on the
   // flat top faces).
   vec3 hemi = mix(vec3(0.5, 0.45, 0.4), vec3(1.0), n.z * 0.5 + 0.5);

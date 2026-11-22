@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { DIE_RADIUS } from '../physics/body.js';
+import { AO_STRENGTH, diceFragmentSource, floorFragmentSource } from './shaders.js';
 import {
   AO_FALLOFF_RANGE,
   AO_RADIUS_SCALE,
@@ -73,7 +74,26 @@ describe('gtao slice integral (JS mirror of the shader)', () => {
   });
 });
 
+describe('AO strength mix (JS mirror of the shader)', () => {
+  const mix = (ao) => 1 + (ao - 1) * AO_STRENGTH;
+
+  it('keeps full visibility unchanged', () => {
+    expect(mix(1)).toBe(1);
+  });
+
+  it('halves the darkening of an occluded sample', () => {
+    expect(mix(0.4)).toBeCloseTo(0.7, 12);
+  });
+});
+
 describe('AO source check', () => {
+  it('applies the strength mix in the forward shaders', () => {
+    for (const source of [diceFragmentSource, floorFragmentSource]) {
+      expect(source).toContain(`const float AO_STRENGTH = ${AO_STRENGTH};`);
+      expect(source).toContain('mix(1.0, ao, AO_STRENGTH)');
+    }
+  });
+
   it('keeps shadow uniforms and helpers out of the render sources', () => {
     for (const file of ['shaders.js', 'renderer.js']) {
       const source = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8');
