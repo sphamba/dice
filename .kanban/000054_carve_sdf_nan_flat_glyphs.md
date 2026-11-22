@@ -1,7 +1,7 @@
 ---
 name: "fix: carve bake writes flat normals where signedDistance returns NaN"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "#49"
 complexity: "moderate"
