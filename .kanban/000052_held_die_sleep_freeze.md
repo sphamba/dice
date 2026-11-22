@@ -1,7 +1,7 @@
 ---
 name: "fix: world sleeps while a die is held still, and release does not wake it, freezing the die at hang height"
 priority: "high"
-state: "reviewing"
+state: "to-merge"
 worktree: "fix/52-held-die-sleep-freeze"
 issuer: "#45"
 complexity: "simple"
@@ -34,9 +34,11 @@ After holding a die motionless for about 0.5 s the whole world falls asleep; rel
 - `npm run build`
 
 # Notes
-- Deliverable: `world.wake()` is now public; `src/input/pointer.js` calls it on every drive step while a die is held and on every release (pointerup and pointercancel share `onRelease`). Whole-world sleep for free dice unchanged.
-- Verification: `npx vitest run src/input/pointer.test.js src/physics/world.test.js src/physics/world.e2e.test.js` at b41bc44: 3 files, 68 tests passed. `npm run build` green, asset check resolves both hashed assets.
-- New tests: hold a d8 still for 1.5 s and the world stays awake (red before the fix: it slept at ~0.52 s); release after a long hold falls within one step; release and pointercancel each wake a world already asleep; `world.wake()` wakes a sleeping world.
-- Assumption: the hold signals "keep the world awake" through `world.wake()` per drive step instead of a new held-flag property on the world, so `world.js` gains only the public `wake` reference.
-- Assumption: a d8 at the hold height reproduces the sleep in a jsdom test, a settled d6 does not; the sleep-while-held regression test therefore uses a d8.
-- Out of scope: the sleep gate still compares a point speed that includes the DIE_RADIUS lever arm, so a free die spinning slowly in place can sleep early; task #42 behaviour is untouched.
+- Outcome: approved (no fixes committed).
+- Spec bullet "world must not sleep while any die is held": met by `world.wake()` at the top of `drive()` (src/input/pointer.js:172), which runs as `world.beforeStep` before the asleep early-return in `world.step()` (src/physics/world.js:148-149), so a held die keeps the world awake every step; matches the spec's own suggested smallest change.
+- Spec bullet "wake on release and pointercancel": met; `onRelease` is bound to both events and calls `world.wake()` (pointer.js:257).
+- Spec bullet "keep free-die sleep behavior (#42)": met; the world.js diff adds only the public `wake` reference, sleep logic untouched, all sleep/waking tests in world.test.js green.
+- Tests: hold-still test asserts asleep=false for 1.5 s (90 frames) vs the spec's "2 s"; 1.5 s is 3x the 0.5 s SLEEP_TIME and was red before the fix, accepted as covering the bullet. Release-after-hold (vz < 0, position drops) and pointerup/pointercancel wake tests present and green. New `wake()` unit test in world.test.js green.
+- Evidence: `npx vitest run src/input src/physics` 10 files 136 tests passed; `npm test` 27 files 322 tests passed; `npm run build` green.
+- Reachability checked: `asleep` is read only inside world.js (main.js never gates update on it, so the drive-wake path always executes); `wake` consumers are drive and onRelease only.
+- The lever-arm sleep-gate quirk for free dice stays out of scope as recorded; a held die can no longer sleep regardless of the gate, so the off-vertical held freeze from the Evidence section is also covered.
