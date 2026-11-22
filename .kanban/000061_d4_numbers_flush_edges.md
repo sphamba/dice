@@ -1,11 +1,13 @@
 ---
 name: "fix: place the d4 numbers flush with the rounded edges"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/61-d4-numbers-flush-edges"
 issuer: "user"
 complexity: "simple"
 shortName: "d4-numbers-flush-edges"
+changes: "{\"base\":\"main\",\"ins\":36,\"del\":9,\"files\":3}"
+commits: "[{\"hash\":\"db3d447\",\"subject\":\"fix: move the d4 numbers flush with the rounded edges\",\"when\":\"2026-11-22T22:12:11+01:00\"}]"
 ---
 
 # Summary
