@@ -36,11 +36,15 @@ After holding a die motionless for about 0.5 s the whole world falls asleep; rel
 - `npm run build`
 
 # Notes
-- Outcome: approved (no fixes committed).
-- Spec bullet "world must not sleep while any die is held": met by `world.wake()` at the top of `drive()` (src/input/pointer.js:172), which runs as `world.beforeStep` before the asleep early-return in `world.step()` (src/physics/world.js:148-149), so a held die keeps the world awake every step; matches the spec's own suggested smallest change.
-- Spec bullet "wake on release and pointercancel": met; `onRelease` is bound to both events and calls `world.wake()` (pointer.js:257).
-- Spec bullet "keep free-die sleep behavior (#42)": met; the world.js diff adds only the public `wake` reference, sleep logic untouched, all sleep/waking tests in world.test.js green.
-- Tests: hold-still test asserts asleep=false for 1.5 s (90 frames) vs the spec's "2 s"; 1.5 s is 3x the 0.5 s SLEEP_TIME and was red before the fix, accepted as covering the bullet. Release-after-hold (vz < 0, position drops) and pointerup/pointercancel wake tests present and green. New `wake()` unit test in world.test.js green.
-- Evidence: `npx vitest run src/input src/physics` 10 files 136 tests passed; `npm test` 27 files 322 tests passed; `npm run build` green.
-- Reachability checked: `asleep` is read only inside world.js (main.js never gates update on it, so the drive-wake path always executes); `wake` consumers are drive and onRelease only.
-- The lever-arm sleep-gate quirk for free dice stays out of scope as recorded; a held die can no longer sleep regardless of the gate, so the off-vertical held freeze from the Evidence section is also covered.
+# Notes
+- Live test of commit 594b85d (run 1, viewport 1100x1100, headless Chromium + SwiftShader, hasTouch). Harness and drivers in /tmp/dice-lt52 (copy of the proven task #45 harness; only port, out dir, and worktree path changed). Vite served on :8797 and stopped after the run. Log: /tmp/dice-lt52/run1.log; results: /tmp/dice-lt52/results-driver.json.
+- Result: 36/37 checks pass, no page errors. Every spec bullet of this task passes as user-visible behaviour. No product defects found so far.
+- Spec "world must not sleep while a die is held": PASS. Grabbed d4, d8, d20; each held motionless 1.6 s (more than 3x SLEEP_TIME = 0.5 s). A Node-side poll read world.asleep every 100 ms: 0 asleep samples out of 63/99/64 samples. Trace rows (one per 2 fixed steps) reach the hold end, so the step loop never stalled. The die stays at the grab point (error 0.19-0.21 mm).
+- Spec "wake on release": PASS. After each still hold, mouse-up drops the die: vz -0.326 m/s, drop 22-26 mm; settles inside the box, no NaN, world sleeps again (free-die sleep kept).
+- Spec "wake on pointercancel": PASS. Held a die still 1.0 s, dispatched pointercancel with the logged pointer id: the die falls (vz -0.326 m/s, drop 5.8 mm) and settles. Deviation: the die was a d20, not the planned d8 (see below).
+- Spec "keep free-die sleep (#42)": PASS. Every spawn starts asleep; a grab wakes the world (asleep true -> false); after each release and after cancel the world sleeps again.
+- Extra: after the 1.6 s still hold a d4 follows a 20 mm pointer move (11.2 mm xy move, grab-point error 0.20 mm, asleep=false). A long still hold leaves the die driven, not frozen.
+- Harness deviation (not a product defect): the cancel phase grabbed the leftover d20 of the previous phase, because its respawn logic only spawns a fresh die when no body exists. So pointercancel ran on a held d20. The release handler is type-independent (pointer.js:242-263), and d8 is covered by the pointerup hold phase. Plan: quick d8-cancel rerun on release for exact evidence-type match.
+- The only FAIL is my end-of-run bookkeeping check: it expected panel d8:1 but the panel showed d20:1, the same deviation.
+- Assumptions: (1) headless Chromium + SwiftShader with mouse and touch events counts as a real user interface for a pointer-hold flow; (2) "release resumes the simulation" is observable as the die falling, then the world sleeping again; (3) a synthetic pointercancel PointerEvent equals a browser-issued one for this handler, which reads only pointerId; (4) "release wakes a sleeping world" cannot be staged live, because with the fix the world never sleeps while held - the task's unit tests cover that exact state, and the live release check covers the user-visible result.
+- Environment note: the d20 grab needed 3 attempts (attempt 1 no converge, die moved 39.7 mm; attempt 2 grab point occluded; attempt 3 held at 0.86 mm). Precedent runs show occasional first-grab misses on d20; this looks like pick luck, not a regression of this fix.
