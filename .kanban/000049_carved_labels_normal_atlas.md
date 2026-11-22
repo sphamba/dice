@@ -1,7 +1,7 @@
 ---
 name: "feat: carve the numbers and pips with a baked normal-map atlas"
 priority: "medium"
-state: "to-merge"
+state: "merging"
 worktree: "feat/49-carved-labels-normal-atlas"
 issuer: "user"
 complexity: "complex"
