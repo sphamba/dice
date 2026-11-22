@@ -1,7 +1,7 @@
 ---
 name: "feat: render rounded die edges and corners with shaders only"
 priority: "medium"
-state: "reviewing"
+state: "to-review"
 worktree: "feat/39-shader-rounded-die-edges"
 issuer: "user"
 complexity: "complex"
@@ -55,22 +55,10 @@ Make every die look like it has rounded edges and corners (fillet radius 1.0 mm)
 - Live check (browser): no console or GL errors. Every die type shows a lighter or darker shaded band along every edge and smooth corners. The outline corners of a d6 resting on a face are rounded, not square. The numbers and pips stay readable, and the d4 corner numbers are not covered by the bevel band. Picking and drag still work on the full sharp shape.
 
 # Notes
-# Deliverable
-- Procedural rounded edges, corners and outline for all six dice. Per-face 5-point inset polygon (labels.faceInsetData, BEVEL_RADIUS = 1 mm) + model-space vertex hull feed a shared GLSL bevel chunk (insetOffset / bevelNormal / hullDistance). Dice FS: normal tilts face->bisector across the band, hemisphere ambient + Schlick rim in litColor(base, n), outline alpha = clamp((r-d)/fwidth(d)+0.5) with SAMPLE_ALPHA_TO_COVERAGE around the dice pass. AO prepass reuses the dice vertex stage, encodes bevel normals, discards past the rounded outline. New attributes loc 3-7, uniforms uHull[20]/uHullCount/uBevelRadius. Mesh geometry, physics, picking untouched. aoPrepassVertexSource removed (renderer uses diceVertexSource).
-- HEAD a25104c.
-
-# Verification
-- npx vitest run src/dice/labels.test.js src/render -> 38 passed. New: faceInsetData plane (1e-9), CCW, strictly-inside, padding, right-axis; bevel.test.js JS mirror: mid-face = face normal, edge midpoint = bisector from both faces (1e-6), d6 flat hull = inset top square, hull distance 0 inside / segment distance outside, collinear points dropped.
-- Probe before pinning tolerances: bisector property holds for all types incl. d10 kites (max dev 2.6e-15).
-- npm run build green; asset check src="./assets/index-CPgIQv3j.js".
-- Test-only pitfall found: vec3/mat4 state is Float32Array - test mirrors must use float64 plain-array math and float32-scale tolerances for mat4-sourced coordinates.
-
-# Assumptions
-- Rim strength 0.3 and hemi ground tint (0.5, 0.45, 0.4) are inline constants, tuned live.
-- Dice FS writes partial alpha at the outline; compositing over the near-identical page background assumed fine (live check confirms; fallback: alpha:false context).
-
-# Blockers
-- none
-
-# Manual checks left to other roles
-- Live browser check in flight (subagent): all six dice render, console clean, rounded outline/corners visible, no AO halos.
+# Review (outcome: fixed)
+- Scope: a25104c vs main, clean tree; touches only labels.js, renderer.js, shaders.js and their tests. Spec map: faceInsetData with CCW/strictly-inside/1e-9 plane/padding/right-axis tests; attributes loc 3-7 (vec2 facePos, vec3 tangent, 3x vec4 inset); 5-edge inset loop with max(dot(e,e),1e-12) guard; B=cross(N,T); litColor(base, n) with constant (0,0,1) view vector (also enforced by ao.test.js source check); bevel normal written to the AO prepass target; per-body hull in both drawAoPasses and drawDicePass; uHull[20]/uHullCount; alpha = clamp((r-d)/fwidth(d)+0.5) + SAMPLE_ALPHA_TO_COVERAGE around the forward dice draw; prepass discard past r; hemisphere ambient x AO + Schlick rim pow(1-n.z,5)*0.3; no crease AO; no physics/picking/label-layout/mesh changes; aoPrepassVertexSource removed, prepass reuses diceVertexSource.
+- Evidence: npx vitest run src/dice/labels.test.js src/render/bevel.test.js 17/17; npx vitest run src/render src/dice 86/86; npm test 298/298; npm run build green. All spec acceptance commands pass.
+- Probes: per-face bevel scale uniform for all six dice (spread <= 1e-16), so bevelScale[0] for the hull is valid; max vertex count 20 (d12) fits uHull[20]; d4 band width 1.41 mm (r/tan(35.26 deg)). getContext('webgl2') leaves antialias on, so alpha-to-coverage is effective; page background #14151a equals CLEAR_COLOR, so the recorded premultiplied-alpha compositing assumption is sound.
+- Finding fixed (39ea3ff): labels.js comment claimed the d4 corner numbers clear the bevel band; geometry shows the band (1.41 mm) reaches past the digit tips (0.98 mm from the incident edges), so the outer ~0.4 mm of the tips enters the band. Readability holds because the band re-shades but never masks ink, and the spec's 0.8-1.4 mm tuning range is only consistent with that reading; comment reworded, no code change (label layout out of scope, r pinned). Interpretation on record: "not covered by the bevel band" = numbers stay readable, not band-boundary-outside-glyph-box.
+- Deferred to live test: band/rim readability on all six dice, rounded d6 outline corners, console/GL cleanliness (prepass program link is inspectable only, not verifiable in node), no AO halos.
+- Guidance: settle "band clears label" claims by comparing band width r/tan(theta/2) against label edge distance, not by trusting comments; comment-only corrections still count as the fixed outcome.
