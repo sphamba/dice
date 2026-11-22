@@ -1,5 +1,5 @@
 import { DICE_TYPES, createShape } from '../dice/shapes.js';
-import { buildLabelAtlas, faceVertexUvs } from '../dice/labels.js';
+import { BEVEL_RADIUS, buildLabelAtlas, faceInsetData, faceVertexUvs } from '../dice/labels.js';
 import * as mat4 from '../math/mat4.js';
 import * as vec3 from '../math/vec3.js';
 import { DIE_RADIUS } from '../physics/body.js';
@@ -56,7 +56,7 @@ const GTAO_UNIFORMS = ['uNormalTex', 'uDepthTex', 'uHalfExtents', 'uTexelWorld',
 const BLUR_UNIFORMS = ['uAoTex', 'uDepthTex', 'uDepthRange', 'uBlurDz'];
 const LIGHT_UNIFORMS = ['uLightDir', 'uAmbient', 'uIntensity', 'uDirectAo', 'uAo', 'uAoDepth', 'uAoSize', 'uViewport', 'uDepthRange'];
 const FLOOR_UNIFORMS = ['uViewProj', 'uHalfExtents', 'uColor', ...LIGHT_UNIFORMS];
-const DICE_UNIFORMS = ['uViewProj', 'uModel', 'uColor', 'uAtlas', ...LIGHT_UNIFORMS];
+const DICE_UNIFORMS = ['uViewProj', 'uModel', 'uColor', 'uAtlas', 'uHull', 'uHullCount', 'uBevelRadius', ...LIGHT_UNIFORMS];
 
 function uniformMap(gl, program, names) {
   const map = {};
@@ -64,20 +64,98 @@ function uniformMap(gl, program, names) {
   return map;
 }
 
-// Expanded flat-shaded mesh: per-face vertices with face normal and atlas UV.
-function buildDieMesh(gl, shape) {
+// Monotone chain convex hull: CCW, collinear and duplicate points dropped.
+export function convexHull2D(points) {
+  const pts = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const chain = (source) => {
+    const half = [];
+    for (const p of source) {
+      while (half.length >= 2 && cross(half[half.length - 2], half[half.length - 1], p) <= 0) half.pop();
+      half.push(p);
+    }
+    return half;
+  };
+  const lower = chain(pts);
+  const upper = chain([...pts].reverse());
+  lower.pop();
+  upper.pop();
+  return [...lower, ...upper];
+}
+
+// Hull of the s-scaled shape vertices transformed by the model matrix: the
+// silhouette the rounded outline wraps with a bevel-radius margin.
+export function projectedInsetHull(shape, model, scale) {
+  const points = shape.vertices.map((v) => {
+    const x = scale * v[0];
+    const y = scale * v[1];
+    const z = scale * v[2];
+    return [
+      model[0] * x + model[4] * y + model[8] * z + model[12],
+      model[1] * x + model[5] * y + model[9] * z + model[13],
+    ];
+  });
+  return convexHull2D(points);
+}
+
+// JS mirror of the shader hull distance: 0 inside the CCW hull, the segment
+// distance outside.
+export function pointHullDistance2D(hull, p) {
+  if (hull.length < 3) return Infinity;
+  let best = Infinity;
+  let minCr = Infinity;
+  for (let k = 0; k < hull.length; k += 1) {
+    const a = hull[k];
+    const b = hull[(k + 1) % hull.length];
+    const ex = b[0] - a[0];
+    const ey = b[1] - a[1];
+    const wx = p[0] - a[0];
+    const wy = p[1] - a[1];
+    const t = Math.min(Math.max((wx * ex + wy * ey) / Math.max(ex * ex + ey * ey, 1e-12), 0), 1);
+    best = Math.min(best, Math.hypot(wx - t * ex, wy - t * ey));
+    minCr = Math.min(minCr, ex * wy - ey * wx);
+  }
+  return minCr >= 0 ? 0 : best;
+}
+
+const HULL_DATA = new Float32Array(40);
+
+function setHullUniform(gl, uniforms, entry, model) {
+  const hull = projectedInsetHull(entry.shape, model, entry.bevelScale);
+  for (let i = 0; i < hull.length; i += 1) {
+    HULL_DATA[i * 2] = hull[i][0];
+    HULL_DATA[i * 2 + 1] = hull[i][1];
+  }
+  gl.uniform2fv(uniforms.uHull, HULL_DATA);
+  gl.uniform1i(uniforms.uHullCount, hull.length);
+}
+
+// Expanded flat-shaded mesh: per-face vertices with face normal, atlas UV and
+// the bevel frame data for the rounded-edge shader.
+function buildDieMesh(gl, shape, bevel) {
   const layout = faceVertexUvs(shape);
   const positions = [];
   const normals = [];
   const uvs = [];
+  const facePos = [];
+  const tangents = [];
+  const inset01 = [];
+  const inset23 = [];
+  const inset44 = [];
   const indices = [];
   shape.faces.forEach((face, f) => {
     const base = positions.length / 3;
+    const { right, face2D, inset } = bevel[f];
     face.indices.forEach((vi, k) => {
       const v = shape.vertices[vi];
       positions.push(v[0], v[1], v[2]);
       normals.push(face.normal[0], face.normal[1], face.normal[2]);
       uvs.push(layout[f].uvs[k][0], layout[f].uvs[k][1]);
+      facePos.push(face2D[k][0], face2D[k][1]);
+      tangents.push(right[0], right[1], right[2]);
+      inset01.push(inset[0][0], inset[0][1], inset[1][0], inset[1][1]);
+      inset23.push(inset[2][0], inset[2][1], inset[3][0], inset[3][1]);
+      inset44.push(inset[4][0], inset[4][1], inset[4][0], inset[4][1]);
     });
     for (let k = 1; k + 1 < face.indices.length; k += 1) {
       indices.push(base, base + k, base + k + 1);
@@ -87,6 +165,11 @@ function buildDieMesh(gl, shape) {
     { location: 0, data: new Float32Array(positions), size: 3 },
     { location: 1, data: new Float32Array(normals), size: 3 },
     { location: 2, data: new Float32Array(uvs), size: 2 },
+    { location: 3, data: new Float32Array(facePos), size: 2 },
+    { location: 4, data: new Float32Array(tangents), size: 3 },
+    { location: 5, data: new Float32Array(inset01), size: 4 },
+    { location: 6, data: new Float32Array(inset23), size: 4 },
+    { location: 7, data: new Float32Array(inset44), size: 4 },
   ], new Uint16Array(indices));
 }
 
@@ -115,12 +198,15 @@ export function createRenderer(gl) {
     const dice = new Map();
     for (const type of DICE_TYPES) {
       const shape = createShape(type, DIE_RADIUS);
-      const mesh = buildDieMesh(gl, shape);
+      const bevel = faceInsetData(shape, BEVEL_RADIUS);
+      const mesh = buildDieMesh(gl, shape, bevel);
       const atlas = buildLabelAtlas(shape, DIE_COLORS[type]);
       dice.set(type, {
         mesh,
         texture: createLabelTexture(gl, atlas.canvas),
         color: DIE_COLORS[type],
+        shape,
+        bevelScale: bevel[0].scale,
       });
     }
     const diceProgram = compileProgram(gl, shaders.diceVertexSource, shaders.diceFragmentSource);
@@ -129,6 +215,8 @@ export function createRenderer(gl) {
     const whiteTex = createColorTexture(gl, 1, 1, gl.R8);
     gl.bindTexture(gl.TEXTURE_2D, whiteTex);
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 1, 1, gl.RED, gl.UNSIGNED_BYTE, new Uint8Array([255]));
+    gl.useProgram(diceProgram);
+    gl.uniform1f(gl.getUniformLocation(diceProgram, 'uBevelRadius'), BEVEL_RADIUS);
     return {
       dice,
       floorMesh: buildFloorMesh(gl),
@@ -154,7 +242,7 @@ export function createRenderer(gl) {
   // AO programs and render targets. Throws on compile/link/FBO failure; the
   // caller catches and falls back to the 1x1 white texture.
   function buildAoSetup() {
-    const prepassProgram = compileProgram(gl, shaders.aoPrepassVertexSource, shaders.aoPrepassFragmentSource);
+    const prepassProgram = compileProgram(gl, shaders.diceVertexSource, shaders.aoPrepassFragmentSource);
     const gtaoProgram = compileProgram(gl, shaders.fullscreenVertexSource, shaders.gtaoFragmentSource({
       slices: AO_SLICES,
       steps: AO_STEPS,
@@ -163,11 +251,13 @@ export function createRenderer(gl) {
       zFalloffScale: AO_Z_FALLOFF_SCALE.toFixed(1),
     }));
     const blurProgram = compileProgram(gl, shaders.fullscreenVertexSource, shaders.blurFragmentSource());
+    gl.useProgram(prepassProgram);
+    gl.uniform1f(gl.getUniformLocation(prepassProgram, 'uBevelRadius'), BEVEL_RADIUS);
     return {
       prepassProgram,
       gtaoProgram,
       blurProgram,
-      prepassUniforms: uniformMap(gl, prepassProgram, ['uViewProj', 'uModel']),
+      prepassUniforms: uniformMap(gl, prepassProgram, ['uViewProj', 'uModel', 'uHull', 'uHullCount']),
       gtaoUniforms: uniformMap(gl, gtaoProgram, GTAO_UNIFORMS),
       blurUniforms: uniformMap(gl, blurProgram, BLUR_UNIFORMS),
       targets: null,
@@ -272,6 +362,7 @@ export function createRenderer(gl) {
       mat4.fromRotationTranslation(model, body.orientation, body.position);
       gl.bindVertexArray(entry.mesh.vao);
       gl.uniformMatrix4fv(u.uModel, false, model);
+      setHullUniform(gl, u, entry, model);
       gl.drawElements(gl.TRIANGLES, entry.mesh.indexCount, gl.UNSIGNED_SHORT, 0);
     }
 
@@ -328,6 +419,9 @@ export function createRenderer(gl) {
     gl.uniform1i(u.uAtlas, 1);
     setLightUniforms(u, options, direction, depthRange);
     gl.activeTexture(gl.TEXTURE1);
+    // Coverage-masked edges: fragment alpha near the rounded outline turns
+    // samples off, so the sharp silhouette reads rounded.
+    gl.enable(gl.SAMPLE_ALPHA_TO_COVERAGE);
     for (const body of bodies) {
       const entry = resources.dice.get(body.shape.type);
       if (!entry) continue;
@@ -336,8 +430,10 @@ export function createRenderer(gl) {
       gl.bindTexture(gl.TEXTURE_2D, entry.texture);
       gl.uniformMatrix4fv(u.uModel, false, model);
       gl.uniform3fv(u.uColor, entry.color);
+      setHullUniform(gl, u, entry, model);
       gl.drawElements(gl.TRIANGLES, entry.mesh.indexCount, gl.UNSIGNED_SHORT, 0);
     }
+    gl.disable(gl.SAMPLE_ALPHA_TO_COVERAGE);
   }
 
   return {

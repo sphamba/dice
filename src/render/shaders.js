@@ -36,8 +36,7 @@ float sampleAo() {
   return weights > 0.0 ? total / weights : 1.0;
 }
 
-vec3 litColor(vec3 base) {
-  vec3 n = normalize(vNormal);
+vec3 litColor(vec3 base, vec3 n) {
   vec3 toLight = -uLightDir;
   float ndotl = dot(n, toLight);
   float diffuse = max(ndotl, 0.0);
@@ -48,34 +47,114 @@ vec3 litColor(vec3 base) {
   vec3 halfDir = normalize(viewDir + toLight);
   float specular = pow(max(dot(n, halfDir), 0.0), 40.0) * 0.22 * step(0.0, ndotl);
   float ao = sampleAo();
-  return base * (uAmbient * ao + uIntensity * diffuse * mix(1.0, ao, uDirectAo)) + vec3(specular * uIntensity * ao);
+  // Hemisphere ambient; the Schlick rim picks out the bevel band (zero on the
+  // flat top faces).
+  vec3 hemi = mix(vec3(0.5, 0.45, 0.4), vec3(1.0), n.z * 0.5 + 0.5);
+  float rim = pow(1.0 - clamp(n.z, 0.0, 1.0), 5.0) * 0.3;
+  return base * (uAmbient * hemi * ao + uIntensity * diffuse * mix(1.0, ao, uDirectAo)) + vec3((specular + rim) * uIntensity * ao);
 }
 `;
 
-// AO prepass: dice only, world normal encoded for the GTAO pass.
-export const aoPrepassVertexSource = `#version 300 es
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec3 aNormal;
+// Bevel attributes shared by the dice and AO-prepass programs: per-vertex face
+// 2D position and tangent, plus the flat 5-point inset polygon.
+const BEVEL_VERT = `
+layout(location = 3) in vec2 aFacePos;
+layout(location = 4) in vec3 aTangent;
+layout(location = 5) in vec4 aInset0;
+layout(location = 6) in vec4 aInset1;
+layout(location = 7) in vec4 aInset2;
 
-uniform mat4 uViewProj;
-uniform mat4 uModel;
+out vec2 vFacePos;
+out vec3 vTangent;
+flat out vec4 vInset0;
+flat out vec4 vInset1;
+flat out vec4 vInset2;
 
-out vec3 vNormal;
-
-void main() {
-  vNormal = mat3(uModel) * aNormal;
-  gl_Position = uViewProj * uModel * vec4(aPosition, 1.0);
+void bevelVertex(mat3 model) {
+  vFacePos = aFacePos;
+  vTangent = model * aTangent;
+  vInset0 = aInset0;
+  vInset1 = aInset1;
+  vInset2 = aInset2;
 }
 `;
 
+// Bevel fragment logic shared by the dice and AO-prepass programs.
+const BEVEL_FRAG = `
+uniform vec2 uHull[20];
+uniform int uHullCount;
+uniform float uBevelRadius;
+
+in vec2 vFacePos;
+in vec3 vTangent;
+flat in vec4 vInset0;
+flat in vec4 vInset1;
+flat in vec4 vInset2;
+
+// q = fragment minus the closest point of the 5-edge inset polygon, zero
+// inside it. Padded zero-length edges are guarded by the max() epsilon.
+vec2 insetOffset(vec2 p) {
+  vec2 pts[5] = vec2[5](vInset0.xy, vInset0.zw, vInset1.xy, vInset1.zw, vInset2.xy);
+  vec2 q = vec2(0.0);
+  float bestD2 = 1e30;
+  float minCr = 1e30;
+  for (int k = 0; k < 5; k++) {
+    vec2 a = pts[k];
+    vec2 e = pts[(k + 1) % 5] - a;
+    vec2 w = p - a;
+    float t = clamp(dot(w, e) / max(dot(e, e), 1e-12), 0.0, 1.0);
+    vec2 d = w - t * e;
+    float d2 = dot(d, d);
+    if (d2 < bestD2) {
+      bestD2 = d2;
+      q = d;
+    }
+    minCr = min(minCr, e.x * w.y - e.y * w.x);
+  }
+  return minCr >= 0.0 ? vec2(0.0) : q;
+}
+
+// Face normal on the flat region, the exact two-face bisector at each sharp
+// edge, smooth in between.
+vec3 bevelNormal(vec3 n) {
+  vec3 t = normalize(vTangent);
+  vec3 b = cross(n, t);
+  vec3 nts = normalize(vec3(insetOffset(vFacePos), uBevelRadius));
+  return normalize(t * nts.x + b * nts.y + n * nts.z);
+}
+
+// 0 inside the CCW hull, segment distance outside.
+float hullDistance(vec2 p) {
+  if (uHullCount < 3) return 1e30;
+  float best = 1e30;
+  float minCr = 1e30;
+  for (int k = 0; k < uHullCount; k++) {
+    vec2 a = uHull[k];
+    vec2 e = uHull[(k + 1) % uHullCount] - a;
+    vec2 w = p - a;
+    float t = clamp(dot(w, e) / max(dot(e, e), 1e-12), 0.0, 1.0);
+    best = min(best, length(w - t * e));
+    minCr = min(minCr, e.x * w.y - e.y * w.x);
+  }
+  return minCr >= 0.0 ? 0.0 : best;
+}
+`;
+
+// AO prepass: dice only, bevel normal encoded for the GTAO pass. The AO
+// targets carry no multisampling, so the rounded outline is a discard instead
+// of a coverage mask.
 export const aoPrepassFragmentSource = `#version 300 es
 precision highp float;
 
 in vec3 vNormal;
+in vec3 vWorldPos;
 out vec4 outColor;
 
+${BEVEL_FRAG}
+
 void main() {
-  outColor = vec4(normalize(vNormal) * 0.5 + 0.5, 1.0);
+  if (hullDistance(vWorldPos.xy) > uBevelRadius) discard;
+  outColor = vec4(bevelNormal(normalize(vNormal)) * 0.5 + 0.5, 1.0);
 }
 `;
 
@@ -192,6 +271,8 @@ layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec2 aUV;
 
+${BEVEL_VERT}
+
 uniform mat4 uViewProj;
 uniform mat4 uModel;
 
@@ -205,6 +286,7 @@ void main() {
   vNormal = mat3(uModel) * aNormal;
   vUV = aUV;
   gl_Position = uViewProj * world;
+  bevelVertex(mat3(uModel));
 }
 `;
 
@@ -219,9 +301,15 @@ out vec4 outColor;
 
 ${LIGHTING_FS}
 
+${BEVEL_FRAG}
+
 void main() {
+  vec3 n = bevelNormal(normalize(vNormal));
   vec4 label = texture(uAtlas, vUV);
-  outColor = vec4(litColor(mix(uColor, label.rgb, label.a)), 1.0);
+  // Rounded outline: coverage alpha from the distance to the body's 2D hull.
+  float d = hullDistance(vWorldPos.xy);
+  float alpha = clamp((uBevelRadius - d) / fwidth(d) + 0.5, 0.0, 1.0);
+  outColor = vec4(litColor(mix(uColor, label.rgb, label.a), n), alpha);
 }
 `;
 
@@ -252,6 +340,6 @@ out vec4 outColor;
 ${LIGHTING_FS}
 
 void main() {
-  outColor = vec4(litColor(uColor), 1.0);
+  outColor = vec4(litColor(uColor, normalize(vNormal)), 1.0);
 }
 `;

@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
+import * as vec3 from '../math/vec3.js';
 import { DICE_TYPES, createShape } from './shapes.js';
-import { buildLabelAtlas, faceRects, faceVertexUvs } from './labels.js';
+import { DIE_RADIUS } from '../physics/body.js';
+import {
+  BEVEL_RADIUS,
+  buildLabelAtlas,
+  faceFrame,
+  faceInsetData,
+  faceRects,
+  faceVertexUvs,
+  toFace2D,
+} from './labels.js';
 
 const RADIUS = 0.75;
 const EPS = 1e-9;
@@ -364,5 +374,79 @@ describe('buildLabelAtlas centered numbers', () => {
       expect(underline.bottom).toBeLessThanOrEqual(box.bottom + EPS);
       expect(underline.top).toBeGreaterThan(texts[f].y);
     });
+  });
+});
+
+describe('faceInsetData', () => {
+  it('returns frame right, corner face-2D positions and 5 padded inset points', () => {
+    for (const type of DICE_TYPES) {
+      const shape = createShape(type, DIE_RADIUS);
+      const data = faceInsetData(shape, BEVEL_RADIUS);
+      expect(data).toHaveLength(shape.faces.length);
+      shape.faces.forEach((face, f) => {
+        const { right, face2D, inset, scale } = data[f];
+        const frame = faceFrame(shape, face);
+        const n = face.normal;
+        const rho = vec3.dot(shape.vertices[face.indices[0]], n);
+        expect(scale).toBeCloseTo(1 - BEVEL_RADIUS / rho, 15);
+        expect(vec3.length(right)).toBeCloseTo(1, 12);
+        const a0 = shape.vertices[face.indices[0]];
+        const b0 = shape.vertices[face.indices[1]];
+        const edge = [b0[0] - a0[0], b0[1] - a0[1], b0[2] - a0[2]];
+        const edgeLen = Math.hypot(edge[0], edge[1], edge[2]);
+        for (let c = 0; c < 3; c += 1) {
+          expect(right[c]).toBeCloseTo(edge[c] / edgeLen, 12);
+        }
+
+        expect(inset).toHaveLength(5);
+        for (let k = face.indices.length; k < 5; k += 1) {
+          expect(inset[k]).toEqual(inset[face.indices.length - 1]);
+        }
+        for (let k = 0; k < face.indices.length; k += 1) {
+          const v = shape.vertices[face.indices[k]];
+          const corner2D = toFace2D(frame, v);
+          expect(face2D[k][0]).toBeCloseTo(corner2D[0], 12);
+          expect(face2D[k][1]).toBeCloseTo(corner2D[1], 12);
+          const shifted = [
+            scale * v[0] + BEVEL_RADIUS * n[0],
+            scale * v[1] + BEVEL_RADIUS * n[1],
+            scale * v[2] + BEVEL_RADIUS * n[2],
+          ];
+          expect(Math.abs(vec3.dot(shifted, n) - rho)).toBeLessThanOrEqual(1e-9);
+          const inset2D = toFace2D(frame, shifted);
+          expect(inset[k][0]).toBeCloseTo(inset2D[0], 12);
+          expect(inset[k][1]).toBeCloseTo(inset2D[1], 12);
+        }
+      });
+    }
+  });
+
+  it('gives a CCW inset polygon strictly inside the face polygon', () => {
+    for (const type of DICE_TYPES) {
+      const shape = createShape(type, DIE_RADIUS);
+      const data = faceInsetData(shape, BEVEL_RADIUS);
+      shape.faces.forEach((face, f) => {
+        const { inset } = data[f];
+        let area = 0;
+        for (let k = 0; k < 5; k += 1) {
+          const a = inset[k];
+          const b = inset[(k + 1) % 5];
+          area += a[0] * b[1] - a[1] * b[0];
+        }
+        expect(area).toBeGreaterThan(0);
+
+        const frame = faceFrame(shape, face);
+        const corners = face.indices.map((vi) => toFace2D(frame, shape.vertices[vi]));
+        for (let k = 0; k < corners.length; k += 1) {
+          const a = corners[k];
+          const b = corners[(k + 1) % corners.length];
+          const e = [b[0] - a[0], b[1] - a[1]];
+          for (const p of inset) {
+            const cr = e[0] * (p[1] - a[1]) - e[1] * (p[0] - a[0]);
+            expect(cr).toBeGreaterThan(0);
+          }
+        }
+      });
+    }
   });
 });

@@ -39,7 +39,7 @@ export function faceRects(faceCount) {
 
 // Per-face 2D frame: origin at the vertex centroid, right along the first face
 // edge, up perpendicular to it pointing into the face, radius = corner distance.
-function faceFrame(shape, face) {
+export function faceFrame(shape, face) {
   const [i0, i1] = face.indices;
   const right = normalize([], sub([], shape.vertices[i1], shape.vertices[i0]));
   const up = normalize([], cross([], face.normal, right));
@@ -54,7 +54,7 @@ function faceFrame(shape, face) {
   return { centroid, right, up, radius };
 }
 
-function toFace2D(frame, vertex) {
+export function toFace2D(frame, vertex) {
   const d = sub([], vertex, frame.centroid);
   return [dot(d, frame.right), dot(d, frame.up)];
 }
@@ -118,6 +118,33 @@ export function buildLabelAtlas(shape, dieColor, size = ATLAS_SIZE) {
     drawFaceLabel(ctx, shape, face, rects[f], ink, size);
   });
   return { canvas, size, rects };
+}
+
+// Fillet radius of the shaded rounded edges, in metres. One constant for all
+// dice; the d4 corner numbers clear the bevel band at this size.
+export const BEVEL_RADIUS = 0.001;
+
+// Per-face data for the rounded-edge shading: the frame's right axis, every
+// corner's face-2D position (metres) and the inset polygon - the face corners
+// pulled to s*v + r*n on the face plane, padded to 5 CCW points.
+export function faceInsetData(shape, bevelRadius = BEVEL_RADIUS) {
+  return shape.faces.map((face) => {
+    const frame = faceFrame(shape, face);
+    const rho = dot(shape.vertices[face.indices[0]], face.normal);
+    const scale = 1 - bevelRadius / rho;
+    const n = face.normal;
+    const face2D = face.indices.map((vi) => toFace2D(frame, shape.vertices[vi]));
+    const inset = face.indices.map((vi) => {
+      const v = shape.vertices[vi];
+      return toFace2D(frame, [
+        scale * v[0] + bevelRadius * n[0],
+        scale * v[1] + bevelRadius * n[1],
+        scale * v[2] + bevelRadius * n[2],
+      ]);
+    });
+    while (inset.length < 5) inset.push([...inset[inset.length - 1]]);
+    return { right: frame.right, face2D, inset, scale };
+  });
 }
 
 function drawFaceLabel(ctx, shape, face, rect, ink, size) {
