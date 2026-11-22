@@ -1,7 +1,7 @@
 ---
 name: "fix: remove the contact spin damping, bounce in wall containment and raise restitution so rolled dice roll out longer"
 priority: "medium"
-state: "doing"
+state: "to-review"
 worktree: "fix/51-longer-roll-less-damping"
 issuer: "user"
 complexity: "moderate"
