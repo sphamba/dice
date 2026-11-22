@@ -1,11 +1,13 @@
 ---
 name: "feat: linear impact gain, pair gate and peak limiter"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "feat/64-sound-proportional-impulse-audio"
 issuer: "#62"
 complexity: "simple"
 shortName: "sound-proportional-impulse-audio"
+changes: "{\"base\":\"main\",\"ins\":136,\"del\":13,\"files\":2}"
+commits: "[{\"hash\":\"6474470\",\"subject\":\"feat: linear impact gain, pair gate and peak limiter\",\"when\":\"2026-11-22T22:13:53+01:00\"}]"
 ---
 
 # Summary
