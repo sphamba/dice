@@ -1,7 +1,7 @@
 ---
 name: "feat: carve the numbers and pips with a baked normal-map atlas"
 priority: "medium"
-state: "reviewing"
+state: "to-merge"
 worktree: "feat/49-carved-labels-normal-atlas"
 issuer: "user"
 complexity: "complex"
@@ -59,27 +59,11 @@ Make the numbers and pips look carved into the die with a round groove profile a
 - Live check (browser, desktop and phone viewport): every die type shows carved, painted numbers or pips with round walls lit from the light direction, pips look like dimples, numbers stay readable, no console or GL errors, and the #46 error overlay does not appear.
 
 # Notes
-## Deliverable
-- src/dice/carve.js (new): CARVE_DEPTH = 0.0289 * DIE_RADIUS, CAVITY = 0.25, anisotropic Felzenszwalb-Huttenlocher EDT (metres-per-sample spacing per axis, so d6's 1.5:1 cells bake circular in face space), signedDistance (negative inside), carveCell (mask -> RGBA: tangent-space normal in RGB, cavity factor in A), buildCarveAtlas (per-cell mask from atlas alpha >= 128, rows written bottom-up to match the FLIP_Y label upload).
-- One round profile for everything: h(d) = -CARVE_DEPTH * sqrt(1 - (1 - min(d/W,1))^2) with W = per-connected-component max inside distance. A disk component has W = pip radius -> spherical dimple; a stroke gets the circular-arc groove across its width. Per-component W also handles d4's three corner numbers and merged digit parts.
-- src/render/gl.js: createCarveTexture (raw RGBA bytes, LINEAR, CLAMP, no mipmaps).
-- src/render/shaders.js: bevelNormal(n, q) takes the inset offset; dice frag decodes uCarve in the T/B/N basis when q == 0 and keeps the bevel normal in the band; litColor(base, n, cavity) multiplies the ambient term only; floor passes 1.0; AO prepass output unchanged (same string, passes insetOffset(vFacePos) explicitly).
-- src/render/renderer.js: carve baked once per type at load, second texture per dice entry bound on TEXTURE4, deleted in destroyResources.
-- src/dice/carve.test.js (new, 13 tests): FH vs brute-force EDT on a disk, field signs, pip centre/rim/wall normals + symmetry, stroke groove symmetry + cavity, orientation for all 6 die types (right-of and above-sample tilt toward the glyph centre after T/B/N; the above-sample pins FLIP_Y/frame orientation), buildCarveAtlas cell mapping + bottom-up rows, CARVE_DEPTH equality, shader source pins.
-- renderer.test.js fake canvas gained getImageData (transparent) and TEXTURE4; labels.js unchanged.
-
-## Verification
-- npx vitest run src/render src/dice: 9 files / 114 tests green @ 8bde405. npm test: 337 passed. npm run build ok, dist/index.html asset refs checked.
-- Live check (playwright-core + chrome-headless-shell, desktop 1280x800 and phone 390x844@3x): PASS both — every type shows carved painted glyphs, pips read as dimples, no console/GL errors, no #46 overlay; dev server killed, repo clean at 8bde405. Screenshots under /tmp/dice-live-*.png.
-
-## Assumptions
-- The distance-transform test's "exact value" is the brute-force exact EDT of the disk mask: a binary-mask SDF differs from the continuous circle by up to ~1 px at diagonal boundary pixels, so FH is compared against brute force (matches to ~1e-6) instead.
-- One unified profile for pips and strokes: the arc-revolved dimple approximates the spherical cap at D/r ~= 0.5; the pip radius emerges as the component SDF max, equal to the drawing-code radius in labels.js.
-- Cavity is normalized by the per-cell max slope, so the steepest wall texel gets exactly 1 - CAVITY.
-- The faint straight diagonal across some pips in the 2x detail shot is the dimple's own lit/shaded wall terminator under the directional light, i.e. correct engraved appearance, not a seam defect.
-
-## Blockers
-- None.
-
-## Manual checks left to other roles
-- Formal live-test pass with zoom on pips to confirm the dimple read and cavity strength under the 30-degree tilted light; wall shading is intentionally subtle at CAVITY = 0.25.
+## Review (approved, no fixes)
+- All Spec bullets map to diff/test evidence: FH EDT (signedDistance, two distanceTransform passes, anisotropic metre spacing from the faceVertexUvs cell scale), quarter-ellipse profile h(d) = -CARVE_DEPTH·sqrt(1-(1-min(d/W,1))²) with W = per-connected-component inradius (= stroke half-width for strokes, pip radius for disks), tangent-space normals with correct dh/dy row-sign flip, cavity in A (1 flat, 1-CAVITY at the steepest wall, per-cell slope normalization - recorded assumption), bottom-up rows matching the FLIP_Y label upload (buildCarveAtlas row mapping verified by test).
+- Shader: uCarve sampled unconditionally at vUV (no implicit-LOD-in-branch UB); carve normal replaces the flat normal only when q == 0 and there reduces exactly to the bevel-normal value, so no visual change outside glyphs; bevel band and AO prepass unchanged in output; ambient-only cavity (floor passes 1.0). #46 rules: no new loops, no %, no new divisions.
+- Wiring: bake once per type at load, RGBA8 TEXTURE4 per dice entry, deleted in destroyResources, rebuilt on context restore; empty/transparent masks (fake-canvas tests) bake safely to flat.
+- Tests cover every spec bullet: EDT vs brute force ≤ 0.5 px on a 40 px disk, field signs, pip centre/rim/wall normals + symmetry, stroke groove symmetry + cavity range, orientation for all 6 die types (right-of and above samples tilt toward the glyph centre after T/B/N), CARVE_DEPTH equality, atlas cell mapping + bottom-up rows + flat padding, shader source pins.
+- Evidence: npx vitest run src/render src/dice 9 files / 114 tests green; npm test 28 files / 337 green; npm run build ok; worktree clean at 8bde405.
+- Developer's recorded assumptions (brute-force EDT as the exact reference, unified profile, per-cell cavity normalization) all stated in Notes, none silent, none direction-changing. Non-blocking: carve mask threshold 128 vs canvas AA can offset the carve boundary ~1 px from the paint edge - imperceptible.
+- Deferred to live-tester: confirm the dimple read and cavity strength in zoom under the tilted light (wall shading is subtle at CAVITY = 0.25), readability at phone size, no console/GL errors, no #46 overlay; developer's own playwright live check on desktop + phone viewports reported PASS with screenshots.
