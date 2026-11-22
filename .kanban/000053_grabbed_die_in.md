@@ -34,3 +34,9 @@ When a grabbed die is held in the air with no contact (clearance > 0), the physi
 - `npm run build`
 
 # Notes
+- State: root cause reproduced in a node fixture on main (HEAD 6a22be8, includes #52 594b85d). No code changed yet.
+- Premise probe (`/tmp/live53.mjs`, box 63.5 mm cube as in live run 4): die dropped and settled asleep, max-lever face grab per harness `chooseGrab`, then held 3 s at 24.2 and 60 fps. Symptom reproduces: d8 worst 9.33 mm (5/20 cases), d10 9.53 mm (7/20), d12 9.07 mm (7/20), d20 10.02 mm (7/20), d6 8.17 mm (7/20), d4 clean. The rest offset is constant after the first ~200 ms and `|w|` is exactly 0.000, matching the run-4 series.
+- Key measurement: every failing case starts from a grab taken while the world was **asleep** (`asleepAtPress` true) and a press on the far-vertex 65% point (lever 10.0-10.8 mm). A grab taken on a die already at hold height in free hang (probe `/tmp/hold53.mjs`, 120 seeded cases) and a grab lifted from an awake die both converge to 0.00 mm.
+- Next action: instrument the drive/sleep path at the failing case to see which term provides the counter-torque (sleep-time zeroed velocity in the same step as the drive, or the `applyImpulse`/swing-damping pair), then write the red test and the smallest fix.
+- Assumption: the acceptance sweep uses the harness grab convention (max-lever face point), the 63.5 mm box, and 3 s of hold.
+- No blockers.
