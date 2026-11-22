@@ -1,7 +1,7 @@
 ---
 name: "feat: replace directional shadows with orthographic GTAO ambient occlusion"
 priority: "medium"
-state: "doing"
+state: "to-review"
 worktree: "feat/38-ortho-gtao-ambient-occlusion"
 issuer: "user"
 complexity: "complex"
@@ -87,20 +87,27 @@ Remove the directional shadow map and add a custom screen-space GTAO pass in raw
 # Notes
 # Notes
 # Notes
-## PM steer — DONE
-Applied the "Orthographic view vector" spec section, added the source check, reran the two raw symmetry checks: BOTH NOW PASS.
+# Notes
 
-Changes (worktree feat/38-ortho-gtao-ambient-occlusion, uncommitted):
-- src/render/shaders.js: litColor() now uses the constant toward-eye vector `vec3 viewDir = vec3(0.0, 0.0, 1.0)` (ortho top-down camera, toward-eye = +z, per spec sign note) instead of `normalize(uEye - vWorldPos)`; removed the now-unused `uniform vec3 uEye`.
-- src/render/renderer.js: removed 'uEye' from LIGHT_UNIFORMS, the uEye upload, and the dead `eye` variable.
-- src/render/ao.test.js: added 'uEye - vWorldPos' to the AO source-check token list.
+## Deliverable
+- Shadow mapping removed entirely: shadow shaders (depth pass, shadowFactor, PCF), light frustum (createLightViewProjection + tests), shadowSize, drawShadowPass, light matrix cache, and all shadow uniforms. Directional light kept for diffuse and specular face shading.
+- GTAO screen-space pass in raw WebGL2 (no library): AO prepass at AO resolution (RGBA8 normal + DEPTH_COMPONENT16, dice only, cleared to the floor plane state), GTAO slice-integral pass (XeGTAO convention: 4x4 tile jitter, quadratic sample distribution, z-scaled falloff, nAng±PI/2 horizon clamp, iarc integral, 2 slices x 4 steps), edge-aware 4x4 blur, depth-aware bilinear upsample into forward lighting (ambient and specular scaled by ao, direct diffuse mixed by DIRECT_AO 0.5).
+- camera.js: createLightViewProjection removed; worldZFromDepth(d, box) and floorClearDepth(box) added. createCamera and the frustum unchanged from main.
+- gl.js: createColorTexture (RGBA8/R8), createFramebuffer with color + optional depth attachments and a clear incomplete-FBO error, depth format parameter on createDepthTexture.
+- renderer.js: AO constants (AO_TEXEL 0.2 mm, AO_SLICES 2, AO_STEPS 4, AO_RADIUS 1.2 x DIE_RADIUS, AO_FALLOFF_RANGE 0.615, AO_Z_FALLOFF_SCALE 0.5, AO_FINAL_POWER 2.2, AO_BLUR_DZ 1 mm, DIRECT_AO 0.5), aoTargetSize export (phone box 67.5x146.2 mm gives 338x731), resize recreates AO targets only when the AO size changes, context restore rebuilds programs/resources and retries the AO setup, AO setup failure falls back to a 1x1 white R8 texture without stopping rendering. Lighting: ambient 0.5, intensity 0.65 (spec starting values).
 
-Verification:
-- `npx vitest run src/render`: 4 files / 19 tests PASS. `npm test`: 24 files / 257 tests PASS. `npm run build`: OK.
-- Live check 2 (contact darkening, phone 675x1462): PASS on the FIRST settle (no re-rolls needed). Die at (8.9, -25.5) mm, 5.3 mm wall clearance. Open floor now perfectly uniform: all 35 open samples and every ring (r25-r47) read exactly 49.33 lum (spread 0) — the specular pool is gone. Floor 2 mm from each side: L 43.29 / R 41.72 / T 42.63 / B 42.83 => darker by 6.04 / 7.61 / 6.70 / 6.50, symLR 1.57, symTB 0.20. gl error 0.
-- Live check 4 (resize to desktop 1200x800 via CDP metrics override, box 75x50x50 mm): PASS. Darker by 6.66 / 6.38 / 7.10 / 6.54, symLR 0.28, symTB 0.56; opens all 49.33. gl error 0.
-- Console clean (only vite debug lines).
+## Verification
+- HEAD b040085: 6e66e05 (feature), cec943f, b040085 (live-check fixes). npx vitest run src/render 19/19; npm test 257/257; npm run build green + asset check.
+- Live checks (headless chrome-headless-shell, swiftshader, all acceptance criteria): no console/page/GL errors across boot, roll, hold, resize, context loss. Settled d6: floor 2 mm from all four sides darker than open floor by 6.0-8.0 RGB units, symmetric (LR <= 1.6, TB <= 0.6). Held die (lifted to z = 39.8 mm, bottom 25.9 mm up): floor at the old footprint equals the open-floor median exactly (delta 0.00). Resize phone to desktop: darkening stays centred (symLR 0.28, symTB 0.56). WEBGL_lose_context lose/restore: getError 0, scene re-renders with identical AO.
+- Two defects found by live checks and fixed: (1) the AO setup was never built at startup, so the pipeline rendered the white fallback (cec943f); (2) a perspective leftover normalize(uEye - vWorldPos) put a position-dependent specular pool on the floor that masked AO symmetry; fixed with the constant ortho view vector (0,0,1) (b040085).
 
-Confirmation of the mechanism: with V constant, the floor spec term is uniform: 0.22*0.65*(dot(n, normalize(V+toLight)))^40*255 = +9.1 lum, and the measured base moved 40.67 -> 49.33 = old base 40.2 + 9.1. Dice keep their face shading; GTAO contact darkening (6-7.6 lum at 2 mm, fading by ~13-15 mm from the die centre) now reads symmetrically everywhere on the floor.
+## Assumptions
+- XeGTAO convention verified against upstream src/integration/xeGTAO.fs.glsl: side-1 horizon angle negated (h0 = -acos(horizonCos1)), falloff mul/add = -1/(range*R) and (1-range)/range+1; a flat floor gives exactly 1.0. The mirror wall test uses a 10 mm wall (inside the falloff reach) because a truly infinite wall is cut by the falloff by design.
+- AO upsample weights are normalized by their sum (the spec formula without normalization diverges on open floor).
+- Constant ortho view vector (0,0,1) for specular: correct for this camera; the floor now shows uniform specular instead of main's position-dependent pool (visible baseline change, measured +9.1 luminance uniformly).
 
-Dev server for manual viewing is still running in the background: http://localhost:4178/ (log /tmp/dice-dev-4178.log). Harness scripts: /tmp/ao-acceptance2.js (full 6-check suite), /tmp/ao-acceptance4.js (checks 2+4 rerun), /tmp/ao-acceptance3.js (empty-floor probe + clean-settle), logs /tmp/ao-run*.log.
+## Blockers
+- None.
+
+## Manual checks left to other roles
+- Visual tuning on a real device: AO strength/falloff look at the spec starting constants (FINAL_POWER 2.2, BLUR_DZ 1 mm, radius 1.2 x DIE_RADIUS, SLICES 2 / STEPS 4); raise SLICES/STEPS if banding shows.
