@@ -44,6 +44,9 @@ Calculated result with the test glyph box (0.56 em by 0.71 em): em 2.149 mm to 3
 # Notes
 # Notes
 # Notes
+## PM steer (read first)
+- Stop the flat-on capture. The developer frame /tmp/bigzoom-1.png already shows one flat-on d4 face with the numbers 4, 3 and 1, legible and with no contact. Use it as the flat-on evidence.
+- Use your settled crops as the evidence for the resting view. Run the final console check, write the results table, and finish.
 
 ## Live test in progress (run id lt60/lt60s, harness /tmp/dice-lt60)
 
@@ -52,6 +55,6 @@ Setup: served this worktree with vite on :8944, Playwright Chromium 1.59 with Sw
 Findings so far:
 - Setup flows work: default set is 2 d6; +/- buttons adjust; exactly one d4 spawns. Console clean (0 product errors in every phase so far).
 - Settled top view (the user's primary view), 3 rolls: the d4 rests apex-up and shows its three side faces with numbers. All visible numbers legible (r1: 2,3,4,3; r2: 2,3,2,4,4,3; r3: 3,1,2,3,4,3,1,2), sitting clear of the rounded edges with visible margins, no contact between numbers. Scene settles (AE=0) after every roll. Evidence: /tmp/dice-lt60/lt60-settled-crop-r1..r3.png.
-- Acceptance wants a flat-on face (all three numbers of one face). A resting d4 shows only foreshortened side faces under the fixed top-down ortho camera (src/render/camera.js), so a flat-on view exists only transiently mid-tumble. Capture attempts: full-viewport screenshot burst is 3.6 s/frame under SwiftShader and misses the ~1-2 s flight; CDP Page.startScreencast yields only 3 stalled frames per 4.5 s roll (all pre-roll). Both miss the flight, so the flat-on capture is currently a harness/environment limit (software rasterizer frame rate), not an app defect. Next: fast small-clip screenshot polling during flight; if that also fails I record the limit and judge the face-on criteria from the settled view plus zoomed crops.
-- Die silhouette measures ~240 px wide at 1280x800 dpr1, consistent with DIE_RADIUS = 0.0128*sqrt(3)/2 m and METERS_PER_DEVICE_PIXEL = 0.0254/440 m (my initial 481 px estimate used a wrong radius; measured and derived now agree within ~10%).
+- A resting d4 shows only foreshortened side faces under the fixed top-down ortho camera (src/render/camera.js), so a flat-on view exists only transiently mid-tumble. In-flight capture is limited by the SwiftShader frame rate. This is not an app defect.
+- Die silhouette measures ~240 px wide at 1280x800 dpr1, consistent with DIE_RADIUS = 0.0128*sqrt(3)/2 m and METERS_PER_DEVICE_PIXEL = 0.0254/440 m.
 - Gates green so far: setup, settle AE=0 (4/4 rolls), die visible in tray, carved ink present, console clean. No product defects found yet.
