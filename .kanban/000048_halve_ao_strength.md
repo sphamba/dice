@@ -1,11 +1,13 @@
 ---
 name: "fix: halve the ambient occlusion darkening"
 priority: "medium"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/48-halve-ao-strength"
 issuer: "user"
 complexity: "simple"
 shortName: "halve-ao-strength"
+changes: "{\"base\":\"main\",\"ins\":26,\"del\":0,\"files\":2}"
+commits: "[{\"hash\":\"fb6ea5b\",\"subject\":\"fix(render): halve the ambient occlusion darkening\",\"when\":\"2026-11-22T13:06:02+01:00\"}]"
 ---
 
 # Summary
