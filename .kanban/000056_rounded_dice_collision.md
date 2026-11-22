@@ -1,13 +1,15 @@
 ---
 name: "feat: collide dice as rounded shapes (core polyhedron plus bevel radius)"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "feat/56-rounded-dice-collision"
 issuer: "user"
 complexity: "complex"
 shortName: "rounded-dice-collision"
 blockedBy: ""
 splitter: "done"
+changes: "{\"base\":\"main\",\"ins\":509,\"del\":121,\"files\":10}"
+commits: "[{\"hash\":\"7a82756\",\"subject\":\"fix: apply restitution in a post-iteration pass and contain dice by their rounded cores\",\"when\":\"2026-11-22T20:05:24+01:00\"},{\"hash\":\"d76f8e8\",\"subject\":\"fix: fire die-die face contacts speculatively and orient edge normals along the gap\",\"when\":\"2026-11-22T19:50:19+01:00\"},{\"hash\":\"7f11089\",\"subject\":\"feat: detect rounded die-die contacts with an exhaustive feature-pair scan\",\"when\":\"2026-11-22T18:46:44+01:00\"},{\"hash\":\"634c2e3\",\"subject\":\"feat: add the rounded core polyhedron to dice shapes\",\"when\":\"2026-11-22T17:30:39+01:00\"}]"
 ---
 
 # Summary
