@@ -2,7 +2,7 @@
 name: "feat: render rounded die edges and corners with shaders only"
 priority: "medium"
 state: "done"
-worktree: "feat/39-shader-rounded-die-edges"
+worktree: ""
 issuer: "user"
 complexity: "complex"
 shortName: "shader-rounded-die-edges"
