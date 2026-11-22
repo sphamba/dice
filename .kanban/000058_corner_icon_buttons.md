@@ -1,11 +1,12 @@
 ---
 name: "feat: icon buttons in the corners for Roll and Show controls"
 priority: "medium"
-state: "to-do"
-worktree: ""
+state: "doing"
+worktree: "feat/58-corner-icon-buttons"
 issuer: "user"
 complexity: "moderate"
 shortName: "corner-icon-buttons"
+splitter: "done"
 ---
 
 # Summary
