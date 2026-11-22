@@ -1,7 +1,7 @@
 ---
 name: "fix: restore rendering on Android and show render errors on the page"
 priority: "critical"
-state: "live-testing"
+state: "done"
 worktree: "fix/46-android-render-robustness"
 issuer: "#39"
 complexity: "moderate"
@@ -50,15 +50,34 @@ Since the GTAO (#38) and rounded-edge (#39) merges, the canvas is black on the u
 - Manual check left to the user: open the deployed page on the Android phone in Chrome and Firefox. The scene renders, or the overlay shows the exact error.
 
 # Notes
-## PM steer
-- The hollow baseline dice under SwiftShader support the root cause of this task. Record it as evidence: the pre-change shaders misrender on a software rasterizer too, so the baseline cannot judge "no visual change". Do not investigate it further.
-- Fix the R5 harness flip, re-judge R4 against the E4 no-AO reference, then write the final results and finish. The Android check stays a manual check for the user.
+## Live test result: pass, no defects filed (desktop headless, SwiftShader)
 
-## Live test (desktop headless, SwiftShader; #46 scope only)
-Setup: vite dev :8797 from this worktree; baseline worktree at pre-change commit 8625cc5 in /tmp/dice-base-46 (:8798); Playwright Chromium SwiftShader, viewport 900x900, dpr 1; gl.readPixels inside a rAF after the app's draw. Artifacts in /tmp/dice-lt46/.
+Scope: only #46 flows (render robustness + error surfacing), through the real browser interface. Serve: vite dev :8797 from this worktree (HTTP 200 preflight for /, /src/main.js, /src/render/shaders.js). Playwright Chromium SwiftShader, viewport 900x900 pinned at creation, dpr 1; full-frame gl.readPixels inside a rAF registered after the app's draw (no drawImage/getImageData). Baseline: pre-change commit 8625cc5 in a temp worktree served on :8798. Artifacts: /tmp/dice-lt46/ (run2.log full suite, run4/run5 rerun logs, results-*.json, render-head.png, render-base.png, overlay-shader-fail.png, render-ao-fail.png, render-after-restore.png). Servers stopped, ports verified free, baseline worktree removed.
 
-Checks so far: 35/40 pass.
-- Green: env probe (WebGL2, alpha:false + antialias:true, backing size, fps 18.3); console and GL clean through load and settle; red dice present; background == #14151a and floor present; no overlay on a healthy page; forced dice-shader failure shows the #unsupported[role=alert] overlay with "fragment shader compile failed: ERROR: ... 'DICE_BREAK'" and no uncaught pageerror; forced AO failure logs console.error, renders with the 1x1 white fallback and no overlay; WEBGL_lose_context loss and restore renders again; a failed restore shows the overlay and draw is inert; window 'error' and unhandledrejection show in the overlay.
-- R5: harness flip (GL bottom-up vs top-down indexing), not a product issue.
-- R4: AO spread 7.7 vs an untraced threshold 8; the E4 no-AO reference is 0.0, so AO is present.
-- B1b/B1d: baseline 8625cc5 renders hollow dice under SwiftShader (bevel band only, faces transparent), head renders solid dice with pips, rounded edges and AO. See PM steer.
+Results:
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Env probe | PASS | WebGL2 live; getContextAttributes alpha:false + antialias:true (Spec 3); backing == client*min(dpr,2), dpr 1 in headless (cap verified once); fps 18.3 |
+| Console + GL clean | PASS | load + settle: no console errors, no pageerrors, gl.getError() == 0 |
+| Dice render | PASS | red (d6) pixels 17.9% of frame with the default 2x d6 set |
+| Opaque canvas look | PASS | background pixels classify as #14151a (clear color == page background) exactly where the die coverage mask is alpha 0; floor pixels present (81%) |
+| AO | PASS | floor ring 150-260 px around each die mean luma 39.4 vs far floor (>330 px from all dice) 49.3, drop 9.9; no-AO reference measured in the E4 rerun: uniform 49.3, drop 0.0 |
+| Bevel / rounded outline | PASS | silhouette transition band present with intermediate pixels ((81,33,28), (109,40,34) between die red (211,60,48) and surround); interior solid: red fraction 0.74 / 1.00 across the die span (pip-robust metric) |
+| No stray overlay | PASS | #unsupported absent on a healthy page |
+| Forced dice-shader failure (route rewrite of served shaders.js) | PASS | #unsupported[role=alert] overlay, visible, centered, 16px, text "fragment shader compile failed: ERROR: ... 'DICE_BREAK'" (includes the shader info log); no panel (matches the recorded assumption: fatal creation failure replaces the panel); error caught, no uncaught pageerror |
+| Forced AO-program failure (route rewrite) | PASS | console.error "ambient occlusion unavailable, rendering without it"; scene still renders on the 1x1 white fallback (floor uniform, spread 0.0); no overlay; panel present |
+| Context restore, real loss | PASS | WEBGL_lose_context lose + restore: resources rebuilt on the restored context, scene renders again, no overlay, no console errors during the round trip |
+| Failed restore | PASS | synthetic webglcontextrestored with gl.createProgram stubbed to throw: overlay shows the error; draw inert afterwards (0 gl.enable, 0 bindFramebuffer calls over 60 frames) |
+| Global listeners | PASS | window 'error' (throw in setTimeout) and unhandledrejection (Promise.reject) each replace the overlay text, role=alert kept |
+| Baseline 8625cc5 comparison | PARTIAL, see evidence | floor-side features match (background fraction, AO spread 7.7 vs 11.0); red/floor fractions differ (0.045 vs 0.179) because the pre-change code renders hollow dice on SwiftShader |
+
+Evidence recorded (per PM steer, not investigated further): the pre-change commit renders HOLLOW dice under the desktop software rasterizer too - only the bevel band survives, faces transparent over the dark AO pool (render-base.png), while the fixed code renders solid dice with pips, rounded edges and AO (render-head.png). The removed driver-hostile constructs were therefore not Android-only; this supports the task's root cause. Consequence: the SwiftShader baseline cannot judge the "no visual change on desktop" constraint. That constraint and the Android Chrome/Firefox check stay manual checks for the user on real hardware.
+
+Assumptions made while designing the usage tests:
+- Desktop headless SwiftShader stands in for "desktop"; the Android device check is the user's manual step per the task.
+- "Renders as before" judged by feature presence and measured references (bevel band, AO pools, solid dice, clear color), not a pixel-exact diff: spawn poses are random and frame timing varies under SwiftShader.
+- Failed-restore exercised via a synthetic webglcontextrestored event with a stubbed createProgram - the same handler path a real failed restore takes, since served module code cannot be altered after load.
+- The default set (2x d6) was used for all render checks; no input or physics flows were exercised (out of task scope).
+
+Harness difficulties hit while testing (resolved, no product impact): readPixels row indexing is bottom-up while the helper sampled top-down (first scanline run read the wrong row); a single-pixel interior check hit the label pip (replaced by red fraction over the die span); the first AO threshold (8) was untraced (replaced by ring-vs-far luminance against the measured no-AO reference 0.0).
