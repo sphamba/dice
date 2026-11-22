@@ -29,17 +29,19 @@ Collision uses the sharp vertices today. Collide each die as its rounded shape s
 - Keep `body.radius` (circumradius of the sharp shape) for broad phase, clamp and hold height.
 - Do not change restitution values, friction, sleep, solver iterations, FIXED_DT or warm start. The rest height of a die on a face stays the same (core face at rho - r plus r).
 
-# Restitution on speculative contacts (decision from the rebound probe)
-- Defect: a fresh contact that fires with a negative (speculative) depth caps the closing speed in that step. In the next step it is no longer fresh, so the #40 rule gives no bounce. Measured die-on-die bounce 0.099 m/s against 0.285 m/s expected (rise 0.0147 against 0.0400).
-- Fix (as in Box2D v3): before the velocity iterations, store each contact's relative normal velocity. After the iterations, run one restitution pass: for a fresh contact (the #40 rule) that carried a positive normal impulse in this step and whose stored approach speed is above `RESTITUTION_THRESHOLD`, solve the normal velocity toward `-e * storedApproach`, clamping the accumulated impulse at 0. Speculative and touching contacts use the same rule.
-- Do not re-pin FIRST_REBOUND to the soft value. The pinned rebound (die 0.0400, floor 0.0262) must hold within the old tolerance.
+# Restitution on speculative contacts
+- Defect: a fresh contact that fires with a negative (speculative) depth caps the closing speed in that step. In the next step it is no longer fresh, so the #40 rule gives no bounce.
+- Fix (as in Box2D v3): before the velocity iterations, store each contact's relative normal velocity. After the iterations, run a restitution pass for every fresh contact (the #40 rule) whose stored approach speed is above `RESTITUTION_THRESHOLD`: Gauss-Seidel iterations toward the normal velocity `-e * storedApproach`, with the accumulated impulse clamped at 0, until the largest residual is below 1e-4 m/s or SOLVER_ITERATIONS passes have run. Then one friction re-clamp pass. Speculative and touching contacts use the same rule.
+- The dice must not visibly interpenetrate: keep the die-die fire band at 2r + SLOP + closing*dt.
+- FIRST_REBOUND: the floor pin (0.0262) holds. The die pin becomes the physical value `rise = (e * approach)^2 / (2g)`, with the measured fire-step approach and e = 0.5, computed in the test (no magic number), within the old relative tolerance. The old 0.0400 contained a Baumgarte push-out from the sharp overlap.
 - After this fix, re-measure the roll desktop mean rise (pin > 0.5) and the wake neighbour shift (pin 1e-4). If either still fails, write an Open question with the measured values and stop. Do not loosen a pin.
 
 # Tests
 - A d6 resting on a face: the centre height equals the sharp-shape inradius within 0.05 mm.
 - A d6 balanced on an edge or corner: the contact point lies on the rounded surface (r from the core edge or vertex), and the centre height matches the rounded geometry.
 - Two d6 corner to corner: they touch when the core separation is 2r. No contact before.
-- A die dropped onto a resting die bounces with the pinned FIRST_REBOUND. A speculative fresh contact with an approach above the threshold gives `-e * approach` after the step (unit test in contacts.test.js).
+- A die driven into a wall at 1 m/s leaves at 0.5 m/s (4 fresh contacts on one body).
+- A die dropped onto a resting die rises to the physical FIRST_REBOUND above. A speculative fresh contact with an approach above the threshold gives `-e * approach` after the step (unit test in contacts.test.js).
 - Test helpers measure the rounded surface (core vertices plus or minus r), not the sharp hull.
 - The #40 pile tests, the roll-out e2e (8 seeds, desktop and phone, every seed asleep within 5 s) and all other suites stay green. Record the new roll-to-sleep medians in Notes and compare with the #51 values (desktop 0.82 s, phone 0.97 s).
 - If a pile or settle test fails, do not add damping and do not change another constant. Write an Open question with the measured times.
@@ -51,20 +53,16 @@ Collision uses the sharp vertices today. Collide each die as its rounded shape s
 
 # Notes
 # Notes
-## PM decisions
-- (1) Fix the bounce loss. See the new Specs section "Restitution on speculative contacts". Do not re-pin FIRST_REBOUND.
-- (2) and (3): re-measure after the fix. If they still fail, write an Open question with the values and stop. Do not loosen a pin.
+## PM decisions (round 2)
+- Choose (a): iterate the restitution pass. Run the pass as Gauss-Seidel iterations over all fresh contacts above the threshold, with the accumulated impulse clamped at 0, until the largest residual to `-e * storedApproach` is below 1e-4 m/s or SOLVER_ITERATIONS passes have run. Then run the friction re-clamp pass. The wall test must give -0.5.
+- Dropping the "positive normal impulse" guard is accepted. Every fresh contact above the threshold gets the pass.
+- FIRST_REBOUND.die: the old pin 0.0400 contained a non-physical Baumgarte push-out from the sharp overlap. Replace it with the physical value: rise = (e * approach)^2 / (2g), with approach the measured fire-step approach speed and e = 0.5. Assert it with the old relative tolerance, and compute the expected value in the test from e, approach and g (no magic number). Do not choose option (b): the dice must not visibly interpenetrate.
+- Then re-measure the roll desktop mean rise (pin > 0.5) and the wake neighbour shift (pin 1e-4). If either still fails, write an Open question with the values and stop.
 
 ## Progress
-- Commit 59898a2: the die-die scan rewrite with dirGroups, a midpoint prune and a SAT band gate. collision + world 47/47. world.e2e runs about 52 s.
-- Helpers measure the rounded surface. Worst surface overshoot about 1e-17. Piles 25/25 settle within 3.5 s.
-- Root cause confirmed with an instrumented solver copy at the die-on-die fire step: the bounce target WAS set correctly (fresh true, approach 1.38, target 0.6898 = e·approach, depth -5.96e-4), but the 10 velocity iterations delivered only impulse 0.002081 (~54%): the vertex contact's off-center lever gives a small effective mass and the die-die + floor-contact Gauss-Seidel chain oscillates. The upper die still closes at -0.573 when the fire step ends; the next step the contact is not fresh, so no restitution ever applies. Bounce 0.099, rise 0.0147.
-- Fix implemented in contacts.js per the spec: prepare keeps the stored approach, target is now depth/dt (depth < 0) or the Baumgarte bias only; after the iterations one restitution pass re-solves every fresh contact with approach above RESTITUTION_THRESHOLD toward e·storedApproach in one shot, accumulated impulse clamped at 0, followed by one friction re-clamp pass (needed: without it the two friction-coupling tests in contacts.test.js fail because the events impulse then includes the pass impulse).
-- Impulse-guard deviation: the spec's "carried a positive normal impulse" guard had to be dropped. At the floor's speculative fire the depth/dt cap exceeds the closing speed by SLOP/dt, so the iterations end impulse-free; with the guard the pass skips and the die lands dead (no bounce at all). Every fresh contact above the threshold now gets the pass.
-- Remaining red: wall test "bounces a die driven into a wall with the box restitution" expects -0.5, measures -0.585034. Probe (wall fixture, die flush at r from the wall, 4 fresh contacts, approach 0.9998, depth 0): after the 10 iterations the impulses are ~0.00063 each and the die is stopped; the pass then re-solves each contact one-shot toward point speed 0.5, but each pass-in speed reads 0.670 / 0.535 / 0.635 / 0.500 instead of 0 - the later contacts' speeds already include the earlier passes' impulses, so the sequential one-shots over-deliver the body-level bounce. One-shot-per-contact is not convergent for several fresh contacts on one body.
-- Die-on-die with the current code: bounce 0.4916 (up from 0.0989), rise 0.0104 - still below the pinned 0.0400.
-- Open question (need PM decision): the pin 0.0400 embeds the sharp-era fire-at-overlap plus its Baumgarte bias (sharp fired 2.32e-3 BELOW the stacked rest with depth +2.32e-3, bounce 0.894 = e·approach + bias 0.204, rise 0.0384-0.0400). A correct rounded fire happens at the core gap 2r + SLOP (about 3.4e-3 ABOVE the touch, depth about -1e-4, no bias): a fully converged pass gives bounce 0.69, rise about 0.0245-0.0274. The pin is unreachable with the pass alone. Reaching about 0.042 requires delaying the die-die fire until the cores actually overlap (fire band 2r without SLOP and without the closing·dt term, so the fire depth is positive and the existing bias branch engages) at the cost of one step of visual interpenetration. Options: (a) iterated restitution pass (repeat until the per-contact residual to e·storedApproach is small; fixes the wall convergence, die rise stays ~0.027); (b) fire at core overlap (wall stays one-shot-safe? needs re-probe; die rise ~0.042, holds the pin within ~5%); (c) re-pin FIRST_REBOUND.die with the measured value.
-- Next: PM decision on the wall convergence and the die pin, then the floor/roll/sleep re-measure, full suite, build, commit.
+- Commit 59898a2: die-die scan rewrite. collision + world 47/47. Piles 25/25 within 3.5 s.
+- Restitution pass implemented (uncommitted): stored approach, one-shot pass per fresh contact, friction re-clamp. Die-on-die bounce 0.4916 (was 0.0989).
+- Red: wall test -0.585 against -0.5, because the one-shot pass does not converge for 4 fresh contacts on one body.
 
 # Open questions
 
