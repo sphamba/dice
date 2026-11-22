@@ -1,7 +1,7 @@
 ---
 name: "test: lock the free-hang rest of a held die (the wall lean is physical)"
 priority: "medium"
-state: "live-testing"
+state: "done"
 worktree: "fix/53-grabbed-die-in"
 issuer: "#50"
 complexity: "simple"
