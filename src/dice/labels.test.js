@@ -325,6 +325,8 @@ describe('buildLabelAtlas d4 corner numbers', () => {
 });
 
 const D4_MARGIN = 0.0003;
+const D4_GAP = 0.0002;
+const D4_MIN_EM = 0.0035;
 const D4_ADVANCE_EM = 0.56;
 const D4_CAP_EM = 0.71;
 const BOX_CYCLE = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
@@ -353,6 +355,23 @@ function glyphBox(label, scale, center) {
   });
 }
 
+function segmentDistance(p, a, b) {
+  const e = [b[0] - a[0], b[1] - a[1]];
+  const len2 = e[0] * e[0] + e[1] * e[1];
+  const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * e[0] + (p[1] - a[1]) * e[1]) / len2));
+  return Math.hypot(p[0] - (a[0] + t * e[0]), p[1] - (a[1] + t * e[1]));
+}
+
+function quadDistance(a, b) {
+  let min = Infinity;
+  for (const [from, to] of [[a, b], [b, a]]) {
+    for (const p of from) {
+      for (let k = 0; k < 4; k += 1) min = Math.min(min, segmentDistance(p, to[k], to[(k + 1) % 4]));
+    }
+  }
+  return min;
+}
+
 function quadSeparated(a, b) {
   const axes = [];
   for (const quad of [a, b]) {
@@ -369,47 +388,64 @@ function quadSeparated(a, b) {
   });
 }
 
+function measureD4() {
+  const shape = createShape('d4', DIE_RADIUS);
+  const { atlas, texts } = recordAtlas(shape, DIE_COLORS[0].die);
+  const data = faceInsetData(shape, BEVEL_RADIUS);
+  const { size, rects } = atlas;
+  expect(texts).toHaveLength(shape.faces.length * 3);
+
+  let worstMargin = Infinity;
+  let minGap = Infinity;
+  let minEm = Infinity;
+  let overlaps = 0;
+  let index = 0;
+  shape.faces.forEach((face, f) => {
+    const frame = faceFrame(shape, face);
+    const rect = rects[f];
+    const center = [
+      (size * (rect.u0 + rect.u1)) / 2,
+      size * (1 - (rect.v0 + rect.v1) / 2),
+    ];
+    const scale = [
+      (size * (rect.u1 - rect.u0)) / (2 * frame.radius),
+      (size * (rect.v1 - rect.v0)) / (2 * frame.radius),
+    ];
+    const inset = data[f].inset.slice(0, face.indices.length);
+    const quads = [];
+    for (let k = 0; k < face.indices.length; k += 1) {
+      const label = texts[index];
+      index += 1;
+      minEm = Math.min(minEm, label.fontPx / scale[1]);
+      const quad = glyphBox(label, scale, center);
+      quads.push(quad);
+      for (const point of quad) {
+        worstMargin = Math.min(worstMargin, ...edgeDistances(inset, point));
+      }
+    }
+    for (let i = 0; i < quads.length; i += 1) {
+      for (let j = i + 1; j < quads.length; j += 1) {
+        if (!quadSeparated(quads[i], quads[j])) overlaps += 1;
+        minGap = Math.min(minGap, quadDistance(quads[i], quads[j]));
+      }
+    }
+  });
+  return { worstMargin, minGap, minEm, overlaps };
+}
+
 describe('buildLabelAtlas d4 flat-face fit', () => {
   it('keeps every glyph box inside the inset triangle with a 0.3 mm margin', () => {
-    const shape = createShape('d4', DIE_RADIUS);
-    const { atlas, texts } = recordAtlas(shape, DIE_COLORS[0].die);
-    const data = faceInsetData(shape, BEVEL_RADIUS);
-    const { size, rects } = atlas;
-    expect(texts).toHaveLength(shape.faces.length * 3);
-
-    let worstMargin = Infinity;
-    let overlaps = 0;
-    let index = 0;
-    shape.faces.forEach((face, f) => {
-      const frame = faceFrame(shape, face);
-      const rect = rects[f];
-      const center = [
-        (size * (rect.u0 + rect.u1)) / 2,
-        size * (1 - (rect.v0 + rect.v1) / 2),
-      ];
-      const scale = [
-        (size * (rect.u1 - rect.u0)) / (2 * frame.radius),
-        (size * (rect.v1 - rect.v0)) / (2 * frame.radius),
-      ];
-      const inset = data[f].inset.slice(0, face.indices.length);
-      const quads = [];
-      for (let k = 0; k < face.indices.length; k += 1) {
-        const quad = glyphBox(texts[index], scale, center);
-        index += 1;
-        quads.push(quad);
-        for (const point of quad) {
-          worstMargin = Math.min(worstMargin, ...edgeDistances(inset, point));
-        }
-      }
-      for (let i = 0; i < quads.length; i += 1) {
-        for (let j = i + 1; j < quads.length; j += 1) {
-          if (!quadSeparated(quads[i], quads[j])) overlaps += 1;
-        }
-      }
-    });
-
+    const { worstMargin, overlaps } = measureD4();
     expect(worstMargin).toBeGreaterThanOrEqual(D4_MARGIN);
     expect(overlaps).toBe(0);
+  });
+
+  it('separates neighbouring numbers by 0.2 mm', () => {
+    expect(measureD4().minGap).toBeGreaterThanOrEqual(D4_GAP);
+  });
+
+  it('draws numbers of at least 3.5 mm em', () => {
+    expect(measureD4().minEm).toBeGreaterThanOrEqual(D4_MIN_EM);
   });
 });
 

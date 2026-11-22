@@ -22,9 +22,9 @@ const PIP_LAYOUTS = {
 
 // d4 numbers sit along the corner direction, pulled in so the whole glyph box
 // stays on the flat inset triangle of the bevelled face.
-export const D4_LABEL_CENTER = 0.32;
-const D4_MAX_WIDTH = 0.125;
-const D4_MAX_HEIGHT = 0.146;
+export const D4_LABEL_CENTER = 0.21;
+const D4_MAX_WIDTH = 0.19;
+const D4_MAX_HEIGHT = 0.24;
 
 // One grid cell per face, packed row-major; v = 0 is the bottom of the atlas.
 export function faceRects(faceCount) {
