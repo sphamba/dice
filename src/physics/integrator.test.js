@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ANGULAR_DAMPING, LINEAR_DAMPING, integratePositions, integrateVelocities } from './integrator.js';
-import { createBody } from './body.js';
+import { DIE_RADIUS, createBody } from './body.js';
 import * as mat3 from '../math/mat3.js';
 import * as quat from '../math/quat.js';
 import * as vec3 from '../math/vec3.js';
@@ -16,7 +16,7 @@ const STEPS = 480;
 
 const makeBody = () =>
   createBody({
-    radius: 0.0139,
+    radius: DIE_RADIUS,
     volume: 4.096e-6,
     inertia: mat3.fromDiagonal(new Float64Array(9), 2e-5, 3e-5, 4e-5),
   });
