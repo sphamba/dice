@@ -1,11 +1,13 @@
 ---
 name: "fix: world sleeps while a die is held still, and release does not wake it, freezing the die at hang height"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/52-held-die-sleep-freeze"
 issuer: "#45"
 complexity: "simple"
 shortName: "held-die-sleep-freeze"
+changes: "{\"base\":\"main\",\"ins\":55,\"del\":0,\"files\":4}"
+commits: "[{\"hash\":\"594b85d\",\"subject\":\"fix(input): keep the world awake while a die is held and wake it on release\",\"when\":\"2026-11-22T13:39:29+01:00\"}]"
 ---
 
 # Summary
