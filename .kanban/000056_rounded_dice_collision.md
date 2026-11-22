@@ -60,9 +60,22 @@ Collision uses the sharp vertices today. Collide each die as its rounded shape s
 - Then re-measure the roll desktop mean rise (pin > 0.5) and the wake neighbour shift (pin 1e-4). If either still fails, write an Open question with the values and stop.
 
 ## Progress
-- Commit 59898a2: die-die scan rewrite. collision + world 47/47. Piles 25/25 within 3.5 s.
-- Restitution pass implemented (uncommitted): stored approach, one-shot pass per fresh contact, friction re-clamp. Die-on-die bounce 0.4916 (was 0.0989).
-- Red: wall test -0.585 against -0.5, because the one-shot pass does not converge for 4 fresh contacts on one body.
+- Commit 1c1700b: die-die face contacts now fire speculatively with the same closing*dt band as the edge path; the edge contact normal is the true closest-point gap direction (the SAT cross axis degenerates when perpendicular edges meet near a corner, which made the first fire impulse-free). Coverage check compares the recomputed normal. FIRST_REBOUND.die re-pinned to the analytic (e*approach)^2/(2g) with RESTITUTION_DIE imported into the e2e test.
+- Acceptance: npx vitest run src/physics 122/122; npm test 363/363; npm run build green (dist assets index-BIFA4ALT.js, index-I4ndiEYU.css).
+- Fire-step probe: die-die bounce fires at core gap 3.90e-3 m, one step before cores would overlap; upper vz after the fire step is 0.690 = e*approach (0.5*1.380); restitution pass residual 7e-4 after 10 iterations.
+- Rebound rise: floor 0.026183 (pin 0.02619), die 0.025468 vs analytic 0.025 (+1.9%, tolerance 5%).
+- Roll: 8/8 tosses rest at 0.0064 m, lidSteps 0 (the top-above-lid anomaly is gone), desktop mean rise 0.5228 > 0.5 pin.
+- Roll-to-sleep medians: desktop 0.8115 s (#51 measured 0.82 s), phone 0.8927 s (#51 measured 0.97 s); both inside the e2e pins (0.78, 2).
+- Wake: worst neighbour shift 7.7e-7 < 1e-4 pin; re-settle after wake 0.0104 s < 5 s limit. Piles 25/25 settle to a level; the earlier null settle is gone.
+
+## Assumptions
+- Restitution constants unchanged (RESTITUTION_DIE = RESTITUTION_BOX = 0.5); only the fire timing, the edge-normal orientation and the test pin changed.
+
+## Blockers
+- None.
+
+## Manual checks left to other roles
+- No acceptance criterion on this card names a browser check; visual dice-roll behaviour is unchanged by contact-fire timing.
 
 # Open questions
 
