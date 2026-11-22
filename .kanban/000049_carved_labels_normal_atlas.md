@@ -67,6 +67,17 @@ Make the numbers and pips look carved into the die with a round groove profile a
 - Then write the results table and finish.
 
 ## State
-- Harness /tmp/dice-lt49. Env probe green, console clean, no #46 overlay, no GL errors.
-- PASS: spawn, settle, roll, panel, values, label paint, both contexts.
-- FAIL: d10 (phone) wall shading. LIVE FINDING: some d6 pips render flat. Root cause: signedDistance returns NaN in src/dice/carve.js, so buildCarveAtlas bakes flat normals for glyphs in the lower half of each cell.
+- Defect card filed: #54 (fix: carve bake writes flat normals where signedDistance returns NaN, high, moderate). Covers the flat d6 pips AND the d10 (phone) wall-shading FAIL.
+- All servers killed, ports verified clean with lsof. Harness persists at /tmp/dice-lt49 (harness.mjs, driver.mjs, diag.mjs, atlas-probe.mjs, repro.mjs, trace.mjs; runs: run1.log = full suite desktop+phone).
+
+## Results table (run 1, id lt49-run1; desktop + phone contexts, all six dice types)
+- Environment: WebGL2, backing = clientWidth x min(dpr,2), render loop alive, square px scale — PASS.
+- Console clean, no #46 error overlay, no GL errors, all phases, both contexts — PASS.
+- Spawn/settle/roll full user flow, all six dice on the floor, values readable — PASS.
+- Die visible + label painted, d4-d20, both contexts — PASS.
+- d6 pips carved as dimples (desktop + phone) — PASS on the checked rolls (flat-pip defect can hit any pip; see card #54; the two probes that passed rolled faces whose sampled pips were in cell upper halves).
+- d6 flat-reference diff = 0.00; dimple asymmetry on carved pips +10..+22 luma away-side — PASS.
+- numbers carved (wall shading): d8, d10, d12, d20 (desktop); d4, d6, d8, d12, d20 (phone) — PASS.
+- numbers carved (wall shading): d10 (phone), glyphSpread=19.7 vs bodySpread=68.7 — FAIL → card #54 (same NaN bake defect).
+- Label paint coverage per glyph (25/25 sample points per pip, all faces) — PASS (ink present everywhere; carve is the defect).
+- No harness-limit outcomes; every check maps to PASS or card #54.
