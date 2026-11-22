@@ -1,7 +1,7 @@
 ---
 name: "fix: raise floor and wall friction to 0.4, keep lid and die-die at 0.1"
 priority: "medium"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "user"
 complexity: "simple"
