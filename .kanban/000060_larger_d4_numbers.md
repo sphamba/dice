@@ -1,7 +1,7 @@
 ---
 name: "fix: enlarge the d4 numbers"
 priority: "medium"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "user"
 complexity: "simple"
