@@ -61,21 +61,12 @@ Make the numbers and pips look carved into the die with a round groove profile a
 - Live check (browser, desktop and phone viewport): every die type shows carved, painted numbers or pips with round walls lit from the light direction, pips look like dimples, numbers stay readable, no console or GL errors, and the #46 error overlay does not appear.
 
 # Notes
-STATUS: live-testing in progress. Harness + checks built and mostly green; one product defect found, root cause localized to a NaN in the carve SDF bake. Work held at the NaN source-tracing step.
+## PM hint
+- Good find. Do not trace the NaN further. File the ONE defect card now with repro.mjs (341x512 mask, two 22 px disks, NaN at the lower disk centre), the in-page atlas evidence (lower-half glyphs bake flat in every cell), and the suspected entry point (INF = 1e20 arithmetic in edt1d). The developer of that card does the trace and the fix.
+- The d10 wall-shading FAIL is probably the same defect. Name it in the same card. Do not file a second card.
+- Then write the results table and finish.
 
-SETUP: harness at /tmp/dice-lt49 (harness.mjs, driver.mjs, driver runs via LT_PHASES env filter; helpers: serve :8949, Playwright import, readPixels capture, panel panel helpers). diag.mjs = pip-centre calibration (err <= 1 px). atlas-probe.mjs + repro.mjs + trace.mjs = defect investigation.
-
-ENV PROBE: green. WebGL2 on, fps ok, canvas backing = clientWidth x dpr, dpr=1 in headless. Console clean, no #46 overlay, no GL errors.
-
-CHECK RESULTS SO FAR (run1, desktop + phone contexts):
-- PASS: spawn, settle, roll flow, panel counts, values shown, no GL errors, console clean (all six types, both contexts).
-- PASS: label paint (ink present on every glyph of every face value 1-6).
-- FAIL: "numbers carved (wall shading): d10 (phone): glyphSpread=19.7 vs bodySpread=68.7" (threshold-style check; see defect).
-- LIVE FINDING: on d6 top faces, SOME pips render with no dimple: interior flat at luma 254 (carve normal (0,0,1) = flat) with only a 1-2 px dark edge ring. Other pips on the SAME face show the dimple gradient (+10..+22 luma on the away side). Same face, same texture.
-
-ROOT CAUSE EVIDENCE:
-1. In-page bake probe (atlas-probe.mjs): rebuilt label atlas + carve atlas in-page with the exact shipped functions. Deterministic pattern: in EVERY atlas cell, glyphs in the LOWER HALF of the cell bake FLAT (flatCarve 25/25 sample points at labelA=255), upper-half glyphs carve correctly. Affects all six faces and all glyph positions below the cell midline.
-2. Minimal Node repro (repro.mjs) with the shipped signedDistance/carveCell on a 341x512 mask with two 22 px disks (upper j=148, lower j=364): sdf at lower disk centre = NaN. NaN fails every `sdf[p] < 0` comparison, so those pixels are forced to flat (128,128,255) in the bake output. Upper disk also partially flat (NaN spreads through the FH distance transform).
-3. Conclusion: buildCarveAtlas bakes flat normals wherever signedDistance returns NaN. NaN enters through the Felzenszwalb-Huttenlocher EDT for sample rows/regions far from glyph ink (suspicion: INF(1e20) arithmetic in edt1d). This is a product defect in src/dice/carve.js, not a harness issue.
-
-NEXT STEPS: run trace.mjs (written, not yet run) to pinpoint the NaN entry (toInside vs toOutside, which rows, INF-INF vs v[k] underflow in edt1d); then file the defect card with file:line refs and a fix direction (clamp distance-transform inputs or guard non-finite f values in edt1d). Rerun invalidated checks after fix. Full check table + unique run ids at wrap-up.
+## State
+- Harness /tmp/dice-lt49. Env probe green, console clean, no #46 overlay, no GL errors.
+- PASS: spawn, settle, roll, panel, values, label paint, both contexts.
+- FAIL: d10 (phone) wall shading. LIVE FINDING: some d6 pips render flat. Root cause: signedDistance returns NaN in src/dice/carve.js, so buildCarveAtlas bakes flat normals for glyphs in the lower half of each cell.
