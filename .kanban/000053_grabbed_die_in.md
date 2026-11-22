@@ -30,16 +30,17 @@ When a grabbed die is held in the air with no contact (clearance > 0), the physi
 - `npm test`
 
 # Notes
-## Review
-- Outcome: approved. Test-only change (HEAD 2e2f752), no production code touched, as the Decision bullet requires.
-- Spec mapping: new test in `src/input/pointer.test.js` loops all 6 DICE_TYPES x 20 trials with seededRandom(53), holds 3 s at 60 fps in a 0.2 m wide box, asserts CoM xy < 1 mm from the initial grab point and |w| < 0.1 rad/s; grab points come from up-facing faces (world normal z > 0.3), so the grab convention assumption in the old Notes matches the code.
-- No-contact premise verified geometrically: with DIE_RADIUS ~ 11.1 mm and the hold pin at D - 2*radius (pointer.js line 193), floor clearance is >= ~24 mm and wall clearance ~70 mm. Probe: the same 120 seeded cases run in the standard 68.1 mm BOX produce 0 violations (worst offset 0.0000), so the seed cannot flake into the declared-correct wall-lean path.
-- Teeth verified by mutation A/B: setting swingDecay = 0 in pointer.js drive (freezes the tilted hold mid-air without contacts) makes the new test fail on the 1 mm assert; production restored, tree clean. A first mutant (zeroed horizontal drive) survived because the pin target xy equals the initial grab xy in a no-move hold; recorded so nobody reads that as test weakness.
-- Verification: `npx vitest run src/input src/physics` 10 files / 142 tests passed (16.4 s); `npm test` 28 files / 343 tests passed (17.2 s); `npm run build` ok, dist assets match the claimed hashes.
-- Developer-claimed live numbers (31/120 fails in a 63.5 mm box) were not reproduced; re-measured instead: 0/120 fails with this seed at 68.1 mm, which is consistent with the wide-box scope and does not gate the verdict.
+## Live test progress (checkpoint)
 
-## Manual checks left to other roles
-- Live: hold a die near a side wall and confirm the lean is accepted; hold in open floor space and confirm the CoM settles below the pointer.
+Task #53 live test started. Progress so far:
+
+- Task file read. Change under test is test-only (HEAD 2e2f752, `src/input/pointer.test.js`); the manual checks left to live testing are: (1) hold a die near a side wall and confirm the lean is accepted, (2) hold in open floor space and confirm the CoM settles below the pointer.
+- Inspection pass done: hold mechanics read from `src/input/pointer.js` (grab point pulled to pointer xy at hold z = D - 2*radius, line 193; HOLD_DAMPING 120 1/s, HOLD_SWING_DAMPING 12 1/s, FLING_WINDOW 80 ms), box scale from `src/physics/box.js` (mpp = 0.0254/440, D = min(W,H)), default set {d6: 2} from `src/ui/panel.js`.
+- Plan: viewport 1100x1100 dpr 1 gives a 63.5 mm cube (the box from the defect report). Derived: hold z = 41.33 mm, free-hang floor clearance >= ~19 mm, center-hold wall clearance >= ~14 mm, wall press p mm from wall gives expected lean offset ~= vertex extent (6.4-11.1 mm) - p.
+- Harness built at /tmp/dice-lt53-live (copied from the #52 precedent, port 8801, CWD retargeted to this worktree, world spy + event log + trace + panel helpers reused, one new helper chooseGrabNear for center and wall-side press points). Syntax checked.
+- No checks have run yet; no defects found so far.
+
+Next: env probe, then free-hang hold at box center (CoM xy < 2 mm of pointer xy, |w| < 0.1 rad/s, floor clearance > 5 mm), then wall-lean hold near the left wall (wall clearance ~0, CoM offset > 0.5 mm, held stable), then release from both holds drops and settles.
 
 # Open questions
 
