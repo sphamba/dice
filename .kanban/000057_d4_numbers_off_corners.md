@@ -42,18 +42,10 @@ The d4 numbers sit too close to the face corners. Move them toward the face cent
 # Notes
 # Notes
 # Notes
-Live test in progress on merged commit (worktree fix/57-d4-numbers-off-corners).
+## PM hint
+- The acceptance is visual. The real-pixel clearance gate (0.556 mm) and the crop review already cover desktop. Drop the glyph component classifier. Run the phone pose only, read the crop, then write the results table and finish within 10 minutes.
 
-Scope fixed from Summary+Specs: live acceptance = "a d4 at desktop and phone size shows 3 readable, carved numbers per visible face, clear of the rounded corners". No unit suites run. Assumptions: ortho top-down camera; settled d4 rests face-down so exactly 3 faces are visible, 9 glyphs per pose; panel flow (toggle, clear default set, Add d4, Roll) is the real user path.
-
-Harness: /tmp/dice-lt57 (harness.mjs copied from proven /tmp/dice-lt54, retargeted; port 8957 strictPort; driver.mjs). Gates grounded in printed source constants (DIE_RADIUS 11.085 mm, BEVEL_RADIUS 1.6 mm, D4_LABEL_CENTER 0.32, fit 0.125R x 0.146R, margin rule 0.3 mm, faceInsetData inset). Env smoke green: WebGL2, backing 2200x2200 = viewport*dpr, capture path valid, fps 19.1 (SwiftShader), no console errors.
-
-Results so far (full run, desktop pose A settled):
-- PASS: clearance gate, real pixels: worst ink margin 0.556 mm inside inset (rule 0.3 mm) - measured in face-2D via plane hit, exact space (flat plane == sharp plane since s*rho+r = rho).
-- PASS: ink vs body contrast on all 3 faces.
-- Visual evidence crop-desktopA.png read: 9 numbers visible, 3 per face, all sitting toward face centres, clearly clear of rounded corners/edges. Looks correct.
-- FAIL (harness, not product): glyph component checks - my absolute ink threshold luma<70 shatters the 1-2 px AA glyph strokes into specks (calibrated distribution: glyph p50 luma 86 on shadow faces vs body 91; glyph core <40). Fix in flight: per-face relative core classifier (luma < 0.55*local body), no erode, core-count gate per expected centre.
-- FAIL (harness): desktop pose B captured with asleep=false - settle timeout too short after Roll; fix: longer waitForAsleep + retry.
-- Probe2 (in-page): advance('4')=55.6 px/100 px font, cap ascent 69 (close to CAP_HEIGHT=71 model); atlas glyph union 180x162 px per 512 px cell; box.W=0.127 m confirmed. Rendered die silhouette is ~0.75x the sharp-vertex projection - expected, the #55 rounded shape (s=0.567 + 1.6 mm ball) cuts the corners; glyph centre projections still matched measured centroids within 4-11 px, so the 0.32-centre gate stays valid with tol 21 px.
-
-Still to do: classifier + settle fixes, rerun full (desktop A/B + phone), read evidence crops, then final report. No product defects filed yet.
+## Progress
+- Harness /tmp/dice-lt57 (port 8957). Env green, no console errors.
+- Desktop pose A: worst ink margin 0.556 mm inside the inset (rule 0.3 mm). Contrast PASS on 3 faces. The crop shows 9 numbers, 3 per face, clear of rounded corners and edges.
+- Component and pose-B fails are harness-side.
