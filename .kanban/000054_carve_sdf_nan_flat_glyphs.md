@@ -36,3 +36,9 @@ signedDistance in src/dice/carve.js returns NaN for glyphs far from ink, and bui
 - `npm run build`
 
 # Notes
+- Deliverable: `distanceTransform` in `src/dice/carve.js` now allocates the row scratch as `max(w, h)`. Root cause was the Felzenszwalk-Huttenlocher column pass writing `h` samples into a `w`-length scratch, so every row index >= w read `undefined` and became NaN. NaN fails `sdf[p] < 0`, so `buildCarveAtlas` baked those pixels flat (128,128,255). Shipped code produced NaN on 58311 of 174592 pixels of the pinned 341x512 repro, all rows >= 341; the fix leaves 0.
+- Verification (HEAD 3b30f29): `npx vitest run src/dice src/render` -> 9 files, 118 tests pass. `npm test` -> 28 files, 346 tests pass. `npm run build` -> built in 60ms, dist/index.html references ./assets/index-CPThTu4l.js and ./assets/index-DFCdjPSa.css.
+- Tests added in `src/dice/carve.test.js`: exactness against a brute-force boundary-pixel signed distance on the pinned 341x512 two-disk repro (finite, within 0.5 px at every pixel), on 160x320, 320x160 and 200x280 masks with a glyph per quadrant, and one helper self-check on 64x64. Plus a `buildCarveAtlas` bake of the real d6 label atlas (real `buildLabelAtlas` pip geometry, 341/342x512 cells): no NaN in any cell sdf and no flat interior glyph pixel. All three new atlas/sdf tests were red before the fix.
+- Assumptions: pip tops may bake flat within 2 px of a pip centre (the profile is stationary there and quantises to a flat byte; measured 1.51-1.59 px on the d6 atlas). The atlas test rasterises the recorded label ellipses because the Node test environment has no 2D canvas for text glyphs; d6 labels are pure ellipses, so the pip geometry is the production one.
+- Blockers: none.
+- Manual checks left to other roles: the task #49 d10 (phone) wall-shading check and a visual check that lower glyphs now carve.
