@@ -33,10 +33,17 @@ The GTAO contact darkening is too strong. Add an AO strength constant of 0.5 so 
 - Live check (browser): the contact darkening next to a flat-resting d6 is about half of its value on main, it is still symmetric, and there are no console or GL errors.
 
 # Notes
-- Review outcome: approved. Diff is 26 added lines in `src/render/shaders.js` and `src/render/ao.test.js`; nothing else touched.
-- `AO_STRENGTH = 0.5` exported from shaders.js and interpolated as a GLSL `const float` into `LIGHTING_FS`; the mix sits in `litColor` immediately after the upsample `sampleAo()` and before the lighting formula. Grep shows exactly one mix site; GTAO, blur, radius, falloff, `FINAL_POWER`, lighting constants and fallback untouched.
-- Mobile rules intact: the added line has no loops, no `%`, no divisions.
-- Tests match the spec: JS mirror asserts ao 1 stays 1 and ao 0.4 becomes 0.7 (via `toBeCloseTo(0.7, 12)`); source check asserts both forward fragment sources declare and apply `AO_STRENGTH`.
-- Settled interpretation: GLSL interpolated const instead of a uniform is the spec's "passed as a uniform if needed" branch; developer's assumption is sound and recorded.
-- Evidence at HEAD fb6ea5b: `npx vitest run src/render` 39/39 pass, `npm test` 317/317 pass, `npm run build` green.
-- Deferred to live-tester: browser check that flat-resting darkening at 2 mm is about half of main, symmetry, and no console/GL errors.
+## Live-test progress (held at watch checkpoint)
+
+**Scope fixed from TASK.md:** live check only — contact darkening at 2 mm next to a flat-resting d6 is about half of its pre-fix value, still symmetric, no console/GL errors. No unit suites run. No code edited.
+
+**Inspection done (one pass):**
+- Fix already merged: main and this worktree are both at fb6ea5b, so the pre-fix baseline is the parent commit b798ac2. Diff verified: `AO_STRENGTH = 0.5` (src/render/shaders.js:4), GLSL const in LIGHTING_FS, `ao = mix(1.0, ao, AO_STRENGTH)` in `litColor` right after `sampleAo()`; only shaders.js + ao.test.js touched. Reviewer Notes confirmed accurate.
+- App flow: vite + canvas `#view`, panel with `aria-label` buttons (`Remove d6`, `Add d6`, `Roll dice`), `DEFAULT_SET = {d6: 2}` red dice, orthographic top-down camera, tray 51.95 mm at 900×900 dpr1 (17.323 px/mm; 2 mm ≈ 34.6 px), `AO_RADIUS` ≈ 16.63 mm, `MAX_FRAME_DT = 0.1`, `FIXED_DT = 1/480`, `MAX_STEPS = 16`.
+- Precedent harnesses reused: /tmp/dice-lt46 (readback + baseline-worktree pattern), /tmp/dice-lt47.
+
+**Test design (state so far):** one shared harness /tmp/dice-lt48/harness.mjs + driver.mjs written (not yet run). Dual vite servers :8841 (HEAD worktree) and :8842 (baseline temp worktree at b798ac2). Determinism by test-only rewrite of the SERVED main.js: createWorld spy + seeded PRNG (mulberry32, seed 20261122) + fixed physics step `world.update(0.1)`, so head and base simulate identical scenes. Measurement per side: panel-driven removal to exactly 1 d6, settle, flat check via the app's own `quat.rotateVec3` (body axis vs world z ≥ 0.995), single-rAF full-canvas `gl.readPixels`, 24-direction ray march to the red-die silhouette, floor patch mean luma at 2 mm (near) and 17 mm (reference, beyond AO radius), unoccluded floor luma = P95. Checks: paired per-direction head/base darkening ratio in 0.35–0.65, opposite-direction symmetry ≤ 0.5 of mean darkening, scale-chain calibration (max silhouette ray vs 11.31 mm half-diagonal, ±5%), die centroid match ≤ 2 px between sides, console + `gl.getError` clean on both sides.
+
+**Findings so far:** none yet — no browser run executed before the checkpoint.
+
+**Next on release:** `node --check` both files, smoke run (MODE=smoke), then full paired run, results table, defects (if any) via kanban_create, final Notes rewrite.

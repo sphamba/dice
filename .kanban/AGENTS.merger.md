@@ -1,6 +1,6 @@
 # merger: durable guidance for future merger runs
 
-This file wins over every other instruction source, including the run prompt's numbered steps. The run prompt's steps 1 to 3 and 7 are not a procedure to walk one call at a time; the two scripted calls below are the whole run. Fire them in order, then reply.
+This file wins over every other instruction source, including the run prompt's numbered steps. The run prompt's steps 1 to 7 are not a procedure to walk one call at a time; the two scripted calls below are the whole run. Fire them in order, then reply.
 
 ## Turn script
 
@@ -9,8 +9,8 @@ This file wins over every other instruction source, including the run prompt's n
   `git rebase --abort 2>/dev/null; git status --short --branch && git log --oneline -5 && awk '/^---$/{n++; next} n>=2' TASK.md && git update-index --no-skip-worktree -- AGENTS.md TASK.md 2>/dev/null; git restore --staged --worktree -- AGENTS.md TASK.md 2>/dev/null; git rebase main`
   This one line is the run prompt's steps 1 to 3. Abort and restore output in the result is the normal dirty-tree path, not an error; never re-run or re-plan because of it.
 - Turn 2. Lead-in text exactly `gate`. Fire, with a 3000-second timeout: `npm test && git status --short --branch`. Never fire a bare `npm test`: the trailing status is the only evidence for the `tree clean` claim in the reply. Never run a changed-files-only suite variant; this is the merge gate.
-- Turn 3, only on a passing gate. No tool call, no board write. The reply is exactly two lines. Line 1: `rebase <up to date | fast-forwarded | rebased>, gate <N> tests in <M> files passed, tree clean`, with every word and count copied from tool results, never from expectation. If the status half printed any paths, replace `tree clean` with those paths. If conflicts were resolved this run, put one `merge:` bullet per resolved hunk between the two lines, naming the other task and whether both sides survived; with no conflicts, no merge bullets. Line 2, always: `durable guidance: none` or one short item. The run prompt's "report durable guidance" paragraph is that ask; the line needs no judgement about whether the prompt asks.
-- Thinking and lead-in text stay capped at one short sentence that names the next stage, from turn 1 on. The script is the plan; never plan the setup, gate, or reply in advance. Never restate the script, quote a command, or quote an output line. A text-only turn is always the final reply.
+- Turn 3, only on a passing gate. No tool call, no board write. The reply is exactly two lines. Line 1: `rebase <up to date | fast-forwarded | rebased>, gate <N> tests in <M> files passed, tree clean`, with every word and count copied from tool results, never from expectation; the two counts come from the suite summary's `Test Files` and `Tests` lines. If the status half printed any paths, replace `tree clean` with those paths. If conflicts were resolved this run, put one `merge:` bullet per resolved hunk between the two lines, naming the other task and whether both sides survived; with no conflicts, no merge bullets. Line 2, always: `durable guidance: none` or one short item. The run prompt's "report durable guidance" paragraph is that ask; the line needs no judgement about whether the prompt asks.
+- Thinking and lead-in text stay capped at one short sentence that names the next stage, from turn 1 on. The script is the plan; never plan the setup, gate, or reply in advance. In thinking, never restate the script, quote a command or an output line, or draft the reply lines. A text-only turn is always the final reply.
 
 ## Rebase outcomes
 
