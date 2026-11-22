@@ -45,12 +45,29 @@ Drive only the grabbed material point toward the pointer, so gravity swings the 
 - `npm run build`
 
 # Notes
-## Review verdict: approved
+## Live test in progress: setup phase complete
 
-- Point-constraint drive verified line by line: `pointImpulse` builds `K = (1/m)I - [r]x invInertiaWorld [r]x` with the repo's column-major mat3/vec3 conventions (crossMatrix, multiply order, transformMat3 = m·a all checked); impulse applied at the world grab point through the existing `applyImpulse`. Gravity now turns the body about the point; `invInertiaWorld` is refreshed every substep in `integratePositions`.
-- Spec behaviors asserted numerically in the rewritten tests and green: per-die-type vertex hang (lever horizontal < 1 mm, grab point within 1 mm of pointer xy and `D - 2R` z, |w| < 0.1 rad/s after 1.5 s), swing after a 20 mm move with at least one rest crossing, spun-die settle, 30/60/144 fps agreement. Frame-rate independence rests on the fixed `FIXED_DT = 1/480` substepping in `world.update`.
-- Contracts kept: xy clamp `MAX_DRAG_SPEED` on the point target, z unclamped as before; release/fling (3 m/s, vz = 0, residual spin, random spin), pointercancel, multi-pointer insertion order, exact face picking and the `rollDice` held-set exclusion in `main.js` all untouched and green. Drive still runs in `beforeStep` while asleep, so held dice wake the world.
-- `HOLD_ANGULAR_DAMPING` and the centre-velocity overwrite fully removed; no leftover references.
-- Recorded assumptions are consistent with the Specs: hold height read as the grabbed point's height matches the Change text; swing damping tuned to 12 1/s ("tune with the test" allows this); dual holds damp swing once per entry, last entry dominates per #18.
-- Evidence: `npx vitest run src/input src/physics` 128 passed (exit 0), `npm test` 300 passed (exit 0), `npm run build` green with the same asset hashes as the developer Notes.
-- Deferred to live testing: real-browser feel of hang, swing and fling at 60 Hz, and a held die touching floor or other dice in a shallow box.
+**Scope (from Summary/Specs):** hang a held die from the grabbed point under gravity (pendulum), swing calms in ~1 s, hold height D-2R, contacts active while held, fling/release/pointercancel/multi-pointer contracts kept. Unit-test suites and frame-rate matrix are excluded (not live-test scope).
+
+**Constants table (printed from source, file:line, value, unit, consumer):**
+- DIE_RADIUS = 0.016·√3/2 = 13.856 mm (src/physics/body.js:7) — every die's circumradius; hold height, lever bound.
+- mpp = dpr·0.0254/440 = 57.73 µm/px → 17.32 px/mm at dpr 1 (src/physics/box.js:1); box D = min(W,H) (box.js:14).
+- Hold z = D − 2·DIE_RADIUS (src/input/pointer.js drive, target[2]; z unclamped, xy clamped MAX_DRAG_SPEED = 2 m/s).
+- HOLD_DAMPING = 120 1/s (pointer.js:20), HOLD_SWING_DAMPING = 12 1/s (pointer.js:24), MAX_FLING_SPEED = 3 m/s (:13), MAX_FLING_SPIN = 60 rad/s (:15), FLING_WINDOW_MS = 80 ms (:17).
+- FIXED_DT = 1/480 (world.js:8), MAX_STEPS = 16 (:11), SLEEP_SPEED/SLEEP_TIME = 0.01/0.5 s (:14-15).
+- world.step calls beforeStep (the drive) before the asleep check (world.js:139-144) → held die wakes a sleeping world; sim-clock wrapper advances even while asleep.
+- DEFAULT_SET = {d6: 2} (ui/panel.js:5); ROLL_SPEED_MIN = 0.8 m/s (roll.js:4) for the roll-exclusion check; gravity [0,0,−9.81], no tilt in scope.
+
+**Observation plan (committed):**
+- Two viewports: 1100×1100 (box D = 63.5 mm, hold z = 35.8 mm > 27.7 mm full hang reach) for the strict pendulum checks with no floor interference; 1280×800 default desktop (box D = 46.2 mm, hold z = 18.5 mm < 27.7 mm) for the deferred shallow-box case: held die resting on the floor / touching another die.
+- Sim clock + per-substep trace via a wrapped world.beforeStep (decimated rows: t, p, v, w of the held body), armed before each trigger.
+- Grab validation: Node-side replica of pointer.js pickFace (topmost face through the click xy, boundary-inclusive insideFace) computes the expected body-local grab offset from the pre-grab sample; after settle, that material point's world position must be within 1 mm of (pointer xy, D−2R). CoM-below-grab via |p.xy − target| < 1 mm. Calm: last trace t with |w| ≥ 0.1 rad/s ≤ trigger + 1.5 s.
+- Injections: CDP mouse, CDP touch (two fingers for #18 duplicate holds), synthetic PointerEvent('pointercancel') with pointerId observed from a capture-phase event logger; pointer-sample times from the logger give an exact flingVelocity replica for release checks.
+- Preconditions from precedent harnesses (/tmp/dice-lt43): vite on an uncommon port, spy on createWorld via served-main.js route rewrite, panel rows revealed via .panel-toggle, software-GL launch args, waits keyed on sim time.
+
+**Assumptions so far (will be restated in the final report):**
+- The default 1280×800 box is "shallow": a near-vertex grab at hold height 18.5 mm cannot reach the full vertical hang (needs 27.7 mm), so a floor-propped lean there is user-accepted; strict pendulum numbers are verified in the tall viewport.
+- Grabbing at a validated near-top-vertex surface point (max-lever valid pick) stands in for the unit tests' "top-face corner" grab.
+- Pointer injection via CDP/synthetic events represents real user input.
+
+**Progress:** source inspection and harness design done; no defects found yet; no kanban cards filed yet. Next: write shared harness + front-loaded probe (env unknowns: rAF fps under software GL, WebGL2, touch/synthetic event injection, helper shapes), smoke run, then the full check suite (hang per die type, swing after 20 mm move, wake-from-sleep, hold height, floor/other-die contact while held, fling + 3 m/s clamp, pointercancel, multi-pointer dominance and single-entry release, roll exclusion).
