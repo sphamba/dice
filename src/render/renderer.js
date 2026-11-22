@@ -319,6 +319,8 @@ export function createRenderer(gl, { onError = (error) => console.error(error) }
     try {
       resources = buildResources();
     } catch (error) {
+      // Objects from before the loss are dead: leave nothing for draw() to use.
+      resources = null;
       onError(error);
       return;
     }

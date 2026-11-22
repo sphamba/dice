@@ -135,14 +135,19 @@ describe('AO pipeline wiring (fake GL)', () => {
   });
 
   it('reports a rebuild failure from the context restore path', () => {
-    const { gl, listeners, state } = makeFakeGl();
+    const { gl, listeners, state, boundFramebuffers } = makeFakeGl();
     const errors = [];
     const renderer = createRenderer(gl, { onError: (error) => errors.push(error) });
+    renderer.resize(1200, 2600, GL_BOX);
     state.fail = true;
     state.infoLog = 'ERROR: 0:9: unreachable';
     for (const fn of listeners.webglcontextrestored) fn({ preventDefault() {} });
     expect(errors).toHaveLength(1);
     expect(errors[0].message).toContain('unreachable');
+    // draw() stays inert: the old handles died with the lost context.
+    boundFramebuffers.length = 0;
+    renderer.draw([]);
+    expect(boundFramebuffers).toHaveLength(0);
     renderer.dispose();
   });
 
