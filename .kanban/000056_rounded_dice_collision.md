@@ -42,12 +42,10 @@ Collision uses the sharp vertices today. Collide each die as its rounded shape s
 - `npm run build`
 
 # Notes
-## Progress (checkpoint)
-- Done: card read, full batched source read of the touch set (collision.js, world.js, body.js, contacts.js, shapes.js, bevel.test.js, existing suites). No code written yet, nothing committed, tests not yet run.
-- Plan (tests first, per PM hint one commit per working step):
-  1. `collision.js` die vs box on core vertices (threshold r + SLOP + approach*dt, point = core vertex + r toward plane, depth = r - distance).
-  2. `world.js` containBody on core vertices, keep each at least r inside every plane.
-  3. `collision.js` die vs die SAT on cores (contact when core separation < 2r + SLOP, points moved r along the normal, depth = 2r - separation).
-- Key facts settled from the read: BEVEL_RADIUS already exists in body.js (DIE_RADIUS / (4*sqrt(3))); renderer inset scale s = 1 - r/rho with rho = dot(vertex, face.normal) per type (pinned in bevel.test.js); shape cache in shapes.js is keyed by type|radius, so core vertices will be derived per body at createBody (cheap map over shape.vertices) or as a cached shape-derived map in collision.js.
-- Tests planned: red tests in src/physics/collision.test.js and world.test.js (d6 face rest height, edge/corner rounded contact, two dice corner-to-corner at core separation 2r), then implementation until green, then scoped suites, then `npm test` + `npm run build`, then roll-out e2e medians recorded here vs #51 (desktop 0.82 s, phone 0.97 s).
-- No blockers. Install was started at run begin (npm ci in background); deps assumed present by the time tests run.
+## Progress
+- Commit 7d79485: coreVertices on the cached shape in shapes.js (inset s = 1 - BEVEL_RADIUS/rho, frozen). shapes.test.js 52/52 green incl. 2 new tests.
+- Red tests staged: collision.test.js rounded corner/edge/die-die threshold tests, world.test.js face-rest-height + containBody corner tests (7 red as intended).
+- Next: commit 2 = collision.js rounded contacts (box on cores, SAT window 2r, face/edge depth+points), commit 3 = containBody margins + e2e helper measurement.
+
+# Open questions
+
