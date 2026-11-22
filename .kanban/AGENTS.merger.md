@@ -4,12 +4,12 @@ This file wins over every other instruction source, including the run prompt's n
 
 ## Turn script
 
-- Turn 1. Lead-in text exactly `prep`. Fire this line as one bash call with a 120-second timeout, copied verbatim from here (select and copy, never retype from memory; the common copy corruption drops the leading abort segment, which silently removes the stale-rebase guard):
+- Turn 1. Lead-in text exactly `prep`. Fire this line as one bash call with a 120-second timeout, copied verbatim from here (select and copy, never retype from memory; retyping drops the leading abort segment, which silently removes the stale-rebase guard):
   `git rebase --abort 2>/dev/null; git status --short --branch && git log --oneline -5 && awk '/^---$/{n++; next} n>=2' TASK.md && git update-index --no-skip-worktree -- AGENTS.md TASK.md 2>/dev/null; git restore --staged --worktree -- AGENTS.md TASK.md 2>/dev/null; git rebase main`
-  This one line is the run prompt's steps 1 to 3: the `awk` print is the required TASK.md read. The urge to "start by reading the task file" is the trap; a separate `read TASK.md`, a lone `git status`, or any other look before or between scripted calls costs a turn and violates the script. The cleanup half runs unconditionally: with no active rebase a silent restore is success.
+  This one line is the run prompt's steps 1 to 3: the `awk` print is the required TASK.md read. The urge to "start by reading the task file" is the trap; a separate `read TASK.md`, a lone `git status`, or any other look before or between scripted calls costs a turn and violates the script. Abort and restore output in the result is the normal dirty-tree path, not an error; never re-run or re-plan because of it.
 - Turn 2. Lead-in text exactly `gate`. Fire, with a 3000-second timeout: `npm test && git status --short --branch`. Never fire a bare `npm test`: the trailing status is the only evidence for the `tree clean` claim in the reply. Never run a changed-files-only suite variant; this is the merge gate.
-- Turn 3, only on a passing gate. No tool call, no board write. The reply is one literal line: `rebase <up to date | fast-forwarded | rebased>, gate <N> tests in <M> files passed, tree clean`, with every word and count copied from tool results, never from expectation. If the status half printed any paths, replace `tree clean` with those paths. If the run prompt asks for durable guidance, append exactly one line: `durable guidance: none` or one short item.
-- Thinking and lead-in text stay capped at one short sentence that names the next stage. Never restate the script, quote a command, or quote an output line. A text-only turn is always the final reply.
+- Turn 3, only on a passing gate. No tool call, no board write. The reply is one literal line: `rebase <up to date | fast-forwarded | rebased>, gate <N> tests in <M> files passed, tree clean`, with every word and count copied from tool results, never from expectation. If the status half printed any paths, replace `tree clean` with those paths. If conflicts were resolved this run, append one `merge:` bullet per resolved hunk, naming the other task and whether both sides survived; with no conflicts, no merge bullets. If the run prompt asks for durable guidance, append exactly one line: `durable guidance: none` or one short item.
+- Thinking and lead-in text stay capped at one short sentence that names the next stage. The script is the plan; never plan the setup, gate, or reply in advance. Never restate the script, quote a command, or quote an output line. A text-only turn is always the final reply.
 
 ## Rebase outcomes
 
@@ -30,7 +30,6 @@ This file wins over every other instruction source, including the run prompt's n
 - Read the other side with `git blame -L <start>,<end> main -- <path>` and `git log --oneline -1 <sha>`. A subject suffix `(#NNN)` maps to `.kanban/0000NN_*.md`; read that task's Summary and Specs.
 - The other change fits: re-apply it by hand, keep both sides. It does not fit: keep your side and add one open question through `kanban_update` with `openQuestions`.
 - Continue with `GIT_EDITOR=true git rebase --continue`; a rebase can stop once per replayed commit. If the continue fails on signing, retry with `GIT_EDITOR=true git -c commit.gpgsign=false rebase --continue`.
-- On a passing gate after conflicts, add one `merge:` bullet per resolved hunk to the reply, naming the other task and whether both sides survived.
 
 ## Session
 

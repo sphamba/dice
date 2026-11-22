@@ -1,7 +1,7 @@
 ---
 name: "fix: raise floor and wall friction to 0.4, keep lid and die-die at 0.1"
 priority: "medium"
-state: "live-testing"
+state: "done"
 worktree: "fix/43-floor-wall-friction-04"
 issuer: "user"
 complexity: "simple"
@@ -43,23 +43,34 @@ Give die-floor and die-wall contacts a Coulomb friction of 0.4 and keep the glas
 # Notes
 # Notes
 # Notes
-## Live test #43 (in progress, held at watch checkpoint #3)
+# Notes
+## Live test #43: PASS - no product defects, no cards filed
 
-Scope unchanged: user-level test of the friction change only (floor 0.4, wall 0.4, lid 0.1) through the real browser app. Worktree merged commit 417e7cc, vite :8791. Harness /tmp/dice-lt43, drivers run 1-3 with per-run result files (results-probe, results-phone, results-desktop).
+Tested the merged commit 417e7cc like a user: real browser app at 1280x800 dpr1 (box 0.08 x 0.05 x 0.05 m, 16 mm dice) plus an iPhone 13 descriptor pass, driving only real interfaces - panel buttons (Show controls / Add d6 / Remove d6 / Roll), devicemotion tilt (DeviceMotionEvent through the app's own listener, verified to set world.gravity exactly on both the desktop and iOS sign paths), and pointer drag. No unit suites run. Artifacts: /tmp/dice-lt43 (results-probe.json, results-phone.json, results-desktop.json, results-debug-roll.json, driver*.log, debug-roll trace). Server killed, port 8791 verified free.
 
-Green so far (all runs, consistently):
-- App mounts, box dims correct, default 2 d6, gravity exact through the real devicemotion path (desktop + iPhone 13 iOS sign path).
-- S1 floor hold at 20 deg: displacement 0.00 mm on both dice, dice fall asleep on the incline - floor friction 0.4 grips below the 21.8 deg critical angle.
-- S2 floor slide at 25 deg: every die slides and ends at the -y wall/corner, contained, NaN-free (three runs).
-- S3 wall friction (run 2): die added via panel at 80 deg tilt rested on the -y wall at z=16.89 mm, held mid-wall - the 0.4-vs-0.1 discriminator passed once.
-- S4 lid: die settles on the glass lid with gravity flipped (z=42 mm).
-- S5 roll flow with rAF-granular flight tracker armed before the click: peak speed 1.25-1.46 m/s, dice hop (peak center z 21-38 mm vs 8 mm rest), settle, contained, NaN-free.
-- S6 pointer drag: pick + drive + release works; die followed the pointer 8 mm (retry on the second die after the first was squeezed sideways by the other die).
-- Console clean across all runs; earlier probe FAIL was confirmed a harness sampling-window bug (debug-roll trace: click fired, velocities applied, toss lives only ~0.3 s sim under 0.4 friction).
+## Results table (final desktop run 32/32, phone 9/9, all runs console clean)
 
-Three FAILs in run 3, all traced to random spawn position, not product behavior:
-1. S2 auxiliary "max disp > 10 mm": both dice spawned near the -y wall this run, so max travel was 6.15 mm; both still reached the wall. Check is redundant with the per-die "slides or reached wall" check - dropping it.
-2. S3 wall hold: the die spawned far from the -y wall, free-fell diagonally, and the wall-bounce phase let it slide down to the floor corner (z=8.93 mm). Physics consistent with 0.4 (bounce phase adds tangential speed); run 2's near-wall spawn held at z=16.89. Fix: retry loop (up to 8 remove/re-add attempts via panel), PASS if any attempt holds mid-wall (z >= 16 mm); with 0.1 friction every attempt would corner.
-3. S4 lid slide: the die drifted on the lid during the gravity-up settle (spawn velocity up to 0.2 m/s, mu=0.1 lets it drift ~20 mm) and came to rest jammed in the lid-wall corner, leaving no room to slide (disp 0.57 mm). Fix: settle retry loop (up to 6 attempts) accepting only a die resting on the open lid (y > -8 mm), then tilt 10 deg and require net -y slide >= 1 mm.
+| Check | Result | Evidence |
+| --- | --- | --- |
+| App mounts, WebGL2, box dims match boxFromViewport, default 2 d6 | PASS | no unsupported banner; box 0.08/0.05/0.05 m |
+| devicemotion path sets gravity exactly | PASS | desktop [0,-4,-9] and iPhone [0,-3.3552,-9.2184] |
+| S1 floor hold at 20 deg (below 21.8 critical) | PASS | displacement 0.00 mm both dice, dice asleep on the incline |
+| S2 floor slide at 25 deg (above critical) | PASS | disp 27.1/27.1 mm, both dice end at -y wall/corner (y -0.0142/-0.0140), contained |
+| S3 wall friction holds die mid-wall at 80 deg tilt | PASS | attempt 1 cornered (z 11.2 mm, spawn far), attempt 2 held at z 31.2 mm on the -y wall (y -17.0 = face rest); with 0.1 every attempt would corner (needs 84.3 deg) |
+| S4 lid friction 0.1 lets die slide at 10 deg, gravity flipped | PASS | open-lid start, disp 6.2 mm to the -y wall, z stayed 42 mm on the lid |
+| S5 Roll button flow | PASS | flight tracker: peak 1.398 m/s, hop to 18.6 mm center z (rest 8 mm), settle, contained |
+| S6 pointer drag flow | PASS | die followed pointer 5.34 mm, release without fling, settles |
+| Phone (iPhone 13): hold 20 / slide 25 / containment | PASS | hold disp 0.00 mm; slide disp 10.9/49.6 mm to the wall |
+| NaN / containment / console across all runs | PASS | 0 non-finite, worst protrusion 0.000 mm, no pageerror/error |
 
-No product defects found so far. Next on release: apply the three harness fixes, rerun the desktop suite, then write the final report (findings, assumptions, results table) into these Notes and file any defect cards.
+## Assumptions
+- Tilt through dispatched devicemotion events is the real user tilt path; verified the app receives exactly the intended world gravity (both UA sign paths).
+- Discriminator angles derived from source constants: tan20=0.364 < 0.4 < tan25=0.466 (floor); wall-as-floor hold needs mu >= cot(80 deg)=0.18 (0.4 holds, 0.1 needs 84.3 deg); lid slide needs mu < tan(10 deg)=0.176 (0.1 slides, 0.4 would hold).
+- Die-die 0.1 has no isolated live discriminator; covered indirectly by pile settle/containment in the roll and drag flows. The coefficient itself is unit-level per the task's Tests section and was not re-verified live.
+- Wall and lid scenarios retry via panel remove/re-add because spawn position and the 0.2 m/s spawn velocity are random; with 0.1 wall friction every retry would land in the floor corner, and a corner-drifted lid die has no room to slide, so the retry loops are the correct product-level discriminators.
+- Settle is judged by the app's own sleep signal (still 0.5 s at speed < 0.01) plus displacement thresholds from box geometry.
+
+## Technical difficulties hit while testing (all harness-side, fixed in-session)
+- Probe initially failed "roll tosses dice": node-side sampling missed the transient - with floor friction 0.4 the toss lives only ~0.25-0.3 s sim (hop ~17-21 mm, then friction kills the skid). debug-roll trace proved the click fired and velocities were applied; fixed with an rAF-granular flight tracker armed before the click. The fast settle is the intended grip behavior, not a defect.
+- Driver run 1 died at the first panel click: rows start collapsed ("Show controls"); fixed by toggling first.
+- Random spawn made three run-3 checks flaky (S2 max-travel auxiliary, S3 single-spawn wall hold, S4 corner-drift on the lid), the flipped-tilt helper had a wrong y sign, and the drag travel was 5x too small (both dice tracked the 0.96 mm pointer move exactly). Fixed with the corrected sign, retry loops with per-attempt logs, or-reached-wall criteria, and 8 mm drag travel. Run 3's drag attempt 1 also showed a die squeezed sideways when dragged into the other die (drive-vs-solver interaction, out of the friction change's scope); the retry passed.
