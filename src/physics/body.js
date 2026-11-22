@@ -6,6 +6,11 @@ export const DIE_DENSITY = 1200;
 
 export const DIE_RADIUS = 0.0128 * Math.sqrt(3) / 2;
 
+// Fillet radius of the shaded rounded edges, in metres. One constant for all
+// dice; the d4 corner numbers stay readable at this size (only their outer
+// tips reach into the band, which re-shades but never hides ink).
+export const BEVEL_RADIUS = DIE_RADIUS / (4 * Math.sqrt(3));
+
 const vec = () => new Float64Array(3);
 const mat = () => new Float64Array(9);
 

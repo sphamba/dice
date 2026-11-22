@@ -21,12 +21,11 @@ in vec3 vWorldPos;
 in vec3 vNormal;
 
 // Depth-aware bilinear upsample of the AO buffer around this fragment.
-float sampleAo() {
+float sampleAo(float z) {
   vec2 coord = gl_FragCoord.xy / uViewport * uAoSize - 0.5;
   ivec2 size = ivec2(uAoSize);
   ivec2 lo = clamp(ivec2(floor(coord)), ivec2(0), size - 1);
   vec2 f = clamp(coord - floor(coord), 0.0, 1.0);
-  float z = vWorldPos.z;
   float total = 0.0;
   float weights = 0.0;
   for (int iy = 0; iy < 2; iy++) {
@@ -41,7 +40,7 @@ float sampleAo() {
   return weights > 0.0 ? total / weights : 1.0;
 }
 
-vec3 litColor(vec3 base, vec3 n, float cavity) {
+vec3 litColor(vec3 base, vec3 n, float cavity, float z) {
   vec3 toLight = -uLightDir;
   float ndotl = dot(n, toLight);
   float diffuse = max(ndotl, 0.0);
@@ -51,7 +50,7 @@ vec3 litColor(vec3 base, vec3 n, float cavity) {
   vec3 viewDir = vec3(0.0, 0.0, 1.0);
   vec3 halfDir = normalize(viewDir + toLight);
   float specular = pow(max(dot(n, halfDir), 0.0), 40.0) * 0.22 * step(0.0, ndotl);
-  float ao = sampleAo();
+  float ao = sampleAo(z);
   ao = mix(1.0, ao, AO_STRENGTH);
   // Hemisphere ambient; the Schlick rim picks out the bevel band (zero on the
   // flat top faces).
@@ -136,6 +135,23 @@ vec3 bevelNormal(vec3 n, vec2 q) {
   return normalize(t * nts.x + b * nts.y + n * nts.z);
 }
 
+// Height of the emulated rounded surface below the face plane at inset offset
+// q: the ball arc around the shrunken face, ending r below at |q| = r.
+float bevelDrop(vec2 q) {
+  float r2 = uBevelRadius * uBevelRadius;
+  return uBevelRadius - sqrt(max(r2 - dot(q, q), 0.0));
+}
+
+// Surface point of the emulated rounded shape s*P + ball(r) over this
+// fragment, and its window depth for gl_FragDepth.
+vec3 roundedSurface(vec3 p, vec3 n, vec2 q) {
+  return p - n * bevelDrop(q);
+}
+
+float surfaceDepth(vec3 surface) {
+  return (uDepthRange.x - surface.z) / max(uDepthRange.y, 1e-6);
+}
+
 // 0 inside the CCW hull, segment distance outside.
 float hullDistance(vec2 p) {
   if (uHullCount < 3) return 1e30;
@@ -160,6 +176,8 @@ float hullDistance(vec2 p) {
 export const aoPrepassFragmentSource = `#version 300 es
 precision highp float;
 
+uniform vec2 uDepthRange;
+
 in vec3 vNormal;
 in vec3 vWorldPos;
 out vec4 outColor;
@@ -168,7 +186,12 @@ ${BEVEL_FRAG}
 
 void main() {
   if (hullDistance(vWorldPos.xy) > uBevelRadius) discard;
-  outColor = vec4(bevelNormal(normalize(vNormal), insetOffset(vFacePos)) * 0.5 + 0.5, 1.0);
+  vec2 q = insetOffset(vFacePos);
+  if (dot(q, q) > uBevelRadius * uBevelRadius) discard;
+  vec3 nGeo = normalize(vNormal);
+  vec3 surface = roundedSurface(vWorldPos, nGeo, q);
+  gl_FragDepth = surfaceDepth(surface);
+  outColor = vec4(bevelNormal(nGeo, q) * 0.5 + 0.5, 1.0);
 }
 `;
 
@@ -321,6 +344,13 @@ ${BEVEL_FRAG}
 void main() {
   vec3 nGeo = normalize(vNormal);
   vec2 q = insetOffset(vFacePos);
+  // Emulated displacement of the rounded shape: inside the band the surface
+  // sits bevelDrop(q) below the face plane along the face normal, and beyond
+  // |q| = uBevelRadius the fragment belongs to another face's band or to the
+  // transparent outline.
+  vec3 surface = roundedSurface(vWorldPos, nGeo, q);
+  gl_FragDepth = surfaceDepth(surface);
+  if (dot(q, q) > uBevelRadius * uBevelRadius) discard;
   vec3 n = bevelNormal(nGeo, q);
   vec4 label = texture(uAtlas, vUV);
   vec4 carve = texture(uCarve, vUV);
@@ -335,7 +365,7 @@ void main() {
   // Rounded outline: coverage alpha from the distance to the body's 2D hull.
   float d = hullDistance(vWorldPos.xy);
   float alpha = clamp((uBevelRadius - d) / max(fwidth(d), 1e-7) + 0.5, 0.0, 1.0);
-  outColor = vec4(litColor(mix(uColor, label.rgb, label.a), n, carve.a), alpha);
+  outColor = vec4(litColor(mix(uColor, label.rgb, label.a), n, carve.a, surface.z), alpha);
 }
 `;
 
@@ -366,6 +396,6 @@ out vec4 outColor;
 ${LIGHTING_FS}
 
 void main() {
-  outColor = vec4(litColor(uColor, normalize(vNormal), 1.0), 1.0);
+  outColor = vec4(litColor(uColor, normalize(vNormal), 1.0, vWorldPos.z), 1.0);
 }
 `;

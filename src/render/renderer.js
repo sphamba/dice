@@ -1,8 +1,8 @@
 import { DICE_TYPES, createShape } from '../dice/shapes.js';
-import { BEVEL_RADIUS, buildLabelAtlas, faceInsetData, faceVertexUvs } from '../dice/labels.js';
+import { buildLabelAtlas, faceInsetData, faceVertexUvs } from '../dice/labels.js';
 import * as mat4 from '../math/mat4.js';
 import * as vec3 from '../math/vec3.js';
-import { DIE_RADIUS } from '../physics/body.js';
+import { BEVEL_RADIUS, DIE_RADIUS } from '../physics/body.js';
 import { createCamera, floorClearDepth, worldZFromDepth } from './camera.js';
 import * as shaders from './shaders.js';
 import {
@@ -262,7 +262,7 @@ export function createRenderer(gl, { onError = (error) => console.error(error) }
       prepassProgram,
       gtaoProgram,
       blurProgram,
-      prepassUniforms: uniformMap(gl, prepassProgram, ['uViewProj', 'uModel', 'uHull', 'uHullCount']),
+      prepassUniforms: uniformMap(gl, prepassProgram, ['uViewProj', 'uModel', 'uHull', 'uHullCount', 'uDepthRange']),
       gtaoUniforms: uniformMap(gl, gtaoProgram, GTAO_UNIFORMS),
       blurUniforms: uniformMap(gl, blurProgram, BLUR_UNIFORMS),
       targets: null,
@@ -370,6 +370,7 @@ export function createRenderer(gl, { onError = (error) => console.error(error) }
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.useProgram(aoSetup.prepassProgram);
     gl.uniformMatrix4fv(u.uViewProj, false, viewProjection);
+    gl.uniform2f(u.uDepthRange, depthRange[0], depthRange[1]);
     for (const body of bodies) {
       const entry = resources.dice.get(body.shape.type);
       if (!entry) continue;

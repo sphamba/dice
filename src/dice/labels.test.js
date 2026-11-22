@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import * as vec3 from '../math/vec3.js';
 import { DICE_TYPES, createShape } from './shapes.js';
-import { DIE_RADIUS } from '../physics/body.js';
+import { BEVEL_RADIUS, DIE_RADIUS } from '../physics/body.js';
 import {
-  BEVEL_RADIUS,
   buildLabelAtlas,
   faceFrame,
   faceInsetData,

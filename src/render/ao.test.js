@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { DIE_RADIUS } from '../physics/body.js';
-import { AO_STRENGTH, diceFragmentSource, floorFragmentSource } from './shaders.js';
+import { AO_STRENGTH, aoPrepassFragmentSource, diceFragmentSource, floorFragmentSource } from './shaders.js';
 import {
   AO_FALLOFF_RANGE,
   AO_RADIUS_SCALE,
@@ -92,6 +92,12 @@ describe('AO source check', () => {
       expect(source).toContain(`const float AO_STRENGTH = ${AO_STRENGTH};`);
       expect(source).toContain('mix(1.0, ao, AO_STRENGTH)');
     }
+  });
+
+  it('upsamples against the rounded surface depth', () => {
+    expect(diceFragmentSource).toContain('litColor(mix(uColor, label.rgb, label.a), n, carve.a, surface.z)');
+    expect(floorFragmentSource).toContain('litColor(uColor, normalize(vNormal), 1.0, vWorldPos.z)');
+    expect(aoPrepassFragmentSource).toContain('uniform vec2 uDepthRange;');
   });
 
   it('keeps shadow uniforms and helpers out of the render sources', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DIE_DENSITY, DIE_RADIUS, applyImpulse, createBody, updateDerived } from './body.js';
+import { BEVEL_RADIUS, DIE_DENSITY, DIE_RADIUS, applyImpulse, createBody, updateDerived } from './body.js';
 import * as mat3 from '../math/mat3.js';
 import * as quat from '../math/quat.js';
 import { createShape } from '../dice/shapes.js';
@@ -19,6 +19,12 @@ const makeShape = ({ inertia = tensor(2e-5, 3e-5, 4e-5) } = {}) => ({
 });
 
 const massOf = (shape, density = DIE_DENSITY) => density * shape.volume;
+
+describe('BEVEL_RADIUS', () => {
+  it('is a twelfth of the die diameter: 12.5% of the d6 edge', () => {
+    expect(BEVEL_RADIUS).toBe(DIE_RADIUS / (4 * Math.sqrt(3)));
+  });
+});
 
 describe('createBody', () => {
   it('derives the inverse mass and the radius from the shape and the die density', () => {

@@ -1,5 +1,5 @@
 import { cross, dot, length, normalize, sub } from '../math/vec3.js';
-import { DIE_RADIUS } from '../physics/body.js';
+import { BEVEL_RADIUS, DIE_RADIUS } from '../physics/body.js';
 
 export const ATLAS_SIZE = 1024;
 
@@ -120,11 +120,6 @@ export function buildLabelAtlas(shape, dieColor, size = ATLAS_SIZE) {
   });
   return { canvas, size, rects };
 }
-
-// Fillet radius of the shaded rounded edges, in metres. One constant for all
-// dice; the d4 corner numbers stay readable at this size (only their outer
-// tips reach into the band, which re-shades but never hides ink).
-export const BEVEL_RADIUS = DIE_RADIUS / (8 * Math.sqrt(3));
 
 // Per-face data for the rounded-edge shading: the frame's right axis, every
 // corner's face-2D position (metres) and the inset polygon - the face corners

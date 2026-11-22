@@ -514,6 +514,6 @@ describe('dice shader hook', () => {
   it('samples the carve atlas and dims the ambient term by the cavity', () => {
     expect(diceFragmentSource).toContain('uniform highp sampler2D uCarve;');
     expect(diceFragmentSource).toContain('uAmbient * hemi * ao * cavity');
-    expect(floorFragmentSource).toContain('litColor(uColor, normalize(vNormal), 1.0)');
+    expect(floorFragmentSource).toContain('litColor(uColor, normalize(vNormal), 1.0, vWorldPos.z)');
   });
 });

@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import * as mat4 from '../math/mat4.js';
 import * as vec3 from '../math/vec3.js';
 import { DICE_TYPES, createShape } from '../dice/shapes.js';
-import { BEVEL_RADIUS, faceFrame, faceInsetData, toFace2D } from '../dice/labels.js';
-import { DIE_RADIUS } from '../physics/body.js';
+import { faceFrame, faceInsetData, toFace2D } from '../dice/labels.js';
+import { BEVEL_RADIUS, DIE_RADIUS } from '../physics/body.js';
 import { convexHull2D, pointHullDistance2D, projectedInsetHull } from './renderer.js';
+import { aoPrepassFragmentSource, diceFragmentSource } from './shaders.js';
 
 // JS copy of the shader bevel functions (shaders.js), identity model matrix.
 function insetOffset(p, inset) {
@@ -166,5 +167,52 @@ describe('inset hull helpers', () => {
       [4, 4],
       [0, 4],
     ]);
+  });
+});
+
+// JS copy of the shader bevelDrop: height of the emulated rounded surface
+// below the face plane at inset offset q.
+function bevelDrop(q, r) {
+  return r - Math.sqrt(Math.max(r * r - (q[0] * q[0] + q[1] * q[1]), 0));
+}
+
+describe('rounded surface depth (emulated displacement)', () => {
+  it('drops 0 at |q| = 0 and r at |q| = r', () => {
+    expect(bevelDrop([0, 0], BEVEL_RADIUS)).toBe(0);
+    expect(bevelDrop([BEVEL_RADIUS, 0], BEVEL_RADIUS)).toBeCloseTo(BEVEL_RADIUS, 15);
+    expect(bevelDrop([0, BEVEL_RADIUS], BEVEL_RADIUS)).toBeCloseTo(BEVEL_RADIUS, 15);
+  });
+
+  it('follows the tangent sphere in between', () => {
+    const half = BEVEL_RADIUS / 2;
+    expect(bevelDrop([half, 0], BEVEL_RADIUS)).toBeCloseTo(BEVEL_RADIUS * (1 - Math.sqrt(3) / 2), 15);
+  });
+
+  it('writes the rounded depth and discards beyond the band in both programs', () => {
+    for (const [name, source] of [
+      ['dice', diceFragmentSource],
+      ['aoPrepass', aoPrepassFragmentSource],
+    ]) {
+      expect(source, name).toContain('gl_FragDepth =');
+      expect(source, name).toContain('bevelDrop(q)');
+      expect(source, name).toContain('if (dot(q, q) > uBevelRadius * uBevelRadius) discard;');
+      expect(source, name).toContain('sqrt(max(');
+    }
+  });
+});
+
+describe('face inset scale', () => {
+  it('is one common scale per die type, so face 0 serves every face', () => {
+    for (const type of DICE_TYPES) {
+      const shape = createShape(type, DIE_RADIUS);
+      const data = faceInsetData(shape, BEVEL_RADIUS);
+      const face0 = shape.faces[0];
+      const rho = vec3.dot(shape.vertices[face0.indices[0]], face0.normal);
+      shape.faces.forEach((face, f) => {
+        const faceRho = vec3.dot(shape.vertices[face.indices[0]], face.normal);
+        expect(faceRho).toBeCloseTo(rho, 12);
+        expect(data[f].scale).toBeCloseTo(1 - BEVEL_RADIUS / rho, 12);
+      });
+    }
   });
 });
