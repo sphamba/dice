@@ -2,7 +2,7 @@
 name: "feat: linear impact gain, pair gate and peak limiter"
 priority: "high"
 state: "done"
-worktree: "feat/64-sound-proportional-impulse-audio"
+worktree: ""
 issuer: "#62"
 complexity: "simple"
 shortName: "sound-proportional-impulse-audio"
