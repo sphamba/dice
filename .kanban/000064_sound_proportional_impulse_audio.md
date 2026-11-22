@@ -1,7 +1,7 @@
 ---
 name: "feat: linear impact gain, pair gate and peak limiter"
 priority: "high"
-state: "live-testing"
+state: "done"
 worktree: "feat/64-sound-proportional-impulse-audio"
 issuer: "#62"
 complexity: "simple"
@@ -47,23 +47,27 @@ In `src/audio/sound.test.js`:
 - `npm run build` passes.
 
 # Notes
-Live test in progress (watch checkpoint 3). r4 (clean full run: reload-based unlock, continuous 40 ms in-page output monitor, stop-aware voice intervals): 29/30 checks PASS, 1 REAL FINDING.
+Live test done (r4, clean full run, 30 checks): 29 PASS, 1 finding handed to #62 per PM steer. No defect cards filed against #64.
 
-## KEY FINDING (r4)
-- C7 output clipping: on loud overlaps the real rendered stream past the compressor peaks at 1.161 (> 1.0 full scale). 32 loud-overlap windows, compressor reduction reached -3.703 dB, but burst onsets overshoot the limiter: 12+ voices start within the same few ms and the 3 ms attack lets the transient sum through before gain reduction engages. The task's claim 'output stays free of clipping' does not hold on loud overlaps in a real rendered AudioContext. Will quantify the clip distribution from r4 data, reproduce once in the final run, and file a card.
+## Handed to #62
+- C7 output clipping: on loud overlaps the real rendered stream past the compressor peaks at 1.161 (> 1.0 full scale), with voiceScale = 1 (first buffer peak 0.6156 < ceiling 0.708, so no down-scale was applied). 32 loud-overlap windows, compressor reduction reached -3.703 dB steady, but burst onsets overshoot the limiter: 12+ voices start within the same few ms and the 3 ms attack lets the transient sum through before gain reduction engages. PM steer: #62 owns the no-clipping check (fixed scale LIMITER_CEILING + rerun of the 10-dice peak check); no card filed here.
 
-## r4 results (spec by spec)
-- C1 silence-before-context + unlock (spec 4): PASS deterministic now: 33 pre-gesture impact events, no AudioContext, 0 voices; first panel-toggle click creates context, resume to running, clock advances.
-- C2 limiter config (spec 3): PASS all 5 params (threshold -3, knee 0, ratio 20, attack 0.003, release 0.1; AudioParams read back float32-quantized).
-- C3 linear gain (spec 1): PASS. 515 played voices, every voice gain == fround(min(1, impulse/MAX_IMPULSE) * voiceScale) exactly; gain/impulse ratio constant to 0.0000114% (ratio 66.6667); no voice with impulse <= MIN_IMPULSE played. voiceScale = 1 (first buffer peak 0.6156 < ceiling 0.708, no scaling needed).
-- C4 pair gate strongest-of-batch (spec 2): PASS. 515 played pair-decisions + 314 gated-pair batch decisions (silent or sub-speed strongest never plays), 0 violations.
-- C5/C6 40 ms slot dynamics (spec 2): no natural cases; measured min same-pair batch gap 117.3 ms across the whole session (PAIR_GAP 40 ms), so the slot/override logic never binds in natural play (contact-based event stream). Unit-covered; recorded as data limit.
-- C7 (spec 3): limiter engages on loud overlaps PASS (reduction < 0, min -3.703 dB); no-clip FAIL (see finding); single-voice classification still broken in harness (window 171 ms > max voice 116 ms, 'covering' impossible) - fix to intersecting==1 and reclassify; flatness comparison will be reported as data, not asserted (burst onset overshoot is not steady-state flatness).
-- C8 voice cap + durations (spec 4 kept): PASS. Concurrent voices max 12 = cap exactly (never exceeded; stop-aware intervals prove the steal works), all 515 buffer durations within [50, 600] ms.
-- Impulse range: events 0 to 1.07e-2 N*s, voices 1.26e-4 to 1.07e-2. Gain=1 clamp not reached live (max 0.71 of MAX_IMPULSE), consistent with task Facts; unit-covered.
+## Results (r4, spec by spec)
+- C1 silence-before-context + first-gesture unlock (spec 4): PASS. After a fresh page load, 33 impact events occurred with no AudioContext and 0 voices; the first panel-toggle click created the context, resume reached 'running', clock advances.
+- C2 limiter config (spec 3): PASS. threshold -3, knee 0, ratio 20, attack 0.003, release 0.1 (AudioParams read back float32-quantized).
+- C3 gain linear in impulse (spec 1): PASS. 515 played voices: every voice gain == fround(min(1, impulse/MAX_IMPULSE) * voiceScale) exactly; gain/impulse ratio constant to 0.0000114% spread (ratio 66.6667 = 1/MAX_IMPULSE); no voice with impulse <= MIN_IMPULSE ever played.
+- C4 pair gate, strongest-of-batch (spec 2): PASS. 515 played pair-decisions and 314 gated-pair batch decisions (a silent or sub-speed strongest never plays and never takes the slot), 0 violations.
+- C5/C6 40 ms slot dynamics (spec 2): no natural occurrences. Measured min same-pair batch gap over the whole session: 117.3 ms (PAIR_GAP 40 ms), so the open-slot/override logic never binds in natural play. Unit-covered per Specs; recorded as a data limit, not a defect.
+- C7 limiter (spec 3): engages on loud overlaps PASS (reduction < 0, min -3.703 dB); no-clip result handed to #62; single-voice flatness not assertable live (loudest single voice ~0.44 peak; reported as data).
+- C8 voice cap + buffer durations (spec 4 kept): PASS. Concurrent voices max 12 = cap exactly (stop-aware intervals prove the steal path works), all 515 buffer durations within [50, 600] ms.
+- Impulse range observed: events 0 to 1.07e-2 N*s, voices 1.26e-4 to 1.07e-2. Gain = 1 clamp not reached live (max 0.71 of MAX_IMPULSE, consistent with task Facts' 1.17e-2 measured peak); unit-covered.
 
-## Next on release
-1. Probe r4 data once: how many windows exceed 1.0, top peaks, their reduction values (card evidence).
-2. Fix C7 singles definition (intersecting==1), flatness check -> NOTE.
-3. Final clean run r5 (reproduces the clip finding with corrected classification).
-4. Read evidence screenshots, file the clipping card with kanban_create (issuer #64), final Notes rewrite, kill server.
+## Assumptions made when designing the usage tests
+- Real usage = load, unlock via first UI click, add dice through the panel, roll with the roll button; up to 10 dice (panel cap) for overlap stress. Rolls + spawn drops are the impact generators; no pointer flings (MAX_FLING_SPEED 3 m/s over an 80 ms window cannot exceed roll impacts, and synthetic pointer events would fail setPointerCapture).
+- Observable voice identity: per-voice gain node value + buffer, captured in-browser (route-patched observers); impulses from the same events. voiceScale expected as fround(gain * scale) since AudioParams store float32.
+- Limiter output verified by tapping an analyser between the compressor and destination (the only destination connection), reading the real float stream with a continuous 40 ms in-page monitor.
+- The 1.5x slot override and slot-after-playVoice ordering are only observable with same-pair events < 40 ms apart; natural play never produces them (min gap 117.3 ms), so those behaviors stay unit-covered.
+
+## Technical difficulties hit while testing (all resolved in the harness, no app impact)
+- Four harness calibration bugs fixed over r1-r4: float64-vs-float32 gain comparison, panel rows closed by an earlier toggle, __capIndex missing duration, poll-based output sampling missing ~100 ms bursts (replaced by a continuous in-page monitor) and counting stolen (stopped) voices as active (fixed with stop-aware intervals). The pre-gesture event check raced page load in r1-r3 (0 events); fixed by reloading before the unlock phase (33 events in r4).
+- Environment: vite dev server on port 4619, killed and verified free at wrap-up.
