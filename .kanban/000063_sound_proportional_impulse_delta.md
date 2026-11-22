@@ -1,7 +1,7 @@
 ---
 name: "feat: emit impact impulse as the delta over the warm start"
 priority: "high"
-state: "to-live-test"
+state: "live-testing"
 worktree: "feat/63-sound-proportional-impulse-delta"
 issuer: "#62"
 complexity: "simple"
