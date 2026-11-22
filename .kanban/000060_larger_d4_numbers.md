@@ -44,17 +44,16 @@ Calculated result with the test glyph box (0.56 em by 0.71 em): em 2.149 mm to 3
 # Notes
 # Notes
 # Notes
-## PM steer (read first)
-- Stop the flat-on capture. The developer frame /tmp/bigzoom-1.png already shows one flat-on d4 face with the numbers 4, 3 and 1, legible and with no contact. Use it as the flat-on evidence.
-- Use your settled crops as the evidence for the resting view. Run the final console check, write the results table, and finish.
+# Notes
 
-## Live test in progress (run id lt60/lt60s, harness /tmp/dice-lt60)
+## Live test (run id lt60/lt60s/lt60b, harness /tmp/dice-lt60)
 
-Setup: served this worktree with vite on :8944, Playwright Chromium 1.59 with SwiftShader WebGL, desktop 1280x800 dpr1. User flow: expand panel, remove 2 d6, add 1 d4, collapse panel, press Roll. No app code edited; no repo test suites run.
+Setup: served this worktree with vite on :8944, Playwright Chromium 1.59, SwiftShader WebGL, desktop 1280x800 dpr1. User flow: expand panel, remove 2 d6, add 1 d4, collapse panel, press Roll. No app code edited; no repo test suites run.
 
-Findings so far:
-- Setup flows work: default set is 2 d6; +/- buttons adjust; exactly one d4 spawns. Console clean (0 product errors in every phase so far).
-- Settled top view (the user's primary view), 3 rolls: the d4 rests apex-up and shows its three side faces with numbers. All visible numbers legible (r1: 2,3,4,3; r2: 2,3,2,4,4,3; r3: 3,1,2,3,4,3,1,2), sitting clear of the rounded edges with visible margins, no contact between numbers. Scene settles (AE=0) after every roll. Evidence: /tmp/dice-lt60/lt60-settled-crop-r1..r3.png.
-- A resting d4 shows only foreshortened side faces under the fixed top-down ortho camera (src/render/camera.js), so a flat-on view exists only transiently mid-tumble. In-flight capture is limited by the SwiftShader frame rate. This is not an app defect.
-- Die silhouette measures ~240 px wide at 1280x800 dpr1, consistent with DIE_RADIUS = 0.0128*sqrt(3)/2 m and METERS_PER_DEVICE_PIXEL = 0.0254/440 m.
-- Gates green so far: setup, settle AE=0 (4/4 rolls), die visible in tray, carved ink present, console clean. No product defects found yet.
+Results so far:
+- PASS setup: default set is 2 d6; +/- buttons adjust; tray ends with exactly one d4. Console clean (0 product errors in every phase, all runs).
+- PASS settled top view (user's primary view), 9 rolls total: d4 rests apex-up, three side faces visible, all numbers legible (e.g. 2,3,2,4,4,3 and 3,1,2,3,4,3,1,2), clear of the rounded edges, no contact between numbers. Scene settles (AE=0) after every roll. Evidence: /tmp/dice-lt60/lt60-settled-crop-r1..r3.png, /tmp/dice-lt60/lt60s-final-die-zoom.png (x3 zoom).
+- PASS acceptance face-on view: mid-tumble burst captures caught two near-flat-on faces. r4-f00 shows face 4-3-1, r6-f00 shows face 4-1-2: all three numbers per face fully legible, wide margins to the rounded edges, wide gaps between numbers, no contact anywhere. Evidence: /tmp/dice-lt60/zoom-lt60b-r4-f00.png, /tmp/dice-lt60/zoom-lt60b-r6-f00.png. (Carve is in the face texture, so glyph-to-edge distance is orientation-invariant; the settled view confirms the same margins from a second angle.)
+- Harness/environment notes (not product defects): SwiftShader renders ~0.4 fps at 1280x800, so mid-flight capture needed per-roll screenshot polling (CDP screencast stalled at 3 frames per 4.5 s roll and full screenshot bursts were 2.4 s/frame); the flight itself settles in under ~2.4 s, so only the first post-click frame per roll was mid-flight. A resting d4 shows only foreshortened side faces under the fixed top-down ortho camera (src/render/camera.js); the flat-on view exists only transiently mid-tumble.
+- Numbers size sanity: die silhouette ~240 px wide; number em ~40 px at 1280x800 dpr1, consistent with spec em 3.533 mm and METERS_PER_DEVICE_PIXEL = 0.0254/440.
+- No product defects found so far. Remaining: quick look at the two other mid-flight candidates (r3/r5), then final report.

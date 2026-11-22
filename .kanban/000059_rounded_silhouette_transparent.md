@@ -52,9 +52,38 @@ Do not change the collision, the bevel radius, the die size, the AO strength or 
 - Take the before and after corner screenshots from the `antialias: false` context.
 - Time budget from now: 15 minutes.
 
-## Live test progress (held at watch checkpoint; no product defect found so far)
-- Environment measured, matches the steer: default context `gl.SAMPLES = 4` (antialias hint honored by SwiftShader here); forced context (init-script wraps getContext, passes `antialias:false`) gives `gl.SAMPLES = 0`. Both reported per run in /tmp/lt-59/results-*.json.
-- Harness validation on the pre-fix baseline (commit 7a82756), flat d4: outside-silhouette check FAILS only in the `samples:0` context (outMax 181/255, 3540 bad pixels) and is clean in the `samples:4` context (outMax 0) - the check discriminates exactly where the PM said the defect shows. Before-fix corner screenshots saved: /tmp/lt-59/baseline-flat-d4-noantialias-corner.png (the required "before", from the antialias:false context) and baseline-flat-d4-default-corner.png.
-- Merged build so far: flat-d4 and tilted-d4 in the default context pass the outside check with 0/255 (14664-16257 outside pixels, die visibly present in all). The merged run stopped early at flat-d6 on a driver bug (panel toggle aria-label flips to "Hide controls" after the first expansion, and leftover dice from the previous phase stayed on screen); fixed in run.mjs since.
-- One gate needs a verdict: the raw "no holes inside" gate flagged 2 pixels (diff <= 2/255) inside the tilted-d4 silhouette. Instrumentation pass (fresh tilted d4, samples:0 context): all small-diff inside pixels sit at A = 48-54 vs B = 50-52 per channel - the die's own dark bevel band against the AO-shadowed floor, diffs 1-4 spread over ~14 px of band, including 23 px inside the silhouette. A real floor-through hole would reproduce the floor pixel bit-exactly (0/255 on all three channels); this is a smooth coincidence band of two dark shades, not missing fragments. Visual confirmation crops captured (/tmp/lt-59/hole-inspect-a.png, hole-inspect-b.png), reading them next.
-- Remaining: read inspection crops, finalize the hole-gate form from that evidence, one full clean run (baseline 2 contexts + merged 6 poses x 2 contexts, after-screenshots from the antialias:false context), then report + cleanup (kill both vite servers, remove the baseline worktree).
+## Live test report - task 59 - VERDICT: PASS, no product defect found
+Final clean run: /tmp/lt-59/results-final2.json (95 checks, 0 FAIL). Harness: /tmp/lt-59/{harness,run}.mjs, merge commit 1f22e07, baseline commit 7a82756.
+
+### Environments (both reported every run)
+- default context: gl.SAMPLES = 4, antialias attr true (SwiftShader honors the hint here).
+- forced context (init script wraps getContext, adds antialias:false): gl.SAMPLES = 0, antialias attr false.
+
+### Harness validation (pre-fix baseline, flat d4) - matches the steer exactly
+- samples:0 context: outside check FAILS on baseline as expected - outMax 182/255, 3567 of 16257 outside pixels differ by more than 2/255. The check detects the defect.
+- samples:4 context: baseline clean - outMax 0/255. Defect absent with MSAA, as the PM measured.
+
+### Merged build (12 phases: d4, d6, d20 x flat, tilted x both contexts)
+- Outside check `d > r + 1px, diff <= 2/255`: PASS in all 12 phases. outMax 0/255 everywhere (7.8k-27k outside pixels per phase, die present in all; inStrong 19k-56k).
+- No holes inside the rounded silhouette: holesExact (floor shown through bit-exactly, the real-hole signature) = 0 in all 12 phases, PASS on the 6 gated tilted phases.
+- holesNear (diff <= 2/255 inside): 0-19 isolated px per phase, recorded as observation only. Instrumented once: they sit on the die's dark AO contact band / bevel band against the equally dark shadowed floor, values 48-54 vs 50-52 per channel, diffs 1-4 spread smoothly over the band. The zoomed crop /tmp/lt-59/hole-inspect-a.png shows a continuous face with its carved ink up to the antialiased edge. Shade coincidence, not missing fragments; a real hole would reproduce the floor bit-exactly and in numbers.
+- Console clean, no page errors, in both contexts.
+
+### Required screenshots (from the antialias: false context, 8x zoom)
+- Before: /tmp/lt-59/baseline-flat-d4-noantialias-corner.png - translucent ghost wedge of the sharp silhouette extends past the rounded edge.
+- After: /tmp/lt-59/flat-d4-noantialias-corner.png - rounded corner, antialiased edge, dark floor meets it directly.
+- Also: /tmp/lt-59/baseline-flat-d4-default-corner.png (before, MSAA), /tmp/lt-59/flat-d4-{d6,d20}-{default,noantialias}-corner.png (after).
+
+### Evidence table
+- baseline samples:0 outside check: FAIL (defect present) -> harness detects the defect.
+- baseline samples:4 outside check: PASS (clean) -> matches the steer.
+- merged 12 phases outside check: 12/12 PASS, outMax 0/255.
+- merged 6 tilted phases hole gate: 6/6 PASS, holesExact 0.
+- env checks (page errors, console): PASS both contexts.
+
+### Fixed harness issues during the run (not product defects)
+- Toggle aria-label flips after first expansion; leftover dice between phases (setPanel now idempotent, removes all types).
+- Baseline self-validation expectation: defect detectable only at samples:0, clean at samples:4 (per the steer).
+
+### Cleanup
+- Both vite servers killed (ports 4621, 4622 verified free). Baseline worktree .worktrees/lt-baseline-59 removed. Artifacts and harness preserved under /tmp/lt-59/.
