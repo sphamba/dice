@@ -1,11 +1,13 @@
 ---
 name: "fix: enlarge the d4 numbers"
 priority: "medium"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/60-larger-d4-numbers"
 issuer: "user"
 complexity: "simple"
 shortName: "larger-d4-numbers"
+changes: "{\"base\":\"main\",\"ins\":75,\"del\":39,\"files\":2}"
+commits: "[{\"hash\":\"6d593ef\",\"subject\":\"fix: enlarge the d4 numbers and pull them toward the face center\",\"when\":\"2026-11-22T20:35:35+01:00\"}]"
 ---
 
 # Summary
