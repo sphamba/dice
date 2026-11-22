@@ -160,6 +160,19 @@ describe('setBox', () => {
     expect(Array.from(body.angularVelocity)).toEqual([0, 0, 0]);
   });
 
+  it('ignores a zero-sized box and keeps the last valid one', () => {
+    const world = createWorld(BOX);
+    const body = createBody(createShape('d6', DIE_RADIUS), { position: [0.01, 0.02, 0.03] });
+    world.addBody(body);
+
+    world.setBox({ W: 0, H: 0, D: 0 });
+
+    expect(world.box).toEqual(BOX);
+    expect(Array.from(body.position)).toEqual([0.01, 0.02, 0.03]);
+    for (let index = 0; index < STEPS_PER_SECOND; index += 1) world.step(FIXED_DT);
+    expect(body.position[2]).toBeGreaterThan(0);
+  });
+
   it('leaves a body inside the new box alone', () => {
     const world = createWorld(BOX);
     const body = makeBody([0.01, 0.02, 0.03]);

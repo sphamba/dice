@@ -136,6 +136,8 @@ export function createWorld({ W, H, D }) {
       if (asleep && vec3.distance(world.gravity, sleepGravity) > WAKE_GRAVITY_DELTA) wake();
     },
     setBox(box) {
+      // A viewport can report 0x0 for one event; that box cannot hold a body and would crush it.
+      if (!(box.W > 0 && box.H > 0 && box.D > 0)) return;
       Object.assign(world.box, box);
       for (const body of world.bodies) clampIntoBox(world.box, body);
       wake();
