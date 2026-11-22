@@ -1,12 +1,12 @@
 ---
 name: "fix: let resting dice piles settle with warm starting and whole-world sleep"
 priority: "medium"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "#31"
 complexity: "moderate"
 shortName: "pile-warm-start-sleep"
-blockedBy: "#37"
+blockedBy: ""
 ---
 
 # Summary
