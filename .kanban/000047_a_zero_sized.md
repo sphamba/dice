@@ -2,7 +2,7 @@
 name: "fix: a zero-sized viewport resize permanently freezes dice at the box centre"
 priority: "high"
 state: "to-do"
-worktree: ""
+worktree: "fix/47-a-zero-sized"
 issuer: "#38"
 complexity: "simple"
 ---

@@ -1,7 +1,7 @@
 ---
 name: "feat: replace directional shadows with orthographic GTAO ambient occlusion"
 priority: "medium"
-state: "live-testing"
+state: "done"
 worktree: "feat/38-ortho-gtao-ambient-occlusion"
 issuer: "user"
 complexity: "complex"
@@ -90,13 +90,26 @@ Remove the directional shadow map and add a custom screen-space GTAO pass in raw
 # Notes
 # Notes
 # Notes
-## PM steer
-- Stop thread 2. The AO acceptance of this task already passed (symmetric contact rings, seam darkening, height fade, rolls, drags, context restore, driver4 11/11). Do not run more AO grids.
-- Thread 1: run probe16f once to capture the live values (innerWidth, innerHeight, box) of a collapsed-box page. Then file one defect card with `kanban_create`, issuer "#38": a zero-size viewport during load gives a 0 box and freezes the dice half-buried at (0,0,0). Put the repro, the values and the fix direction in it (skip or clamp a 0 viewport in `applySize`/`boxFromViewport`, apply the next valid size).
-- Then write the final results table in these Notes, stop the servers and finish.
+Live-testing #38 COMPLETE. Worktree feat/38-ortho-gtao-ambient-occlusion, merged commit d99928f. All servers killed (port 8841 verified free). Harness /tmp/dice-lt38/, artifacts p16a/p16g/p16e/p16h PNGs + probe logs.
 
-## Results
-- Core AO acceptance verified: symmetric contact rings around resting dice, seam darkening between dice, fade with height on held dice, rolls, drags and context restore with GL error 0, console clean. driver4 11/11.
-- Thread 1 (product defect candidate): in probe8, probe9 and probe9b, both dice froze at exactly (0,0,0), half-buried and asleep. The state survived Roll and drag. Mechanism from the source: `applySize` (`main.js:147`) rebuilds the box from the live `innerWidth`/`innerHeight`. `boxFromViewport` returns W=H=D=0 when the shortest side is 0. `containBody` then drives every body to 0, and the world sleeps. About 3-5 of ~25 pages, timing dependent.
-- Harness limits found: readPixels is valid only inside the render rAF (`preserveDrawingBuffer` false). 10 mm patches can fall inside a tilted die's silhouette.
-- Screenshots: /tmp/dice-lt38/p16a-{0,1,2}.png, p16e-{0,1,2}.png.
+== RESULTS TABLE (every check -> pass / harness limit / card) ==
+1. Directional shadows removed (shadow map, depth pass for light, light frustum); directional light kept for diffuse+specular face shading: PASS (static: no shadow/frustum code remains; the only depth texture is the AO pass's own input, renderer.js:208; uLightDir drives diffuse + specular only, shaders.js:41-51).
+2. GTAO screen-space pass in raw WebGL2, no library (spec #6): PASS (renderer.js builds the full AO pipeline with own shaders; no external deps; draw fully stateless per probe11).
+3. Soft contact darkening at the base of each resting die, symmetric, no offset: PASS x3 pages (probe16g grids: ring cells 28-45 vs open 49-50 on all sides, hugging the silhouette, fading to open by ~10-12mm; probe16h A: 35-46 vs 49-50; earlier probe12/probe6b/driver4 agree). Screenshots p16a-0/p16g-* show the halos visually.
+4. Darkening between dice: PASS (driver4 P2 seam 42.8 vs open 50.1; multi-die grids in probe16g/16h show both dice's rings plus overlap zones).
+5. Darkening fades with height, gone at ~15mm: PASS with harness limit. Measured: present at rest (centre z=8mm); fully open under a held die at hold=39.8mm (probe15 hold@390: 16mm ring = 50.1 = open; driver2 P2 agrees) and at 22.5mm hold. Sub-22.3mm holds are unreachable: the drive holds at box.D - 27.7mm and box.D >= 50mm (MIN_BOX_EDGE scale guard, box.js). Data is consistent with "gone at ~15mm"; the 15-22mm band itself unmeasurable via the pointer drive.
+6. Roll: shadows reappear at the new rest positions: PASS (probe9b phase F grids; driver2 P3).
+7. Drag: shadow follows the die; fades while held; returns on release: PASS (driver2 P1/P2/P4b; probe15 grab/hold/release).
+8. Panel restore/remove-re-add leaves AO bit-exact: PASS (earlier P7: restored patches bit-exact vs baseline, ~0.5s restore, glErr clean).
+9. AO persists across live resizes (700x900 <-> 390x844, canvas bitmap 780<->1400): PASS (probe16h B/C grids: symmetric ring preserved with the rebuilt projection; clampIntoBox correctly pulled the die into the shrunken box).
+10. Console + GL errors: PASS (0 product console messages, glErr=0 in every instrumented page this session).
+11. Dice frozen half-buried at (0,0,0) after some loads, unrecoverable by Roll: PRODUCT DEFECT -> filed card #47 (3 occurrences; mechanism: applySize accepts a 0x0 viewport, boxFromViewport returns a 0-box, containBody pins bodies to (0,0,0), sleep gate freezes; ~3-5 of ~25 pages, unreproducible on demand).
+
+== DEFECTS FILED ==
+- #47 fix: a zero-sized viewport resize permanently freezes dice at the box centre (high). The only product defect found; unrelated to AO correctness.
+
+== HARNESS NOTES (for future runs on this repo) ==
+- gl.readPixels is only valid inside a rAF that follows the app's draw (preserveDrawingBuffer=false); off-rAF reads return black; 145 readPixels calls in one rAF produced partial garbage - one readPixels per region, slice in-page.
+- The canvas bitmap is dpr-capped at 2 (780x1688 on a 3x context); scale patches with src.width/src.clientWidth, world-to-CSS is innerWidth/box.W (5.78 px/mm at 390px width) - px-per-METRE vs px-per-MM mixed them up once (probe16d crash, my bug, not the app's).
+- Patches at a fixed lateral distance are unreliable for measuring the contact ring: a tilted die's silhouette reaches 11.3mm; use the 12x12 grid with die-cell marking instead. This contamination caused the false "missing contact AO" readings in probe15/16a.
+- setViewportSize after goto can protocol-error on a maximized window; set the viewport before goto (probe16h pattern).
