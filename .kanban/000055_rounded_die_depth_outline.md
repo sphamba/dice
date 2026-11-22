@@ -1,12 +1,14 @@
 ---
 name: "fix: render the rounded die shape with true rounded depth and a visibly rounded outline"
 priority: "high"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/55-rounded-die-depth-outline"
 issuer: "user"
 complexity: "complex"
 shortName: "rounded-die-depth-outline"
 splitter: "done"
+changes: "{\"base\":\"main\",\"ins\":121,\"del\":24,\"files\":9}"
+commits: "[{\"hash\":\"5ac4028\",\"subject\":\"fix: keep band fragments, clamp the band normals and depth\",\"when\":\"2026-11-22T15:44:17+01:00\"},{\"hash\":\"cf3f4c2\",\"subject\":\"fix: shade dice as the rounded solid with true rounded depth\",\"when\":\"2026-11-22T15:33:35+01:00\"}]"
 ---
 
 # Summary
