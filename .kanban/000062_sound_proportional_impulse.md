@@ -1,7 +1,7 @@
 ---
 name: "feat: make impact sound intensity proportional to the impulse"
 priority: "high"
-state: "live-testing"
+state: "done"
 worktree: "feat/62-sound-proportional-impulse"
 issuer: "user"
 complexity: "simple"
@@ -53,18 +53,27 @@ In `resume()` in `src/audio/sound.js`, replace it with this chain: voices -> `ma
 - Report brightness and pitch proxies only if they work at once. Do not spend time on them, because the unit suites cover them.
 - Time budget from now: 15 minutes. Kill the dev server on port 4647 when you finish.
 
-Live test of #62 at HEAD c2b2da2, second watch checkpoint. No app defects found so far; two harness bugs (my glue) found and fixed. A stale r1 driver process (PID 822836) may still be running; it will be killed before the clean re-run.
+## Verdict
+Live test of #62 at HEAD c2b2da2 PASSED: 55/55 checks green in the clean full run (results-r2-env_unlock_ratio_session_analyze_reload.json, data in r2-data.json, log run-r2.log in /tmp/dice-lt62). No defects filed.
 
-## Results so far (valid gates)
-- Smoke run (PHASES=env,ratio) and first full run (r1): all env, unlock and ratio gates PASS.
-  - env: page loads, no #unsupported, no page errors, observer patch applied.
-  - unlock: 29 impact events occur before any gesture while ctx=null and 0 voices (silence before the context exists); first gesture (panel toggle) creates the context, state running; chain wired (shaper connected to destination); master gain exactly 0.25; WaveShaper curve 4097 points, oversample 'none'; context clock advances.
-  - ratio (Spec: one voice at impulse I and one at I/2 through the real chain, rendered separately): peaks 0.318735 vs 0.159368, ratio 1.9999970 (within 1% of 2). Full-clamp case (impulse 0.02, gainValue 1): rendered peak 0.478102 <= 1. Chain math exact: rendered peak == bufferPeak * fround(gain) * 0.25 * 4 - the curve's linear region outputs x * CLIPPER_RANGE, so the single-voice chain gain is unity and stays far below the 0.177 clipper input knee.
-- Session replays (PM-steer method) in the r1 run: per-Roll replay peaks through the real chain 0.3446, 0.8041, 0.9305, 0.8977, 0.9752, 0.9837, 0.9918 for rolls 0..6, all <= 1.0 (7 of 10 rolls done at the checkpoint). Same mix without the clipper peaks 0.086..0.332 (recorded, no gate).
+## Spec check mapping (all PASS)
+- Voice gain proportionality (spy on voice gain nodes, real Rolls): load 1, 573 unclamped voices, gain/impulse spread 0.0000110% (constant within 1%), mean 47.196386 = LIMITER_CEILING/MAX_IMPULSE 47.19638562560919 (off 1.35e-7%); every gain == fround(min(1, impulse/MAX_IMPULSE) * CEILING) exactly. Load 2 (fresh page reload), 112 voices: spread 0.00000988%, mean 47.196386 (off 4.14e-7%). Both page loads pass; voices/captures pair 1:1 (573/573 and 112/112).
+- Real-chain ratio (one voice at impulse I and I/2, rendered separately): the app's own sound.js module through real resume() chain in an OfflineAudioContext, I = 0.01 vs 0.005: rendered peaks 0.318735 vs 0.159368, ratio 1.9999970 (within 1% of 2). Full-clamp case (impulse 0.02, gainValue 1): peak 0.478102 <= 1. Chain math exact: rendered peak == bufferPeak * fround(gain) * 0.25 * 4; the curve's linear region outputs x * CLIPPER_RANGE, so single-voice chain gain is unity and the shaper input (max 0.120) never reaches the 0.177 knee.
+- 10 Rolls of 10 dice, peak <= 1.0 in all 10 Rolls (PM-steer replay method, real curve copied from the live WaveShaper, oversample 'none', sample rate 48000): per-Roll voices and peaks with clipper / without clipper - roll 0: 97, 0.2373 / 0.0593; roll 1: 62, 0.2490 / 0.0623; roll 2: 43, 0.2836 / 0.0709; roll 3: 58, 0.4762 / 0.1190; roll 4: 55, 0.2268 / 0.0567; roll 5: 55, 0.3355 / 0.0839; roll 6: 49, 0.3299 / 0.0825; roll 7: 49, 0.3597 / 0.0899; roll 8: 50, 0.2145 / 0.0536; roll 9: 55, 0.2821 / 0.0705. All 10 <= 1.0. Observation: in this run the mix never exceeded the linear knee (max shaper input 0.119 < 0.177), so the tanh branch was not exercised by real usage; the recorded offline evidence (max 0.9996) covers the shaped region.
+- Silence before the context exists: 29 impact events fired before any gesture while ctx = null and 0 voices.
+- Audio unlock on the first gesture: first gesture (panel toggle) creates the context, state running, clock advances; chain wired (master 0.25 exact, curve 4097 points, oversample 'none', shaper connected to destination). Context re-created and running again on the second page load.
+- Voice cap: stop-aware concurrency max 12 = cap 12 over 573 voices; 91 cap steals observed; buffer durations all within [50, 600] ms.
+- Mode and pitch selection: head ZCR d6 0.0492 (n=410) vs d10 0.0132 (n=163), ratio 3.73 (clearly distinct pitch).
+- Speed-based brightness: Spearman(speed, ZCR) = 0.184 over 573 voices (positive, one-shot proxy).
+- Haptics on event.speed: 14 navigator.vibrate calls during the session, all durations within [5, 20] ms, distinct durations {5,10,11,12,14,15,17}, returns true in this Chromium.
 
-## Harness bugs found and fixed (glue, not app)
-- Reload phase mis-sliced the voice list after page reload (capture store resets); fixed.
-- The offline replay helper's own source.start() calls re-triggered my voice capture hook, so per-Roll voice counts grew exponentially (93, 249, 551, ...) and replay inputs and voice/capture pairing were polluted; the r1 session/analyze numbers are therefore invalid as recorded data (the peak gates happened to pass but on polluted mixes). Fixed with a replaying guard in init.js. The r1 ratio/unlock results are unaffected.
+## Assumptions
+- Browser-check items are executed by instrumenting the real app in Chromium (in-page measurement code only, no repo edits), following the recorded #62 evidence and the #64 live-test precedent; the unit suites and npm test/build are excluded from the live test per role.
+- The ratio-2 check uses the app's own sound.js module with a real OfflineAudioContext render through the real resume() chain, since real rolls cannot control impulses.
+- "10 Rolls of 10 dice": 10 dice spawned via the panel (6 d6 + 4 d10, mixed so pitch selection has data), all rolled each time.
+- No clamped voices (impulse >= MAX_IMPULSE = 0.015) occurred live on either load (max 0.0135 / 0.0056), so the gain == CEILING clamp branch is only unit-covered; flagged as observation, not a defect.
 
-## Next after release
-- node --check, kill stale r1 driver, one clean full re-run (env,unlock,ratio,session,analyze,reload) producing the single clean results file; then report Notes with measured peaks, voice counts, cap/duration/haptics results and file any defects. Server on port 4647 will be killed at wrap-up.
+## Technical difficulties (glue and environment, no product defects)
+- The real-time AnalyserNode after the WaveShaper was dead in headless Chromium (PM steer confirmed); replaced with the per-Roll offline replay method.
+- My offline replay helper initially re-captured its own sources, inflating per-Roll voice counts (93, 249, 551, ... in run r1); fixed with a replaying guard and re-run clean (r2). The reload phase also initially mis-sliced the voice list after page reload; fixed. Both were harness bugs; run r1's ratio/unlock results were unaffected.
+- Dev server on port 4647 killed at wrap-up; harness artifacts kept in /tmp/dice-lt62.
