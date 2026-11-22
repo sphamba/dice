@@ -1,7 +1,7 @@
 ---
 name: "feat: replace directional shadows with orthographic GTAO ambient occlusion"
 priority: "medium"
-state: "to-merge"
+state: "merging"
 worktree: "feat/38-ortho-gtao-ambient-occlusion"
 issuer: "user"
 complexity: "complex"
