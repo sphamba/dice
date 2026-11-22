@@ -1,7 +1,7 @@
 ---
 name: "fix: warm-start the contact solver for resting piles"
 priority: "medium"
-state: "live-testing"
+state: "done"
 worktree: "fix/41-pile-warm-starting"
 issuer: "#40"
 complexity: "moderate"
@@ -39,32 +39,48 @@ Persist solved contact impulses across steps and reuse them to warm start the so
 - `npx vitest run src/physics`
 
 # Notes
-## Live test in progress (watch checkpoint) — pile warm starting, browser feel
+## Live test result: PASS — no product defects, no defect cards filed
 
-Environment: vite dev server on :8761 serving this worktree at HEAD 6497126 (verified served `/src/physics/contacts.js` contains `contactCache` and the fixed dot-on-`cached.normal.direction` check; route-rewrite spy on `/src/main.js` exposes the world). Phone context (iPhone 13 emulation), SwiftShader ~23 fps, ~0.63 sim-s per wall-s. Tilt applied through the real input path: emulated `devicemotion` events consumed by `src/input/motion.js` (20 deg / 27 deg / -20 deg gravity tilt about the phone x axis). Console noise whitelist (from captured text): `[vite]` chatter, SwiftShader `GPU stall due to ReadPixels` — 0 product messages in both runs.
+Tested the deferred item only: browser feel of the tilted pile (rocking gone, settling within the iteration budget). Real user flows in an iPhone 13 context: panel adds to build a 10-dice mixed set, Roll button, gravity tilt through the real `devicemotion` input path (20 / 27 / -20 deg about the phone x axis). App served from this worktree at HEAD 6497126; verified the served `/src/physics/contacts.js` contains `contactCache` and the fixed dot-on-`cached.normal.direction` check. SwiftShader ~23 fps, ~0.63 sim-s per wall-s. Console noise whitelist (built from captured text): `[vite]` chatter, SwiftShader `GPU stall due to ReadPixels` — 0 product messages in both runs.
 
-### Run 1: spawn 10 mixed dice, tilt phases (26/26 checks PASS, `/tmp/dice-lt41/results-pile-mixed-tilt-phone.json`)
-- Panel flow: expand controls, add 2 d4 / 2 d8 / 2 d10 / 1 d12 / 1 d20 on top of default 2 d6 → 10 mixed dice of 6 types, live-DOM counts confirmed.
-- Level baseline (0 deg): Roll applied toss speeds (flight max 1.738 m/s ≥ ROLL_SPEED_MIN 0.8), pile settles within the first 1-s window, rest state numerically quiet (maxLin 0.0000 m/s, maxAng 0.0000 rad/s). Matches the ~0.4 s problem-statement baseline at window granularity.
-- Tilt +20 deg: pile slides to +x wall and is at rest within the first 1-s window (final maxLin 0.0000, maxAng 0.0006 rad/s; peak window angular 0.0031 rad/s). Corner pile at +x wall (centroid x=13.3 mm, wall 33.8 mm). Hold 5 sim-s: stays at rest, zero drift, maxAng 0.0035 — no re-rocking.
-- Tilt +27 deg (upper range): re-settles within 1 sim-s, stays at +x wall (maxAng 0.0001).
-- Flip to -20 deg: whole pile un-sticks, crosses the box, settles at -x wall in ~7 sim-s. Angular series per sim-s: 28.7, 2.5, 6.0, 1.7, 1.8, 0.10, 0.03 rad/s — transient spikes decay to rest. 7/10 dice within 15 mm of wall, min pair distance 14.2 mm, no NaN, contained.
-- No NaN, no box protrusion (0.000 mm worst), console clean after every phase.
+### Results (39/39 checks pass)
 
-### Run 2: roll under +20 deg tilt — toss forms the corner pile (13/13 checks PASS, `/tmp/dice-lt41/results-roll-tilt-mixed-phone.json`)
-- Roll applied under tilt (flight max 1.908 m/s); tossed 10-die pile comes to rest in ~2 sim-s, angular series 4.92 → 0.01 rad/s; 10/10 dice in the +x wall region (centroid x=20.3 mm); hold 5 sim-s stays at rest (maxLin 0.0001, maxAng 0.0101); no NaN, contained, console clean.
+| Phase | Check | Result |
+|---|---|---|
+| Panel | UI adds give 10 mixed dice (d4:2 d6:2 d8:2 d10:2 d12:1 d20:1) | PASS |
+| Panel | 10 bodies, 6 distinct shape groups | PASS |
+| Spawn | no NaN; contained in box | PASS, PASS |
+| Level 0 deg | Roll applied toss speeds (flight 1.738 m/s >= ROLL_SPEED_MIN 0.8) | PASS |
+| Level 0 deg | dice come to rest (measured ~1 sim-s window; baseline ~0.4 s), rest numerically quiet (0.0000 / 0.0000) | PASS, PASS |
+| Level 0 deg | no NaN; contained | PASS, PASS |
+| Tilt +20 deg | rocking gone: pile at rest within 1 sim-s (final maxLin 0.0000, maxAng 0.0006 rad/s; peak window 0.0031) | PASS |
+| Tilt +20 deg | corner pile at +x wall (centroid x=13.3 mm, wall 33.8 mm) | PASS |
+| Tilt +20 deg | hold 5 sim-s: stays at rest, 0 drift, maxAng 0.0035 (no re-rocking) | PASS |
+| Tilt +20 deg | no NaN; contained | PASS, PASS |
+| Tilt +27 deg | re-settles within 1 sim-s, stays at +x wall (maxAng 0.0001) | PASS |
+| Tilt +27 deg | no NaN; contained | PASS, PASS |
+| Flip -20 deg | rocking gone: pile comes to rest in ~7 sim-s, angular series 28.7, 2.5, 6.0, 1.7, 1.8, 0.10, 0.03 rad/s decays to rest | PASS |
+| Flip -20 deg | whole pile un-sticks and settles at -x wall (centroid x=-18.8 mm, wall -33.8 mm) | PASS |
+| Flip -20 deg | 7/10 dice within 15 mm of wall; min pair distance 14.2 mm | PASS, PASS |
+| Flip -20 deg | no NaN; contained | PASS, PASS |
+| Roll under +20 deg | 10 mixed dice present; spawn no NaN; contained | PASS x3 |
+| Roll under +20 deg | Roll applied under tilt (flight 1.908 m/s) | PASS |
+| Roll under +20 deg | tossed pile comes to rest in ~2 sim-s, angular series 4.92 -> 0.01 rad/s | PASS |
+| Roll under +20 deg | pile at downhill corner (centroid x=20.3 mm), 10/10 dice in wall region | PASS, PASS |
+| Roll under +20 deg | hold 5 sim-s stays at rest (maxLin 0.0001, maxAng 0.0101) | PASS |
+| Roll under +20 deg | no NaN; contained x2 | PASS x3 |
+| Both runs | console clean (0 product messages) | PASS x2 |
 
-### Interpretation so far
-- The deferred item (rocking gone, settling within the iteration budget) is met in every phase: rest within 1-7 sim-s across 20/27/-20 deg, angular speeds at rest are 20x-60x below the 1.2 rad/s pre-fix rocking signature and do not re-grow during holds.
-- The 28.7 rad/s transient at the flip moment is a decaying topple/un-stick transient, not rocking: it ends at rest with no NaN and quiet final state. Judged acceptable, not a defect.
-- No product defects found so far; no defect cards filed.
+Artifacts: `/tmp/dice-lt41/results-pile-mixed-tilt-phone.json`, `/tmp/dice-lt41/results-roll-tilt-mixed-phone.json` (drivers, probe and log in the same directory). Vite server on :8761 stopped and verified with lsof.
+
+### Interpretation
+- The deferred item is met in every phase: rest within 1-7 sim-s across 20/27/-20 deg tilt and under a tilted toss; angular speeds at rest are 20x-60x below the 1.2 rad/s pre-fix rocking signature and never re-grow during 5-sim-s holds.
+- The 28.7 rad/s spike at the flip moment is a decaying topple/un-stick transient, not rocking: it ends at rest with no NaN and a quiet final state. Judged acceptable, not a defect.
+- Level-floor settling is unchanged (settles within the first 1-s window, rest numerically quiet), so the fix does not disturb the easy case.
 
 ### Assumptions made while designing the usage tests
 - Gravity tilt via emulated devicemotion is the real user flow for tilt (motion.js has no other gravity source); tilt about the phone x axis.
 - "10 mixed dice" = default 2 d6 + UI adds above, all six die types present.
-- "Comes to rest" threshold: max linear < 0.02 m/s and max angular < 0.05 rad/s, sampled in 1 sim-s windows (angular limit is ~24x below the 1.2 rad/s rocking signature).
+- "Comes to rest" threshold: max linear < 0.02 m/s and max angular < 0.05 rad/s, sampled in 1 sim-s windows (angular limit ~24x below the 1.2 rad/s rocking signature).
 - No A/B against the pre-fix build: merged main equals HEAD here, and the pre-fix rocking baseline (up to 1.2 rad/s forever) is documented in the task problem statement; the test asserts the fixed behavior.
 - The unit suite (`npx vitest run src/physics`) is the Specs acceptance and was left to the reviewer; this live test never runs it.
-
-### Remaining wrap-up after release
-- Kill the vite server on :8761 and verify with lsof; final results table mapping every check to pass/harness limit/defect; finish message.
