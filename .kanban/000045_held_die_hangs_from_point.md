@@ -49,14 +49,12 @@ Drive only the grabbed material point toward the pointer, so gravity swings the 
 - The world can also fall asleep WHILE a die is held still (the drive output is near zero after the swing calms). A sleeping world freezes the pendulum at its current angle. Before you blame a wall lean for the d10/d20 angles (23.7/12.3 deg), log `asleep` during the hold. If the world was asleep, add this case to the same defect card: the world must never sleep while any die is held, and a release must wake it.
 - After the final re-run, file the one card and finish. Do not add new scenarios.
 
-**Run 3: 69/74 PASS** (/tmp/dice-lt45/driver-run3.log, results-driver2.json). Multi-pointer 7/7 including single-entry release. Shallow box 12/12 (hanging die touches the floor while held, grab point stays at hold height while leaning, held die follows moves, held die contacts the other die with no penetration). Pointercancel 2/2. Console clean in both viewports. d4 pendulum: CoM 0.03 mm under the grab point, one 58.8 deg swing, calm at 0.83 s.
+**Run 4: 64/68** (results-driver2.json). Harness now logs asleep + wall clearance at the rest sample; the two original failure classes split into three:
 
-**Confirmed product defect (source-verified): releasing a calm-held die can leave it frozen in mid-air.**
-- The world sleeps after 0.5 s of stillness (SLEEP_TIME 0.5 s, SLEEP_SPEED 0.01, world.js:18-20). step() returns early while asleep unless a body has a nonzero velocity (world.js:141-149, moving() at world.js:30). onRelease (src/input/pointer.js:240-256) writes the velocities with no wake call. A calm release sets v=0 and randomSpin(0)=0, so the die stays at the hold height.
-- Evidence: d8 release poll showed vz 0.000 m/s for 0.8 s after mouse.up (run 3). User scenario: grab a die, hold it still about 1 s, let go: it floats.
-- Fix direction: no sleep while any die is held, and wake the world on release.
+1. **d10/d12 CoM-hang fails are wall leans, not sleep**: detail now reads `awake, wall clearance 0.00 mm` - the die hangs awake leaning on a wall (contacts active per spec). Not the sleep defect. Driver patch ready: contact-aware verdict (free hang -> theta < 5 deg; in contact -> grab point held < 2 mm is the spec-correct assertion).
+2. **d12 release freeze (awake, vz 0.000 for 0.8 s)**: world was AWAKE at release, so this is NOT the sleep-wake path. Hypothesis: the die hangs from a wall point-contact (CoM below the wall vert, stable pivot) OR the pointerup never registered. Focused probe (/tmp/dice-lt45/debug-release.mjs) written: wall-adjacent respawn, grab, 4 s hold, up, evlog pointerup check, 1 s vz poll, pointer-follow held-alive test. Running next.
+3. **fling phase failed to grab (no hold in 3 attempts)**: my wall-clearance spawn gate (> 5 mm) is too strict - dice spawn resting against walls often. Redesign done, no gate needed: the violent fling direction is chosen away from the die's near wall (dir = sign of cx), so the release always has >= 17 mm flight room and the first trace row (<= 4.2 ms) is provably pre-impact; the slow fling ends near the grab xy. Stimulus: moveA = die_x -/+ 900 px, moveB = die_x, up; replica recomputes from logged samples; retry until raw > 3.2 m/s.
 
-**Harness issues (not product defects), being patched:**
-- Fling stimulus: moves must be well inside the 80 ms FLING_WINDOW_MS, with a violent sweep for a raw velocity above 3 m/s.
-- Swing check: with HOLD_SWING_DAMPING 12 the second excursion is about 1.3 deg, so use "one visible excursion (out >= 5 deg, back within 1.5 mm)".
-- d10/d20 CoM angle: see PM hint.
+Swing check reframed per d4 evidence: 'one full crossing' -> 'one visible excursion (maxDev >= 5 deg, back within 1.5 mm)'; the crossing detector under-counted damped one-sided decays.
+
+Next: run the release probe, classify the d12 release fail (defect vs solver physics), apply the 3 driver patches, final re-run, file the one card, results table, done.
