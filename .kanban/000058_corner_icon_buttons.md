@@ -1,7 +1,7 @@
 ---
 name: "feat: icon buttons in the corners for Roll and Show controls"
 priority: "medium"
-state: "reviewing"
+state: "to-merge"
 worktree: "feat/58-corner-icon-buttons"
 issuer: "user"
 complexity: "moderate"
@@ -39,26 +39,14 @@ Make Roll a small round icon button in the lower-right corner, and the Show cont
 - Live check (desktop 1280x800, phone 393x852): Roll is in the lower-right corner, the toggle is in the lower-left corner, both show icons, both work with mouse, touch and keyboard, and the rows open above the toggle without covering the Roll button.
 
 # Notes
-- Roll is now a 48 px round icon button fixed in the lower-right corner: inline SVG die face (rounded square, 5 pips), `aria-label="Roll dice"` kept, blue `#4f6dff` fill, no visible text.
-- The Show/Hide controls disclosure is a 48 px round icon button fixed in the lower-left corner with an inline SVG sliders icon; `aria-label` follows the state ("Show controls"/"Hide controls"), `aria-expanded` and `aria-controls="dice-rows"` unchanged, no visible text.
-- The dice rows card left the old bottom-centre panel: it opens above the toggle, left-aligned, spanning between the corners (`left: 16px + safe-area`, `right: 80px + safe-area`, `bottom: 74px + safe-area`), so it cannot overlap the Roll button. Row content and behaviour unchanged.
-- Both buttons use `16px + env(safe-area-inset-*)` offsets, sit in a now transparent full-viewport `.panel` wrapper with `pointer-events: none` on the wrapper and `auto` on the buttons and rows, and keep the existing `:focus-visible` ring. SVGs are `aria-hidden="true"` and use `currentColor`.
-- Space shortcut unchanged (document keydown, ignored when the target is a button).
-- Tests: `src/ui/panel.test.js` checks `aria-label` instead of the old toggle text, asserts one `aria-hidden` SVG with `currentColor` and no text per button, keeps the Roll label and Space tests. The stub document gained `createElementNS`.
-
-# Verification
-- Commit `0ed5dc4 feat: move Roll and Show controls into corner icon buttons` (clean tree at HEAD 0ed5dc4).
-- `npx vitest run src/ui`: 19 tests passed.
-- `npm test`: 348 tests in 28 files passed.
-- `npm run build`: 30 modules, assets emitted; `dist/index.html` references `./assets/index-DWhYW3PH.js` and `./assets/index-IEdiEYU.css`.
-- Live check, all 8 scenarios PASS, zero page and console errors: desktop 1280x800 Roll box {1216,736,48x48} radius 50% with 16 px right and bottom gaps, toggle {16,736,48x48} with 16 px left and bottom gaps; rows {16,656,1184x70} left-aligned with the toggle, 10 px above it, not intersecting Roll; toggle `aria-label` flips Show/Hide with `aria-expanded`; Roll click clean; keyboard Enter opens the rows and body Space preventDefaults and rolls (canvas render hash changed); phone 393x852 with touch, tap opens the rows {16,468,297x310} clear of Roll, no horizontal overflow (scrollWidth 393 = innerWidth). Screenshots: /tmp/live58-desktop.png, /tmp/live58-phone.png.
-
-# Assumptions
-- The old floating card styling (border, blur, shadow, padding) now belongs to the rows card only; the two corner buttons are standalone circles on the canvas.
-- `.panel` stays as a full-viewport transparent wrapper so the canvas keeps receiving pointer events everywhere outside the buttons and rows.
-
-# Blockers
-- None.
+- Outcome: approved. One commit 0ed5dc4 on feat/58-corner-icon-buttons, clean tree; diff touches src/style.css, src/ui/panel.js, src/ui/panel.test.js only.
+- Spec mapping: Roll is a 48 px round button fixed lower-right with 16 px + env(safe-area-inset-*) offsets, inline SVG die face (rounded rect rx 4 + 5 pips), no visible text, aria-label="Roll dice", #4f6dff fill. Toggle is a 48 px round button fixed lower-left with an inline SVG sliders icon (3 lines + knobs), aria-label flips "Show controls"/"Hide controls" with state, aria-expanded and aria-controls="dice-rows" kept. Both SVGs aria-hidden="true", currentColor, focusable="false".
+- Rows card: bottom 74 px (10 px above the toggle's 64 px top edge), left aligned with the toggle, right 80 px clears the Roll button; open/close behaviour and row DOM unchanged. Inner rows alignment changed center to flex-start, accepted as part of the left-alignment requirement.
+- Focus ring (:focus-visible outline) and Space shortcut (document keydown, skipped on buttons) unchanged.
+- Tests match the spec: aria-label checks replace the toggle text checks, one-svg/aria-hidden/currentColor/no-text assertion per button, Roll label kept, Space tests untouched, stub gained createElementNS.
+- Grep clean: no leftover toggle/roll text assignments, "Show controls"/"Hide controls"/"Roll dice" exist only as aria-labels, index.html has no panel markup, buildIcon reaches both construction sites.
+- Evidence: shim fix + `npx vitest run src/ui` = 19/19 passed; `npm run build` = 30 modules, assets emitted. Full suite not rerun per scoped-suite policy (developer recorded 348/348 in 28 files).
+- For the live tester: check desktop 1280x800 and phone 393x852 corner placement, icon visibility, mouse/touch/keyboard operation, and that the rows open above the toggle without covering Roll.
 
 # Open questions
 
