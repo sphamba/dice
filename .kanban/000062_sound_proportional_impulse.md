@@ -7,6 +7,7 @@ issuer: "user"
 complexity: "simple"
 shortName: "sound-proportional-impulse"
 blockedBy: "#63, #64"
+splitter: "done"
 ---
 
 # Summary
