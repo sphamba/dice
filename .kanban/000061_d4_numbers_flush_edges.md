@@ -1,7 +1,7 @@
 ---
 name: "fix: place the d4 numbers flush with the rounded edges"
 priority: "high"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "user"
 complexity: "simple"
