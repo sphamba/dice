@@ -41,15 +41,18 @@ Calculated result with the test glyph box (0.56 em by 0.71 em): em 2.149 mm to 3
 # Notes
 ## Live-check progress (subagent, browser only, no repo changes)
 
-Cookie: /tmp only, no npm/git, server already at http://127.0.0.1:4319/.
+Cookie: /tmp only, no npm/git; server already at http://127.0.0.1:4319/.
 
-Findings so far:
-- Playwright works with plain `chromium.launch()` (channel 'chrome-headless-shell' is NOT supported by this playwright-core build).
-- `dice.set` = d4-only via addInitScript + reload works; Roll button works; die settles in ~6 s.
-- Dragging the canvas does NOT orbit a camera: per src/input/pointer.js it grabs/flings the die. The camera is fixed orthographic top-down (src/render/camera.js), no orbit, no wheel zoom, so the die is only ~105 CSS px wide. To get real pixels I raise deviceScaleFactor instead of zooming.
-- Run A (dsf 3, 8 states incl. 2 flings): /tmp/shot-1..8.png, crops /tmp/crop-*-crop.png. One crop viewed: a d4 face shows 3 numbers, but too few pixels to judge contact/crispness.
-- Run B (dsf 6, 4 rolls, 6000x5400 shots): /tmp/hi-1..4.png; crops (each ~500-650 px, die bbox found by background-diff masking the two UI corners): /tmp/hi-1-crop.png, /tmp/hi-2-crop.png, /tmp/hi-4-crop.png (hi-3 has no foreground above threshold — die likely off/edge or under the UI mask).
+Key constraints found:
+- Playwright needs plain `chromium.launch()` (channel 'chrome-headless-shell' unsupported by this playwright-core build).
+- `src/render/canvas-size.js` caps devicePixelRatio at 2, so dsf>2 only upscales blur. To get REAL extra pixels I enlarged the viewport instead: viewport 2000x1600, dsf 2 -> backing store 4000x3200, die ~300 real px, digits ~50 px. This is lossless (screenshot == backing store).
+- No camera orbit and no wheel zoom: dragging grabs/flings the die (src/input/pointer.js); camera is fixed ortho top-down (src/render/camera.js).
 
-Next step (interrupted here): read /tmp/hi-*-crop.png with vision and judge the criterion per image, then write the final report.
+Vision results so far:
+- /tmp/bigzoom-1.png (from /tmp/bigcrop-1.png, /tmp/big-1.png): PASS. Up face flat to camera, three numbers "4", "3", "1" all legible, clear gaps between digits, all well inside the flat inset, clean margin to the bevel. No contact anywhere.
+- bigzoom-2 / bigzoom-3 / bigzoom-5: die seen near edge-on, up face foreshortened or facing away, so three numbers are visible but squashed -> not usable for the criterion.
+- bigzoom-4: two side faces visible, 3 numbers each, legible-ish but not a flat-on face.
 
-Scripts: /tmp/shots.mjs, /tmp/hishops.mjs, /tmp/crop.py, /tmp/crophi.py. No repo file was touched.
+Next step (interrupted here): view the 4x2 contact sheet /tmp/rr-sheet.png (crops /tmp/rrc-11..18.png from rolls /tmp/rr-11..18.png) to look for more flat-on faces, then write the final report.
+
+Scripts: /tmp/big.mjs, /tmp/more.mjs, /tmp/cropbig.py. No repo file touched.
