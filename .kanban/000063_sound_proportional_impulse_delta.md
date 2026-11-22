@@ -43,10 +43,10 @@ In `src/physics/contacts.test.js`:
 - `npm run build` passes.
 
 # Notes
-- Outcome: approved. Diff (main...0ae92be) touches only src/physics/contacts.js and src/physics/contacts.test.js; scope limits hold: no physics constants or mode tables changed, event shape unchanged, src/audio untouched, sound.js:119 stays the sole external consumer of event.impulse.
-- Specs mapped: warmNormal recorded where the warm start applies (contacts.js:104 init to 0, :164 record); event.impulse = sum over the pair's contacts of max(0, normal.impulse - warmNormal) (contacts.js:300), matching the decision formula exactly.
-- warmNormal has a single read site, the emission loop; the solver path is otherwise untouched.
-- A/B against base contacts.js: the resting and loaded-pair tests go red (2 failed) under the old semantics while the fresh-drop and seeded-run tests stay green, so the new tests test the delta and the hard-coded seeded states are identical pre and post change.
-- Verification: npx vitest run src/physics 127 passed, npm test 371 passed, npm run build 30 modules transformed.
-- The developer's three stated assumptions check out in code: fresh contacts keep warmNormal 0 (prepare init plus cache-miss path returns normal 0), non-growing warmed pairs emit 0, and the resting test's 30 m/s^2 gravity clears EVENT_MIN_SPEED (g*dt = 0.0625 > 0.05).
-- No fixes needed; live GL, sound, and feel remain the live-tester role's scope.
+- Live test of #63 in progress (worktree 0496435, emission site contacts.js:297-301 confirmed carrying the delta-over-warm-start formula).
+- Scope fixed: event.impulse semantics only; audio gain rework is the parallel subtask, haptics untouched; no unit suites run.
+- Harness choice committed: vite dev :48317 + playwright-core (/tmp/pw-live) headless Chromium, route-wrapped src/physics/world.js exposing __diceWorld (precedent /tmp/dice32-lt), in-page rAF snapshot of world.events after the app frame (events clear next frame), world.step counter for the sim clock, console whitelist, results writer in /tmp/dice63-lt/out.
+- Constants table (source): FIXED_DT=1/480 s; g=9.81 m/s^2; RESTITUTION_BOX=RESTITUTION_DIE=0.5; EVENT_MIN_SPEED=0.05 m/s; WARM_START_DISTANCE=1e-3 m; SLOP=2e-4 m; DIE_DENSITY=1200; d6 half-diagonal r=0.011085 m, face half-width c=0.0064 m; mass measured live via invMass.
+- Observation plan: sim clock = stepCount/480; kick armed in-page (race-free against world sleep at 0.5 s sim: sleep() nulls contactCache, so the kick must land while awake and warm).
+- Phases: E env+smoke (render screenshot, console clean, event field shape {a,b,surface,point,speed,impulse} unchanged); U real-UI flow (default 2 d6 spawn, settle -> zero events at rest, panel Roll -> burst of finite impulse >= 0 events, +1 die via panel); D fresh flat d6 drop at 2 m/s -> impulse ~= m(1+e)*speed within 2% (fresh pairs keep warmNormal 0, so the fix must not change them); L loaded pair (B resting flush on A, kick -0.3 m/s while world awake) -> impulse ~= m*0.3 within 3% and hard bound < m*0.31, which the old semantics m*(0.3+g*dt)=+6.8% would fail; rest windows emit zero events (no phantom crackle).
+- No findings yet; no defects filed; task state untouched.
