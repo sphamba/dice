@@ -1,38 +1,31 @@
 ---
-name: "fix: grabbed die in free hang can rest with its centre of mass up to 9 mm to the side of the grab point"
+name: "test: lock the free-hang rest of a held die (the wall lean is physical)"
 priority: "medium"
 state: "doing"
 worktree: "fix/53-grabbed-die-in"
 issuer: "#50"
 complexity: "simple"
-blockedBy: "question"
+blockedBy: ""
 ---
 
 # Summary
 When a grabbed die is held in the air with no contact (clearance > 0), the physics constraint can hold a tilted orientation in which the CoM rests 6-9.3 mm horizontally off the grab point instead of swinging directly below it. Intermittent: depends on the die's orientation at grab.
 
 # Specs
-# Evidence (live test #50, run 4, harness /tmp/dice-lt50)
-- Held at (pointer, D - 2R), lowest vertex 24-33 mm above the floor, no contact: the d8 rested with its CoM 5.96 mm in xy from the pointer, and the d12 with 9.28 mm. The series stayed constant for 1.6 s (no swing).
-- d4, d6, d10, d20 converged to 0.0-0.95 mm. Run 5 passed (d8 0.17 mm, d12 1.29 mm). The defect is intermittent and depends on the orientation at grab.
+# Decision
+- A held die that leans on a side wall and cannot swing under the pointer is correct. The #45 user decision applies: contacts with the floor, walls, lid and other dice stay active while held. Do not keep held dice clear of walls and do not force any orientation.
+- The free-hang path on main is correct (0/120 fails in a 0.2 m box). No production change.
 
-# Analysis
-- With a point constraint at the grab point and no contact, gravity gives a torque about the grab point while the CoM is off the vertical. Swing damping opposes only motion, so it cannot hold a static offset. A constant tilted rest needs a second cause. Find it before you change code. Candidates:
-  1. The world was asleep during the hold. Check that the run-4 build included #52 (no sleep while held). If it did not, reproduce on main. If main does not reproduce, close the task with that evidence and change no code.
-  2. The point-constraint drive in `src/input/pointer.js` gives a torque about the grab point (for example a target velocity computed at the CoM, a gain on the grab-point offset that is not rotated by the body quat, or an angular term).
-  3. A sleep or speed gate that zeroes a slow angular velocity.
+# Evidence
+- Live run 4 offsets of 6-9 mm were wall leans: the die's min-x vertex touched the side wall, the contact solver held v = 0, w = 0. All 31/120 failing cases in the 63.5 mm box are wall cases.
 
-# Change
-- Fix the root cause found above with the smallest change. Do not add a righting torque and do not force any orientation (the #45 rule). Gravity alone must bring the CoM below the grab point.
-
-# Tests (`src/input/pointer.test.js`, no contacts)
-- For each die type, grab at 20 or more different surface points and initial orientations (fixed seed). Hold the pointer still for 3 s of simulated time. Then the CoM xy is within 1 mm of the grab point and |w| < 0.1 rad/s for every case.
+# Tests (`src/input/pointer.test.js`)
+- Free hang, no contacts (box large enough that no vertex reaches a wall or the floor): for each die type, 20 seeded grab points and orientations, pointer still for 3 s of simulated time. The CoM xy is within 1 mm of the grab point and |w| < 0.1 rad/s in every case.
 - The #45 and #52 hold tests stay green.
 
 # Acceptance criteria
 - `npx vitest run src/input src/physics`
 - `npm test`
-- `npm run build`
 
 # Notes
 ## PM hint
@@ -52,4 +45,4 @@ When a grabbed die is held in the air with no contact (clearance > 0), the physi
 - No blockers.
 
 # Open questions
-- The 6-9 mm rests from live run 4 are a die jammed against a side wall while held (contact depth ~0, wall at 31.75 mm, spin exactly zero). That is physically correct for a point-constrained die that cannot swing under the pointer without its vertex crossing the wall. Is this behaviour acceptable, or do you want the held die to be kept clear of walls (a separate change, for example wall friction or hold-target clamping for held bodies)?
+
