@@ -56,16 +56,26 @@ Collision uses the sharp vertices today. Collide each die as its rounded shape s
 # Notes
 # Notes
 # Notes
-## Outcome: approved (re-review)
-- Re-verified the committed tree (4 commits over main, clean). Acceptance green: npx vitest run src/physics 123/123, npm test 364/364, npm run build green.
-- Spec mapping: core s = 1 - BEVEL_RADIUS/rho in shapes.js matches the renderer's scale (labels.js faceInsetData and the projected hull scale), frozen and cached; die-vs-box uses core vertices with margin r + SLOP + approach*dt, point r toward the plane, depth r - distance; die-die runs the feature-pair scan on cores with fire band 2r + SLOP + closing*dt on all three paths (gate, face, edge) and depth 2r - separation; contact points sit midway between the two rounded surfaces, the midpoint of the two spec surface points; containBody holds every core vertex r inside each plane; body.radius kept for broad phase, clamp and the closing bound; RESTITUTION/FRICTION/SOLVER_ITERATIONS/FIXED_DT/warm start untouched.
-- Restitution pass matches the Spec: approach stored in prepare before the iterations, fresh contacts above RESTITUTION_THRESHOLD re-solved toward e*storedApproach with impulses clamped at 0, residual tolerance 1e-4 (RESTITUTION_TOLERANCE) or 10 passes, then one friction re-clamp; wall test gives -0.5 m/s; speculative-fire unit test green.
-- Recorded assumption (kept): FIRST_REBOUND.die uses the analytic approach sqrt(2*GRAVITY*0.1) instead of the Spec's measured fire-step approach; the measured fire approach (1.380 m/s, dev probe) sits within the same 5% tolerance, so the analytic pin is the robust no-magic-number reading. Floor pin 0.02619 untouched.
-- All Spec-named test poses present: face rest at the sharp inradius within 0.05 mm, edge and corner contacts r from the core feature, corner-to-corner touch at 2r with no contact at 2r + 2*SLOP, wall 1 m/s leaves at 0.5 m/s, die-on-die physical rebound, speculative unit test in contacts.test.js; helpers measure coreVertices plus/minus r.
-- Removed tokens EDGE_BIAS and supportEdge: zero leftovers in src/; shape.vertices remains only in render/label/pick paths.
-- Roll-to-sleep medians on the committed tree: desktop 0.8115 s, phone 0.8927 s vs #51 0.82/0.97, inside the e2e pins; mean rise 0.5228 > 0.5, wake neighbour shift 7.7e-7 < 1e-4.
-- Guidance: when a Spec names a test pose, add that exact pose even if an equivalent variant already covers the rule.
-- No browser/visual acceptance on this card; dice-roll feel with the new fire timing is the live-tester role's scope.
+## Live test in progress (watch checkpoint write)
+
+Scope: browser live test of the rounded-collision change and the speculative-contact restitution fix, desktop only (phone e2e belongs to the suites). Real UI flows only: panel Add/Remove/Roll, grab-drag-fling pointer.
+
+### Environment
+- Vite on :8856, Chromium + swiftshader, viewport 1100x1100 dpr1, box W=H=D=0.0635 m, gravity (0,0,-9.81), render fps 38, sim rate 0.567x wall (MAX_STEPS cap under swiftshader).
+- Harness in /tmp/dice-lt56 (harness.mjs + driver.mjs, phase-filtered, results-r1-*.json), trace spy on beforeStep at 480 Hz for impact phases.
+
+### Results so far
+- smoke/rest: 2 d6 spawn and sleep in 0.76 s; both rest at z=6.40 mm = d6 inradius exactly (rest height unchanged, Spec pin) - PASS.
+- roll (3x Roll button): settle 0.85/0.83/0.93 s (inside 5 s; consistent with #51 desktop 0.82 s median); mid-roll sharp containment <= 0.51 mm; rest heights 6.40 mm after every roll; trace shows real tumbling (max spin 59 rad/s, max speed 1.7 m/s); no NaN - PASS. Note: rolls decay in ~0.5 sim s, so mid-roll samples must land within ~0.15 sim s (harness timing, fixed).
+- pile (10 d6, violent Roll, 20 state samples over the motion): min rounded-core pair distance +2.287 mm (never interpenetrating; gate -0.5 mm), while the sharp hulls overlapped to -0.971 mm at the same instants - exactly the expected rounded-vs-sharp signature. Asleep 2.62 s, no NaN, screenshots confirm no visible overlap - PASS.
+- wall fling (fresh-contact restitution e=0.5): IN PROGRESS, no verdict yet. Injection findings so far (all harness-side): Playwright mouse dispatch is too slow/coalescing here so flingVelocity samples fall outside the 80 ms window (release velocity ~0); switched to a CDP mouse stream with 42/8 ms move spacing and a pointer-implied fling cross-check from the event log. One gated attempt showed exit 0.378 m/s against pointer fling 0.62 m/s (ratio 0.61, in band) but the trace's max-vx was polluted by the drag-chase tail (die driven into wall at up to 2 m/s while held). After re-arming the trace post-release the die is already at/pressed into the wall at release (chase covers 25 mm in ~13 ms), so the flight is shorter than my arm latency; plan: record release sim time and analyze only post-release rows, and start the fling farther from the wall. No app defect established in this phase yet.
+
+### Assumptions
+- Desktop viewport only; default set d6; RESTITUTION_DIE/_BOX 0.5, RESTITUTION_THRESHOLD 0.1, SLOP 1e-4, BEVEL_RADIUS 1.6 mm, d6 rho 6.4 mm from source.
+- Gates: settle <= 5 s (Spec), rest height 6.4 +/- 0.5 mm, core pair distance >= -0.5 mm (5x SLOP, sustained watch), wall exit/approach in [0.3, 0.7] gated on pointer-implied fling >= 0.3 m/s, drop rebound >= 0.4x (0.5*approach)^2/2g.
+- Pairwise rounded separation measured as exact convex feature distance (VF/FV/EE) on core vertices; verified against synthetic cube poses (touch=0, gap exact, interior overlap -depth).
+
+Still to run: wall phase verdict, die-dropped-on-die rebound phase, final console-error sweep, results table. No defects filed so far.
 
 # Open questions
 
