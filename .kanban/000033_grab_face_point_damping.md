@@ -44,4 +44,13 @@ Use exact ray/face picking and retain a body-local grab point. Drive that point 
 - `npm run build`
 
 # Notes
-Live test #33 progress: S6 root cause chain resolved. (1) Isolated probe fr.mjs proved the release path is CORRECT: pointerup arrives (id 1, mouse), no pageerror, die flew 607px from rest and settled — the app is not stuck. (2) Probe gt.mjs proved the in-page grabber frames match CDP ground truth — not stale frames. Real cause of the S6/S6c false failures: the fling flight (0.3-3 m/s in a 0.05 m box) settles within the first ~100-300ms, faster than both CDP screenshots (~250ms latency) and the grabber's first rAF frame, so no mid-flight frame ever catches the tumble. Fixed the checks to match the physics: S6 now also passes on rest-orientation change across the fling (pre-fling vs post-fling mask angle > 0.2 rad = rotation happened, spin added; mid-flight per-frame evidence kept as an alternative); S6c now samples the flight with the grabber started before the synthetic over-speed fling. Two driver crashes fixed on the way (missing grabFrames import; blob().frame is a decoded frame, passed straight to maskAngle). run12 progressed to 20 checks then hit another error; diagnosing the tail of run12 next, then the full suite rerun.
+## PM steer
+- Finish now. The core behaviors are proven (see below). Run the full driver at most one more time. If a check still fails only from the harness, record it as a harness limit in the results table, do not debug it further.
+- Then write the final results table and finish. Do not file defects for harness limits.
+
+Live test #33 progress:
+- Isolated probe fr.mjs proved the release path is correct: pointerup arrives (id 1, mouse), no pageerror, the die flew 607px from rest and settled. The app is not stuck.
+- Probe gt.mjs proved the in-page grabber frames match CDP ground truth.
+- A fling (0.3-3 m/s in a 0.05 m box) settles within about 100-300 ms, faster than CDP screenshots (about 250 ms latency) and the first grabber frame. S6 now also passes on a rest-orientation change across the fling (mask angle change > 0.2 rad). S6c samples the flight with the grabber started before the synthetic over-speed fling.
+- S8 pointercancel checks pass for touch and mouse (0 px follow after cancel).
+- run10: 28/30 PASS. run12 reached 20 checks, then hit a driver error.
