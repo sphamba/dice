@@ -3,6 +3,7 @@ import * as vec3 from '../math/vec3.js';
 import { DICE_TYPES, createShape } from './shapes.js';
 import { BEVEL_RADIUS, DIE_RADIUS } from '../physics/body.js';
 import {
+  D4_LABEL_CENTER,
   buildLabelAtlas,
   faceFrame,
   faceInsetData,
@@ -86,7 +87,7 @@ class RecordingContext {
   fillText(text, x, y) {
     const [tx, ty] = apply(this._matrix, x, y);
     const fontPx = Number.parseFloat(this.font.replace(/^[^0-9]*/, ''));
-    this.texts.push({ text, x: tx, y: ty, fontPx, fillStyle: this.fillStyle });
+    this.texts.push({ text, x: tx, y: ty, fontPx, fillStyle: this.fillStyle, at: this._matrix.slice() });
   }
   fillRect(x, y, w, h) {
     const corners = [
@@ -311,8 +312,8 @@ describe('buildLabelAtlas d4 corner numbers', () => {
         expect(label.text).toBe(String(shape.vertexValues[vi]));
         expect(label.fillStyle).toBe(DIE_COLORS[0].ink);
         expect(label.fontPx).toBeGreaterThan(0);
-        expect(label.x).toBeCloseTo(centerX + 0.62 * (size * uvs[k][0] - centerX), 6);
-        expect(label.y).toBeCloseTo(centerY + 0.62 * (size * (1 - uvs[k][1]) - centerY), 6);
+        expect(label.x).toBeCloseTo(centerX + D4_LABEL_CENTER * (size * uvs[k][0] - centerX), 6);
+        expect(label.y).toBeCloseTo(centerY + D4_LABEL_CENTER * (size * (1 - uvs[k][1]) - centerY), 6);
         expect(label.x).toBeGreaterThan(box.left);
         expect(label.x).toBeLessThan(box.right);
         expect(label.y).toBeGreaterThan(box.top);
@@ -320,6 +321,95 @@ describe('buildLabelAtlas d4 corner numbers', () => {
       });
       expect(new Set(values).size).toBe(3);
     });
+  });
+});
+
+const D4_MARGIN = 0.0003;
+const D4_ADVANCE_EM = 0.56;
+const D4_CAP_EM = 0.71;
+const BOX_CYCLE = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+
+function edgeDistances(polygon, [px, py]) {
+  const distances = [];
+  for (let k = 0; k < polygon.length; k += 1) {
+    const a = polygon[k];
+    const b = polygon[(k + 1) % polygon.length];
+    const e = [b[0] - a[0], b[1] - a[1]];
+    const len = Math.hypot(e[0], e[1]);
+    if (len < 1e-12) continue;
+    distances.push((e[0] * (py - a[1]) - e[1] * (px - a[0])) / len);
+  }
+  return distances;
+}
+
+// The drawn glyph box in face-2D units, taken from the paint transform the
+// production code applied, so the fit size and the rotation both enter.
+function glyphBox(label, scale, center) {
+  const hw = 0.5 * D4_ADVANCE_EM * label.fontPx;
+  const hh = 0.5 * D4_CAP_EM * label.fontPx;
+  return BOX_CYCLE.map(([u, v]) => {
+    const [x, y] = apply(label.at, u * hw, v * hh);
+    return [(x - center[0]) / scale[0], (center[1] - y) / scale[1]];
+  });
+}
+
+function quadSeparated(a, b) {
+  const axes = [];
+  for (const quad of [a, b]) {
+    for (let k = 0; k < 2; k += 1) {
+      const e = [quad[k + 1][0] - quad[k][0], quad[k + 1][1] - quad[k][1]];
+      const len = Math.hypot(e[0], e[1]);
+      axes.push([-e[1] / len, e[0] / len]);
+    }
+  }
+  return axes.some((axis) => {
+    const pa = a.map((p) => p[0] * axis[0] + p[1] * axis[1]);
+    const pb = b.map((p) => p[0] * axis[0] + p[1] * axis[1]);
+    return Math.max(...pa) <= Math.min(...pb) || Math.max(...pb) <= Math.min(...pa);
+  });
+}
+
+describe('buildLabelAtlas d4 flat-face fit', () => {
+  it('keeps every glyph box inside the inset triangle with a 0.3 mm margin', () => {
+    const shape = createShape('d4', DIE_RADIUS);
+    const { atlas, texts } = recordAtlas(shape, DIE_COLORS[0].die);
+    const data = faceInsetData(shape, BEVEL_RADIUS);
+    const { size, rects } = atlas;
+    expect(texts).toHaveLength(shape.faces.length * 3);
+
+    let worstMargin = Infinity;
+    let overlaps = 0;
+    let index = 0;
+    shape.faces.forEach((face, f) => {
+      const frame = faceFrame(shape, face);
+      const rect = rects[f];
+      const center = [
+        (size * (rect.u0 + rect.u1)) / 2,
+        size * (1 - (rect.v0 + rect.v1) / 2),
+      ];
+      const scale = [
+        (size * (rect.u1 - rect.u0)) / (2 * frame.radius),
+        (size * (rect.v1 - rect.v0)) / (2 * frame.radius),
+      ];
+      const inset = data[f].inset.slice(0, face.indices.length);
+      const quads = [];
+      for (let k = 0; k < face.indices.length; k += 1) {
+        const quad = glyphBox(texts[index], scale, center);
+        index += 1;
+        quads.push(quad);
+        for (const point of quad) {
+          worstMargin = Math.min(worstMargin, ...edgeDistances(inset, point));
+        }
+      }
+      for (let i = 0; i < quads.length; i += 1) {
+        for (let j = i + 1; j < quads.length; j += 1) {
+          if (!quadSeparated(quads[i], quads[j])) overlaps += 1;
+        }
+      }
+    });
+
+    expect(worstMargin).toBeGreaterThanOrEqual(D4_MARGIN);
+    expect(overlaps).toBe(0);
   });
 });
 

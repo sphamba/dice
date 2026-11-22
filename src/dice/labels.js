@@ -9,8 +9,7 @@ const INK_LIGHT = [0.96, 0.95, 0.93];
 // Arial bold metrics at a 100px reference size.
 const CAP_HEIGHT = 71;
 
-const PIP_OFFSET = 0.42;
-const PIP_RADIUS = 0.13;
+const PIP_OFFSET = 0.42;const PIP_RADIUS = 0.13;
 const PIP_LAYOUTS = {
   1: [[0, 0]],
   2: [[-1, 1], [1, -1]],
@@ -19,6 +18,12 @@ const PIP_LAYOUTS = {
   5: [[-1, 1], [1, 1], [0, 0], [-1, -1], [1, -1]],
   6: [[-1, 1], [-1, 0], [-1, -1], [1, 1], [1, 0], [1, -1]],
 };
+
+// d4 numbers sit along the corner direction, pulled in so the whole glyph box
+// stays on the flat inset triangle of the bevelled face.
+export const D4_LABEL_CENTER = 0.32;
+const D4_MAX_WIDTH = 0.125;
+const D4_MAX_HEIGHT = 0.146;
 
 // One grid cell per face, packed row-major; v = 0 is the bottom of the atlas.
 export function faceRects(faceCount) {
@@ -162,11 +167,11 @@ function drawFaceLabel(ctx, shape, face, rect, ink, size) {
     for (const vi of face.indices) {
       const [x, y] = toFace2D(frame, shape.vertices[vi]);
       drawText(ctx, String(shape.vertexValues[vi]), {
-        x: x * 0.62,
-        y: y * 0.62,
+        x: x * D4_LABEL_CENTER,
+        y: y * D4_LABEL_CENTER,
         angle: Math.atan2(-x, y),
-        maxWidth: 0.36 * frame.radius,
-        maxHeight: 0.5 * frame.radius,
+        maxWidth: D4_MAX_WIDTH * frame.radius,
+        maxHeight: D4_MAX_HEIGHT * frame.radius,
         sx, sy, px, py, ink,
       });
     }

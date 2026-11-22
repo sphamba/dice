@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DICE_TYPES, createShape } from './shapes.js';
 import { DIE_RADIUS } from '../physics/body.js';
-import { ATLAS_SIZE, buildLabelAtlas, faceFrame, faceRects, toFace2D } from './labels.js';
+import { ATLAS_SIZE, D4_LABEL_CENTER, buildLabelAtlas, faceFrame, faceRects, toFace2D } from './labels.js';
 import { diceFragmentSource, floorFragmentSource } from '../render/shaders.js';
 import {
   CARVE_DEPTH,
@@ -295,7 +295,7 @@ describe('carve orientation in the face frame', () => {
     if (shape.type === 'd6') return [0, 0];
     if (shape.type === 'd4') {
       const [x, y] = toFace2D(frame, shape.vertices[face.indices[0]]);
-      return [x * 0.62, y * 0.62];
+      return [x * D4_LABEL_CENTER, y * D4_LABEL_CENTER];
     }
     return [0, 0];
   }
