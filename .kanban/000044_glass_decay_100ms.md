@@ -1,7 +1,7 @@
 ---
 name: "fix: shorten the glass lid ring to a 100 ms decay"
 priority: "medium"
-state: "reviewing"
+state: "to-merge"
 worktree: "fix/44-glass-decay-100ms"
 issuer: "user"
 complexity: "simple"
@@ -32,8 +32,8 @@ The glass lid impact rings too long. Set the slowest glass mode T60 from 200 ms 
 - `npm run build`
 
 # Notes
-- Deliverable: `GLASS.tau` in `src/audio/modes.js` is now `t60Tau(0.1) * (1 + GLASS_DAMP_HF)`, so the glass lid slowest mode T60 is 100 ms. Box stays 80 ms, die modes 30 ms or less, pitch, per-mode HF damping, positions and gains unchanged.
-- Verification: HEAD 16595ab. `npx vitest run src/audio` 30 passed, `npm test` 300 passed, `npm run build` green with the dist asset check showing both script and stylesheet links.
-- Assumptions: the test file `src/audio/modes.test.js` is the pinned place for the T60 target; no other module hardcodes the glass decay, so the single constant change suffices.
-- Blockers: none.
-- Manual checks left to other roles: listen to a lid impact to confirm the ring is 100 ms in the live page.
+- Review outcome: approved. HEAD 16595ab, diff touches exactly `src/audio/modes.js` (GLASS.tau `t60Tau(0.2)` -> `t60Tau(0.1)`, damp factor kept) and the matching expectation in `src/audio/modes.test.js`.
+- Spec bullets all map to evidence: glass slowest-mode T60 100 ms (test `toBeCloseTo(0.1, 6)` green), box 80 ms and dies <= 30 ms tests green, 'glass longer than box' green, f11 900, dampHF 0.45, positions/gains untouched (diff scope).
+- 'Clean buffer end' preserved structurally: `src/audio/sound.js` derives buffer duration from the modes' peak tau (renderModes), so it shortens with the new tau; no hardcoded decay anywhere else (grep round: GLASS consumed only at sound.js lid routing line 43).
+- Evidence: `npx vitest run src/audio` 30 passed, `npm test` 300 passed (26 files), `npm run build` green (29 modules, dist assets emitted). All exit 0.
+- Developer assumptions verified, none silent or load-bearing beyond the task text.
