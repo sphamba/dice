@@ -1,12 +1,14 @@
 ---
 name: "fix: restore rendering on Android and show render errors on the page"
 priority: "critical"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/46-android-render-robustness"
 issuer: "#39"
 complexity: "moderate"
 shortName: "android-render-robustness"
 splitter: "done"
+changes: "{\"base\":\"main\",\"ins\":194,\"del\":27,\"files\":8}"
+commits: "[{\"hash\":\"b798ac2\",\"subject\":\"fix(render): stop draw from using stale resources after a failed restore\",\"when\":\"2026-11-22T12:20:09+01:00\"},{\"hash\":\"b05d988\",\"subject\":\"fix(render): drop driver-hostile shader constructs and surface render errors\",\"when\":\"2026-11-22T12:11:25+01:00\"}]"
 ---
 
 # Summary
