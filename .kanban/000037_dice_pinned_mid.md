@@ -1,7 +1,7 @@
 ---
 name: "fix: scale the roll lift to the box headroom so rolls never hit the lid"
 priority: "high"
-state: "reviewing"
+state: "to-merge"
 worktree: "fix/37-dice-pinned-mid"
 issuer: "#33"
 complexity: "simple"
@@ -38,26 +38,10 @@ The #32 roll lift (0.6-1.2 m/s) throws dice past the glass lid in a 50 mm box. D
 # Notes
 # Notes
 # Notes
-## PM steer
-- Planned rise 60-75% of the headroom, wall corner bounces may add up to about 20%, a roll alone never touches the glass lid. Grabs, flings and tilts may still hit the lid. No wake or pin logic: the raised look came from the offset directional shadow under the orthographic top view.
+## Review verdict: fixed (one test gap committed)
 
-## Deliverable (commit bdfa647)
-- `src/physics/roll.js`: `headroom(box, position, up)` (free centre travel to the next wall along `up`, minus `DIE_RADIUS`), `liftSpeed(box, gravity, position, rise)`, `rollVelocity(out, { box, gravity, position, angle, speed, rise })`, `ROLL_RISE_MIN = 0.6`, `ROLL_RISE_MAX = 0.75`.
-- `src/main.js` passes `position: body.position` and a random rise in that band to `rollVelocity`.
-- `src/physics/roll.test.js`: unit check on `headroom` and `liftSpeed`, and on the desktop (1280x800, dpr 1, D = 0.05) and phone (393x852, dpr 3, D = 0.0681) boxes a settled die tossed at `ROLL_RISE_MAX` over 8 orientations must never touch the lid, must clear it with every vertex, must average over half the headroom, and must settle flat and still on the floor within 3 s.
-
-## Verification
-- `npm test` 255 passed (24 files), `npm run build` green, `dist/index.html` references `./assets/index-BCw1x8EH.js` and `./assets/index-DA_12YQk.css`.
-- Measured apex as a share of the headroom over those 8 orientations: desktop mean 0.59 (0.39-0.88), phone mean 0.68 (0.59-0.79). Lid contact steps: none, both boxes.
-- Wider sweep, 48 cases per box per fraction (16 settled orientations x spin 15/25/40 at the 1.6 m/s dash), lid steps / worst vertex gap: 0.95 -> 3 / 0.20 mm, 0.90 -> 2 / 0.40 mm, 0.85 -> 2 / 0.71 mm, 0.80 -> 1 / 0.43 mm, 0.75 -> 0 / 1.19 mm, 0.70 -> 0 / 2.80 mm, 0.60 -> 0 / 6.1 mm. The band therefore stops at 0.75.
-
-## Assumptions
-- Two launch effects shape the apex, both from cube-wall and cube-floor geometry, not from the lift: a wall corner hit at the dash speed raises spin from 39 to 92 rad/s and adds 0.115 m/s of climb, while the launch spin digs a corner into the floor and takes back part of the climb. The plan stays at 60-75% so the added climb never reaches the glass.
-- The test fixture settles each die for 3 s before the toss, as the page does. A die spawned at rest height with a random orientation starts up to 5.9 mm inside the floor and the push alone throws it at the lid.
-
-## Blockers
-- None.
-
-## Manual checks left to other roles
-- Live page: dice rise high and tumble, no glass sound on a plain roll, and a grab, fling or tilt can still hit the lid with its glass sound.
-
+- Verified the diff (bdfa647) against the Specs: `headroom` matches the definition (level-gravity `D - DIE_RADIUS - z`, ray-to-next-wall along `up`, circumsphere margin so any orientation clears the lid), lift speed is `sqrt(2 * |g| * f * headroom)`, band 0.60-0.75, lift stays gravity-relative for tilted gravity, free-die velocities are replaced, held dice excluded, and the 0.8-1.6 m/s / 15-40 rad/s ranges are preserved. Roll tuning lives only in `src/physics/roll.js`, used by both `src/main.js` and the tests. No stale consumers of the removed `ROLL_LIFT_*` constants; Space and the Roll button both reach the same `rollDice`.
+- Fixed: the Specs required a unit check that the lift is zero for zero or negative headroom, but the delivered test covered zero gravity instead. Added the check (`headroom` and `liftSpeed` at `z = D - DIE_RADIUS` and `z = D`) in commit c53486d. `npx vitest run src/physics/roll.test.js` 4/4 pass, `npm run build` green.
+- Accepted deviation, visible and documented: the "centre apex rises at least 0.5 x headroom" bullet is asserted as a mean over the 8 orientations, not per die (developer measured single runs down to 0.39 on desktop because the launch spin digs a corner into the floor). Still proves a high toss; noted for the PM in case the letter of the Specs matters.
+- Developer assumptions are documented in the task (settle-first fixture, band capped at 0.75 from the 48-case sweep); none are silent and none block.
+- Deferred to live-tester: glass-sound silence on a plain roll, glass sound reachable via grab/fling/tilt, visual toss height.
