@@ -1,7 +1,7 @@
 ---
 name: "fix: whole-world sleep that freezes and wakes the dice world"
 priority: "medium"
-state: "to-review"
+state: "reviewing"
 worktree: "fix/42-pile-world-sleep"
 issuer: "#40"
 complexity: "moderate"
