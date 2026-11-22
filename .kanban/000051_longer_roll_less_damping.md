@@ -42,16 +42,17 @@ Rolled dice settle in 0.2-0.5 s, partly because of CONTACT_ANGULAR_DAMPING, a no
 
 # Notes
 # Notes
-## Review
-- Outcome: approved. HEAD 426761d against main, worktree clean, scope is the five physics files in the diff.
-- Damping: CONTACT_ANGULAR_DAMPING, the touching set and the per-step spin scale are gone from contacts.js with no replacement (source sweep matches only the guard test; integrator LINEAR_DAMPING/ANGULAR_DAMPING untouched).
-- Restitution: box and die 0.5, RESTITUTION_THRESHOLD 0.1 and the fresh-contact rule kept. Unit tests derive expected speeds from the constants; the literal values are pinned by the re-measured FIRST_REBOUND fixtures (floor 0.02619, die 0.03997, 5 percent window).
-- containBody reflects the into-wall component as -e*v from the imported RESTITUTION_BOX and zeroes below RESTITUTION_THRESHOLD; clampIntoBox stays setBox-only. Friction 0.4/0.4/0.1/0.1, warm starting, sleep thresholds, Baumgarte, iterations, FIXED_DT and the roll.js ranges unchanged.
-- Tests green: vitest src/physics 114 passed, npm test 329 passed, npm run build green. Wall bounce: 1 m/s in leaves at -RESTITUTION_BOX, 0.05 m/s at 0. Pile tests at SETTLE_LIMIT 5 s, all seeds green.
-- Roll-out probe (replicates the committed rolledWorld fixture, 8 seeds per box): desktop rest median 0.343 s, max 0.371 s, sleep median 0.843 s, max 0.871 s; phone rest median 0.429 s, max 0.548 s, sleep median 0.929 s, max 1.046 s. Sleep medians sit above the main baseline 0.78 s and every seed sleeps within 5 s. The previously recorded values (0.80/0.30, 0.89/0.39) came from an out-of-tree measurement and read slightly low; the numbers above reproduce from the committed fixture.
-- Accepted adaptations: wake-shove tolerance 1e-6 to 1e-4 m (shove propagates 2.3e-6 m, a tenth of the contact skin) and FIRST_REBOUND re-measured on the new restitution; both map to spec bullets.
-- Guidance: record fixture metrics from the committed fixture, not an out-of-tree probe, so Notes numbers reproduce.
-- Deferred to live test: perceived roll feel in a browser (spin, wall bounces, settle).
+## Live test (interim checkpoint, in progress)
+
+Scope: the review's deferred item only - perceived roll feel in a browser (spin, wall bounces, settle), exercised through the real UI (Roll button clicks, grab-and-fling pointer drag). No unit suites run. Assumptions: durations measured in sim time via the beforeStep clock (SwiftShader runs ~0.5x wall speed at 32 fps); live sleep median compared to the task's recorded main baseline 0.78 s and committed fixture 0.843 s (desktop); wall-bounce evidence read as per-axis velocity flips in a 1/240 s-decimated trace of the fastest die, expected exit/entry ratio ~0.5 from RESTITUTION_BOX.
+
+- Source state confirmed: HEAD 426761d; RESTITUTION_BOX/RESTITUTION_DIE 0.5 (contacts.js:8,10), RESTITUTION_THRESHOLD 0.1 kept, no CONTACT_ANGULAR_DAMPING anywhere in src, containBody reflects into-wall velocity as -e*v (world.js:57-88), roll.js ranges untouched.
+- Environment probe (desktop 1280x800 dpr 1): WebGL2 ok, 32 fps, canvas backing 1280x800 = client*dpr, box 0.08x0.05x0.05 m (MIN_BOX_EDGE guard raises mpp on the 800 px side, expected), no page errors.
+- Harness: /tmp/dice-lt53 (copied from dice-lt52 precedent, port 8798). First full run 18/22 checks; all four failures are harness-side so far, no product defect yet.
+- Harness bug 1 (found, fix ready): oneRoll's poll loop can sample the stale pre-roll asleep=true within the click frame and break immediately (sleep=0.000 s, samples=1). Fix: wait for the world to wake after the roll before polling for sleep.
+- Harness bug 2 (under diagnosis): one spurious TypeError "s.bodies is not iterable" after the first poll sample; a 12-sample probe around a roll shows every sample well-formed (keys asleep/gravity/box/simT/bodies). Next step: print err.stack in the phase catch.
+- Harness bug 3: fling replica returned 0.00 m/s from 7 logged moves (window math vs move timing), so the fling phase's speed and ratio checks were void; the die still visibly bounced off the +x wall (entry 1.41 -> exit 0.31 m/s) and settled in 0.848 s, finite and contained.
+- The core 8-roll desktop metric (rest/sleep medians, wall-bounce ratios) has not run yet; rerun after the fixes, then the phone box 393x852 dpr 3.
 
 # Open questions
 
