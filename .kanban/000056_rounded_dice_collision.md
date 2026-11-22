@@ -1,7 +1,7 @@
 ---
 name: "feat: collide dice as rounded shapes (core polyhedron plus bevel radius)"
 priority: "high"
-state: "reviewing"
+state: "to-merge"
 worktree: "feat/56-rounded-dice-collision"
 issuer: "user"
 complexity: "complex"
@@ -54,15 +54,14 @@ Collision uses the sharp vertices today. Collide each die as its rounded shape s
 # Notes
 # Notes
 # Notes
-## Outcome: fixed
-- Committed the uncommitted round-2 work as 9fa9d29 (Gauss-Seidel restitution pass in contacts.js, core-based containBody in world.js, speculative-contact unit test, rounded helpers in roll/world tests) and added the Spec-named corner-to-corner test to collision.test.js. Branch: 4 commits over main, tree clean.
-- Verified all acceptance criteria on the committed tree: npx vitest run src/physics + src/dice 203/203 (204 with the added test), npm test 364/364, npm run build green (same dist assets as reported).
-- Spec mapping: core s = 1 - BEVEL_RADIUS/rho in shapes.js is byte-for-byte the renderer's faceInsetData scale (labels.js), same rho, frozen and cached; die-vs-box uses core vertices with margin r + SLOP + approach*dt, point r toward the plane, depth r - distance; die-die runs the feature-pair scan on cores with fire band 2r + SLOP + closing*dt on all three paths (gate, face, edge) and depth 2r - separation; contact points sit midway between the two rounded surfaces, which is the midpoint of the two spec surface points; containBody holds every core vertex r inside each plane; body.radius kept for broad phase, clamp and the closing bound; RESTITUTION/FRICTION/SOLVER_ITERATIONS/FIXED_DT/warm start untouched.
-- Restitution pass matches the PM decision: approach stored in prepare before the iterations, pass re-solves fresh contacts above RESTITUTION_THRESHOLD toward e*storedApproach with impulses clamped at 0, residual tolerance 1e-4 (RESTITUTION_TOLERANCE) or 10 passes, then one friction re-clamp; wall test gives -0.5.
-- New corner-to-corner test: no die contact at core gap 2r + 2*SLOP, one contact with normal (0,0,-1) and depth 1e-6 at 2r - 1e-6; this covers the previously untested vertex-vertex path.
-- Accepted interpretation (recorded): FIRST_REBOUND.die uses the analytic approach sqrt(2*GRAVITY*0.1) instead of the Spec's "measured fire-step approach". The measured fire approach (1.380 m/s, dev probe) would sit at ~4.9% deviation under the same 5% tolerance, so the analytic pin is the robust reading of "no magic number, physical value".
-- Removed tokens EDGE_BIAS and supportEdge: zero leftovers in src/. shape.vertices remains only in render/label/pick paths, correct for the sharp hull there.
-- Roll-to-sleep medians already recorded: desktop 0.8115 s, phone 0.8927 s vs #51 0.82/0.97, both inside the e2e pins; mean rise 0.5228 > 0.5, wake shift 7.7e-7 < 1e-4.
+## Outcome: approved (re-review)
+- Re-verified the committed tree (4 commits over main, clean). Acceptance green: npx vitest run src/physics 123/123, npm test 364/364, npm run build green.
+- Spec mapping: core s = 1 - BEVEL_RADIUS/rho in shapes.js matches the renderer's scale (labels.js faceInsetData and the projected hull scale), frozen and cached; die-vs-box uses core vertices with margin r + SLOP + approach*dt, point r toward the plane, depth r - distance; die-die runs the feature-pair scan on cores with fire band 2r + SLOP + closing*dt on all three paths (gate, face, edge) and depth 2r - separation; contact points sit midway between the two rounded surfaces, the midpoint of the two spec surface points; containBody holds every core vertex r inside each plane; body.radius kept for broad phase, clamp and the closing bound; RESTITUTION/FRICTION/SOLVER_ITERATIONS/FIXED_DT/warm start untouched.
+- Restitution pass matches the Spec: approach stored in prepare before the iterations, fresh contacts above RESTITUTION_THRESHOLD re-solved toward e*storedApproach with impulses clamped at 0, residual tolerance 1e-4 (RESTITUTION_TOLERANCE) or 10 passes, then one friction re-clamp; wall test gives -0.5 m/s; speculative-fire unit test green.
+- Recorded assumption (kept): FIRST_REBOUND.die uses the analytic approach sqrt(2*GRAVITY*0.1) instead of the Spec's measured fire-step approach; the measured fire approach (1.380 m/s, dev probe) sits within the same 5% tolerance, so the analytic pin is the robust no-magic-number reading. Floor pin 0.02619 untouched.
+- All Spec-named test poses present: face rest at the sharp inradius within 0.05 mm, edge and corner contacts r from the core feature, corner-to-corner touch at 2r with no contact at 2r + 2*SLOP, wall 1 m/s leaves at 0.5 m/s, die-on-die physical rebound, speculative unit test in contacts.test.js; helpers measure coreVertices plus/minus r.
+- Removed tokens EDGE_BIAS and supportEdge: zero leftovers in src/; shape.vertices remains only in render/label/pick paths.
+- Roll-to-sleep medians on the committed tree: desktop 0.8115 s, phone 0.8927 s vs #51 0.82/0.97, inside the e2e pins; mean rise 0.5228 > 0.5, wake neighbour shift 7.7e-7 < 1e-4.
 - Guidance: when a Spec names a test pose, add that exact pose even if an equivalent variant already covers the rule.
 - No browser/visual acceptance on this card; dice-roll feel with the new fire timing is the live-tester role's scope.
 
