@@ -41,10 +41,19 @@ The d4 numbers sit too close to the face corners. Move them toward the face cent
 # Notes
 # Notes
 # Notes
-- Outcome: fixed. One cosmetic commit by the reviewer at 66f4404 (split the pip const line the diff had joined onto one line); no functional changes. All Spec bullets mapped to diff or test evidence; nothing stale.
-- Spec: d4 centres moved 0.62 → 0.32 via exported D4_LABEL_CENTER (labels.js:24,170-171), rotation `atan2(-x, y)` kept, no other die type touched (grep clean, diff touches only the d4 branch). Fit box reduced to 0.125R x 0.146R; accepted, the 0.3 mm rule cannot hold at the old glyph size on the bevelled inset. Containment and no-overlap are enforced by the new `buildLabelAtlas d4 flat-face fit` test, which rebuilds glyph boxes from the recorded paint transform against `faceInsetData` on real geometry (DIE_RADIUS 11.085 mm, BEVEL_RADIUS 1.6 mm).
-- Evidence at 66f4404: `npx vitest run src/dice` 3 files / 80 passed; `npm test` 28 files / 355 passed; `npm run build` green. Existing label and carve tests updated to the constant and stay green.
-- Probe re-measures the worst glyph-box margin at 0.388 mm on face 0; the developer's note said 0.34 mm. Value re-measured, both clear the 0.3 mm rule.
-- Judgment calls: tuning to 0.32 below the suggested 0.45 start is within "and tune it"; Arial bold 0.56 em advance / 0.71 em cap metrics match the existing CAP_HEIGHT=71 model and the test mock.
-- For the live-tester role: readability and corner clearance of the carved d4 numbers at desktop and phone size stay live scope. The developer flags port 4173 on this machine as held by a stale server from another checkout, so run the preview with `--strictPort` on a free port.
-- Open questions: none.
+# Notes
+Live test in progress on merged commit (worktree fix/57-d4-numbers-off-corners).
+
+Scope fixed from Summary+Specs: live acceptance = "a d4 at desktop and phone size shows 3 readable, carved numbers per visible face, clear of the rounded corners". No unit suites run. Assumptions: ortho top-down camera; settled d4 rests face-down so exactly 3 faces are visible, 9 glyphs per pose; panel flow (toggle, clear default set, Add d4, Roll) is the real user path.
+
+Harness: /tmp/dice-lt57 (harness.mjs copied from proven /tmp/dice-lt54, retargeted; port 8957 strictPort; driver.mjs). Gates grounded in printed source constants (DIE_RADIUS 11.085 mm, BEVEL_RADIUS 1.6 mm, D4_LABEL_CENTER 0.32, fit 0.125R x 0.146R, margin rule 0.3 mm, faceInsetData inset). Env smoke green: WebGL2, backing 2200x2200 = viewport*dpr, capture path valid, fps 19.1 (SwiftShader), no console errors.
+
+Results so far (full run, desktop pose A settled):
+- PASS: clearance gate, real pixels: worst ink margin 0.556 mm inside inset (rule 0.3 mm) - measured in face-2D via plane hit, exact space (flat plane == sharp plane since s*rho+r = rho).
+- PASS: ink vs body contrast on all 3 faces.
+- Visual evidence crop-desktopA.png read: 9 numbers visible, 3 per face, all sitting toward face centres, clearly clear of rounded corners/edges. Looks correct.
+- FAIL (harness, not product): glyph component checks - my absolute ink threshold luma<70 shatters the 1-2 px AA glyph strokes into specks (calibrated distribution: glyph p50 luma 86 on shadow faces vs body 91; glyph core <40). Fix in flight: per-face relative core classifier (luma < 0.55*local body), no erode, core-count gate per expected centre.
+- FAIL (harness): desktop pose B captured with asleep=false - settle timeout too short after Roll; fix: longer waitForAsleep + retry.
+- Probe2 (in-page): advance('4')=55.6 px/100 px font, cap ascent 69 (close to CAP_HEIGHT=71 model); atlas glyph union 180x162 px per 512 px cell; box.W=0.127 m confirmed. Rendered die silhouette is ~0.75x the sharp-vertex projection - expected, the #55 rounded shape (s=0.567 + 1.6 mm ball) cuts the corners; glyph centre projections still matched measured centroids within 4-11 px, so the 0.32-centre gate stays valid with tol 21 px.
+
+Still to do: classifier + settle fixes, rerun full (desktop A/B + phone), read evidence crops, then final report. No product defects filed yet.

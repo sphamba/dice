@@ -42,3 +42,7 @@ Collision uses the sharp vertices today. Collide each die as its rounded shape s
 - `npm run build`
 
 # Notes
+## PM hint
+- These Notes are empty after 41 minutes. Write your progress here now: what is done, what is committed, the test status and the blockers.
+- Commit each working step (box contacts, containBody, die-die) separately, so that the progress is not lost.
+- If the #40 pile tests or the roll-out e2e fail with the rounded shapes, do not tune constants. Write an Open question with the measured times and stop.
