@@ -40,25 +40,21 @@ The #32 roll lift (0.6-1.2 m/s) throws dice past the glass lid in a 50 mm box. D
 # Notes
 # Notes
 # Notes
-## Live test in progress (checkpoint write)
+## Live test in progress (checkpoint write, ~70% done)
 
-### Scope accepted
-Testing only the #37 change: headroom-derived roll lift (rise 60-75% of headroom, apex up to ~95%, never touching the lid on Roll/Space), plus the deferred items from the review verdict: glass-sound silence on a plain roll, glass sound reachable via grab/fling/tilt, visual toss height. No die stays pinned mid-air. Unit suites are excluded per instructions.
+### Results so far (instrument calibrated on synthetic signals before use; all numbers measured live)
+- Desktop rolls (1280x800, D=50 mm), 3 rolls via Roll button and Space key, 2 d6: 0 lid events and 0 glass voices in every roll; max vertex top 25.6-46.7 mm vs 50 mm box depth; apex rise 31-89% of headroom (mean ~55%, >= 50%); settle 0.2-0.3 s after launch (limit 3 s); dice rest at 8.00 mm (d6 face height) with 0.000 mm spread, so no die stays pinned mid-air.
+- Phone rolls (393x852 dpr3, D=68 mm), 3 rolls: 0 lid events, 0 glass voices, rises 52-84%, settle <= 0.5 s, rest 8.00 mm stable.
+- Visual toss: screenshot burst during a roll shows both dice clearly airborne with offset directional shadows (the shadow offset from the tilted light is the "pinned mid-air" illusion source; at rest the die body sits at 8.00 mm on the floor while its shadow looks raised).
+- Tilt (synthetic devicemotion, gravity flipped to [0,0,+9.81]): 8 lid events, 4 glass voices actually played (speed 0.81 m/s, impulse 5.2e-3, audio context running) -> the glass sound is reachable. Dice rest against the lid at 42.0 mm; after resetting gravity they fall back to 8.24 mm on the floor.
+- Fling (drag + fast release toward a wall): 86 wall events, wall speed up to 3.15 m/s, max vertex top 30.2 mm of 50 mm, no lid contact. Fling did not reach the lid, which the Specs allow ("may still hit").
 
-### Inspection done (one batched pass)
-- `src/physics/roll.js`: headroom = ray-to-next-wall along up minus DIE_RADIUS; lift = sqrt(2*|g|*f*headroom); band 0.60-0.75; zero lift for zero/negative headroom or zero gravity. Consumed by `src/main.js` rollDice (Roll button and Space both reach it via `src/ui/panel.js`).
-- Event path for the glass sound: collision surfaces include 'lid'; contacts -> events {a,b,surface,point,speed,impulse}; `sound.play` filters speed < 0.15, then playVoice -> GLASS plate modes for surface 'lid'. So glass sound on a plain roll is equivalent to a lid contact event with enough speed/impulse.
-- Physics stepping: FIXED_DT 1/480, max 16 substeps per frame; at headless fps this is slow motion, so sim time must be counted from substeps, not wall time.
-- Box: desktop 1280x800 dpr1 -> 80x50x50 mm; phone 393x852 dpr3 -> 68x147x68 mm. DIE_RADIUS = 0.0139. Lid contact threshold for a d6 centre: z > D - DIE_RADIUS.
-- Pointer grab lifts a held die to holdHeight D - 2*radius (circumsphere grazes the lid); fling sets horizontal-only velocity (up to 3 m/s), lid reach only via corner bounces; tilt via devicemotion can flip gravity so dice fall onto the lid (most reliable glass-sound trigger).
+### Instrumentation issues found and fixed during testing (my harness, not product defects)
+- Playwright does not invoke newline-led function-shaped evaluate strings; one helper (voices clear) silently never ran, so voice logs accumulated across windows. The 4 "glass voices" seen in later windows were stale tilt-window entries; roll/phone sessions had 0 lid voices in every pull, so the glass-silence conclusion is unaffected.
+- Settle metric originally anchored at window start and could latch onto pre-roll quiet samples; re-anchored at motion onset and re-verified against a synthetic signal with known apex/settle.
+- Headless screenshots need explicit SwiftShader args (--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader); the default GPU path captures a blank canvas.
 
-### Environment prepared
-- Playwright 1.59.1 at /home/phamba/repos/dotfiles/pi-agent/skills/web-browser/node_modules/playwright (browsers cached), harness dir /tmp/dice37-lt/.
-- Vite dev server running detached on localhost:46137 (page, /src/main.js, /src/audio/sound.js all HTTP 200; served texts captured for exact-match spy rewrites).
-- Instrumentation plan: two served-module rewrites (main.js exposes window.__dice = {world, sound}; sound.js logs every attempted voice with surface/played flag), test-side wrap of world.step for per-substep positions (apex z, max vertex z via quat rotate), event drain, console whitelist from a first probe run.
-
-### Next steps
-1. One front-loaded probe run: WebGL2, rAF fps, AudioContext state after a real click, console message texts, box dims and dice count in-page.
-2. Desktop driver: settle, 2-3 plain rolls (button + Space): no lid contacts, no glass voices, apex rise >= ~0.5*headroom mean, settle <= 3 s sim, no pinned dice.
-3. Phone-viewport roll (393x852 dpr3), then glass-sound reachability: tilt (devicemotion flip), fling at a wall, grab-hold.
-4. File defects via kanban_create with issuer #37, rewrite Notes with the results table, kill server, verify port.
+### Remaining
+- Re-run grab+Space with corrected window analysis (held-die roll-exclusion check; first attempt had a windowing artifact, free-die apex was sliced wrong).
+- Re-run desktop rolls to capture proper visual-toss screenshots.
+- Write results table, file defects if any, kill server, verify port.
