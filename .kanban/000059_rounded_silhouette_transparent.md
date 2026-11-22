@@ -1,7 +1,7 @@
 ---
 name: "fix: remove the sharp hull pixels outside the rounded die silhouette"
 priority: "high"
-state: "to-review"
+state: "reviewing"
 worktree: "fix/59-rounded-silhouette-transparent"
 issuer: "user"
 complexity: "moderate"
