@@ -1,7 +1,7 @@
 ---
 name: "feat: carve the numbers and pips with a baked normal-map atlas"
 priority: "medium"
-state: "doing"
+state: "to-review"
 worktree: "feat/49-carved-labels-normal-atlas"
 issuer: "user"
 complexity: "complex"
@@ -59,12 +59,27 @@ Make the numbers and pips look carved into the die with a round groove profile a
 - Live check (browser, desktop and phone viewport): every die type shows carved, painted numbers or pips with round walls lit from the light direction, pips look like dimples, numbers stay readable, no console or GL errors, and the #46 error overlay does not appear.
 
 # Notes
-## PM hint
-- The branch has no commits yet. Stop the live check now: kill the dev server on :5199. The live-tester role does the full browser check after review.
-- Skip the wheel probe (the app has no zoom) and scenario C.
-- Implement the Specs first (bake, shader, tests), commit, and run the acceptance commands. At the end, one short browser smoke is enough: no console or GL errors, no #46 overlay, and the pips look carved.
-- The DPR cap at 2 and the blocked navigator.vibrate are not part of this task. Do not change them.
+## Deliverable
+- src/dice/carve.js (new): CARVE_DEPTH = 0.0289 * DIE_RADIUS, CAVITY = 0.25, anisotropic Felzenszwalb-Huttenlocher EDT (metres-per-sample spacing per axis, so d6's 1.5:1 cells bake circular in face space), signedDistance (negative inside), carveCell (mask -> RGBA: tangent-space normal in RGB, cavity factor in A), buildCarveAtlas (per-cell mask from atlas alpha >= 128, rows written bottom-up to match the FLIP_Y label upload).
+- One round profile for everything: h(d) = -CARVE_DEPTH * sqrt(1 - (1 - min(d/W,1))^2) with W = per-connected-component max inside distance. A disk component has W = pip radius -> spherical dimple; a stroke gets the circular-arc groove across its width. Per-component W also handles d4's three corner numbers and merged digit parts.
+- src/render/gl.js: createCarveTexture (raw RGBA bytes, LINEAR, CLAMP, no mipmaps).
+- src/render/shaders.js: bevelNormal(n, q) takes the inset offset; dice frag decodes uCarve in the T/B/N basis when q == 0 and keeps the bevel normal in the band; litColor(base, n, cavity) multiplies the ambient term only; floor passes 1.0; AO prepass output unchanged (same string, passes insetOffset(vFacePos) explicitly).
+- src/render/renderer.js: carve baked once per type at load, second texture per dice entry bound on TEXTURE4, deleted in destroyResources.
+- src/dice/carve.test.js (new, 13 tests): FH vs brute-force EDT on a disk, field signs, pip centre/rim/wall normals + symmetry, stroke groove symmetry + cavity, orientation for all 6 die types (right-of and above-sample tilt toward the glyph centre after T/B/N; the above-sample pins FLIP_Y/frame orientation), buildCarveAtlas cell mapping + bottom-up rows, CARVE_DEPTH equality, shader source pins.
+- renderer.test.js fake canvas gained getImageData (transparent) and TEXTURE4; labels.js unchanged.
 
-## State
-- Browser setup that works: playwright-core 1.64.1 at /home/phamba/.npm/_npx/e41f203b7505f1fb/node_modules, chrome-headless-shell-1217 with --use-angle=swiftshader --no-sandbox. Script /tmp/dice-live-check.mjs.
-- Screenshots of the current state (before the carve) are in /tmp/dice-live-*.png. Use them as the baseline. No console or GL errors.
+## Verification
+- npx vitest run src/render src/dice: 9 files / 114 tests green @ 8bde405. npm test: 337 passed. npm run build ok, dist/index.html asset refs checked.
+- Live check (playwright-core + chrome-headless-shell, desktop 1280x800 and phone 390x844@3x): PASS both — every type shows carved painted glyphs, pips read as dimples, no console/GL errors, no #46 overlay; dev server killed, repo clean at 8bde405. Screenshots under /tmp/dice-live-*.png.
+
+## Assumptions
+- The distance-transform test's "exact value" is the brute-force exact EDT of the disk mask: a binary-mask SDF differs from the continuous circle by up to ~1 px at diagonal boundary pixels, so FH is compared against brute force (matches to ~1e-6) instead.
+- One unified profile for pips and strokes: the arc-revolved dimple approximates the spherical cap at D/r ~= 0.5; the pip radius emerges as the component SDF max, equal to the drawing-code radius in labels.js.
+- Cavity is normalized by the per-cell max slope, so the steepest wall texel gets exactly 1 - CAVITY.
+- The faint straight diagonal across some pips in the 2x detail shot is the dimple's own lit/shaded wall terminator under the directional light, i.e. correct engraved appearance, not a seam defect.
+
+## Blockers
+- None.
+
+## Manual checks left to other roles
+- Formal live-test pass with zoom on pips to confirm the dimple read and cavity strength under the 30-degree tilted light; wall shading is intentionally subtle at CAVITY = 0.25.
