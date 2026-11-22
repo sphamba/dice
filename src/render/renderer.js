@@ -186,7 +186,7 @@ export function aoTargetSize(box, backingW, backingH) {
   return [size(box.W, backingW), size(box.H, backingH)];
 }
 
-export function createRenderer(gl) {
+export function createRenderer(gl, { onError = (error) => console.error(error) } = {}) {
   let resources = null;
   let aoSetup = null;
   let box = null;
@@ -308,18 +308,25 @@ export function createRenderer(gl) {
   resources = buildResources();
   try {
     aoSetup = buildAoSetup();
-  } catch {
+  } catch (error) {
+    console.error('ambient occlusion unavailable, rendering without it', error);
     aoSetup = null;
   }
 
   const canvas = gl.canvas;
   const handleContextLost = (event) => event.preventDefault();
   const handleContextRestored = () => {
-    resources = buildResources();
+    try {
+      resources = buildResources();
+    } catch (error) {
+      onError(error);
+      return;
+    }
     try {
       aoSetup = buildAoSetup();
       if (box) ensureAoTargets(aoTargetSize(box, viewport[0], viewport[1]));
-    } catch {
+    } catch (error) {
+      console.error('ambient occlusion unavailable after a context restore', error);
       aoSetup = null;
     }
   };
@@ -445,7 +452,8 @@ export function createRenderer(gl) {
       if (!aoSetup) return;
       try {
         ensureAoTargets(aoTargetSize(box, pixelW, pixelH));
-      } catch {
+      } catch (error) {
+        console.error('ambient occlusion targets failed, disabling the pass', error);
         destroyAoSetup();
       }
     },

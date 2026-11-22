@@ -106,6 +106,21 @@ function buildRow(type, set, onChange) {
   return { row, sync };
 }
 
+export const MESSAGE_ID = 'unsupported';
+
+export function showMessage(root, message) {
+  let element = null;
+  for (const child of root.children) if (child.id === MESSAGE_ID) element = child;
+  if (!element) {
+    element = document.createElement('p');
+    element.id = MESSAGE_ID;
+    element.setAttribute('role', 'alert');
+    root.append(element);
+  }
+  element.textContent = String(message);
+  return element;
+}
+
 export function createPanel(root, { initialSet, onAdd, onRemove, onRoll } = {}) {
   const set = parseStoredSet(
     initialSet === undefined ? readStorage() : JSON.stringify(initialSet),

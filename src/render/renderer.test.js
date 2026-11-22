@@ -13,7 +13,9 @@ describe('aoTargetSize', () => {
 });
 
 // Minimal fake WebGL2 context: objects are plain records, framebuffer binds recorded.
+// `state.fail` makes every shader compile report a failure with `state.infoLog`.
 function makeFakeGl() {
+  const state = { fail: false, infoLog: '' };
   const listeners = {};
   const canvas = {
     addEventListener: (type, fn) => { (listeners[type] ??= []).push(fn); },
@@ -42,8 +44,8 @@ function makeFakeGl() {
     createShader: (type) => fresh('shader'),
     shaderSource: () => {},
     compileShader: () => {},
-    getShaderParameter: () => true,
-    getShaderInfoLog: () => '',
+    getShaderParameter: () => !state.fail,
+    getShaderInfoLog: () => state.infoLog,
     deleteShader: () => {},
     createProgram: () => fresh('program'),
     attachShader: () => {},
@@ -92,7 +94,7 @@ function makeFakeGl() {
     drawArrays: () => {},
     drawElements: () => {},
   };
-  return { gl, listeners, boundFramebuffers };
+  return { gl, listeners, boundFramebuffers, state };
 }
 
 // buildLabelAtlas needs a canvas in node: a 2D context that records nothing.
@@ -122,6 +124,25 @@ describe('AO pipeline wiring (fake GL)', () => {
     expect(drawnTo).toHaveLength(3); // prepass, GTAO, blur targets
     expect(new Set(drawnTo).size).toBe(3);
     expect(boundFramebuffers.at(-1)).toBe(null); // scene renders to the canvas
+    renderer.dispose();
+  });
+
+  it('reports a rejected shader with its info log at creation', () => {
+    const { gl, state } = makeFakeGl();
+    state.fail = true;
+    state.infoLog = 'ERROR: 0:1: bad shader';
+    expect(() => createRenderer(gl)).toThrow(/bad shader/);
+  });
+
+  it('reports a rebuild failure from the context restore path', () => {
+    const { gl, listeners, state } = makeFakeGl();
+    const errors = [];
+    const renderer = createRenderer(gl, { onError: (error) => errors.push(error) });
+    state.fail = true;
+    state.infoLog = 'ERROR: 0:9: unreachable';
+    for (const fn of listeners.webglcontextrestored) fn({ preventDefault() {} });
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('unreachable');
     renderer.dispose();
   });
 

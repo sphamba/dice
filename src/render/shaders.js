@@ -93,14 +93,21 @@ flat in vec4 vInset2;
 
 // q = fragment minus the closest point of the 5-edge inset polygon, zero
 // inside it. Padded zero-length edges are guarded by the max() epsilon.
+vec2 insetPoint(int k) {
+  if (k == 0) return vInset0.xy;
+  if (k == 1) return vInset0.zw;
+  if (k == 2) return vInset1.xy;
+  if (k == 3) return vInset1.zw;
+  return vInset2.xy;
+}
+
 vec2 insetOffset(vec2 p) {
-  vec2 pts[5] = vec2[5](vInset0.xy, vInset0.zw, vInset1.xy, vInset1.zw, vInset2.xy);
   vec2 q = vec2(0.0);
   float bestD2 = 1e30;
   float minCr = 1e30;
   for (int k = 0; k < 5; k++) {
-    vec2 a = pts[k];
-    vec2 e = pts[(k + 1) % 5] - a;
+    vec2 a = insetPoint(k);
+    vec2 e = insetPoint(k < 4 ? k + 1 : 0) - a;
     vec2 w = p - a;
     float t = clamp(dot(w, e) / max(dot(e, e), 1e-12), 0.0, 1.0);
     vec2 d = w - t * e;
@@ -128,9 +135,10 @@ float hullDistance(vec2 p) {
   if (uHullCount < 3) return 1e30;
   float best = 1e30;
   float minCr = 1e30;
-  for (int k = 0; k < uHullCount; k++) {
+  for (int k = 0; k < 20; k++) {
+    if (k >= uHullCount) break;
     vec2 a = uHull[k];
-    vec2 e = uHull[(k + 1) % uHullCount] - a;
+    vec2 e = uHull[k + 1 < uHullCount ? k + 1 : 0] - a;
     vec2 w = p - a;
     float t = clamp(dot(w, e) / max(dot(e, e), 1e-12), 0.0, 1.0);
     best = min(best, length(w - t * e));
@@ -308,7 +316,7 @@ void main() {
   vec4 label = texture(uAtlas, vUV);
   // Rounded outline: coverage alpha from the distance to the body's 2D hull.
   float d = hullDistance(vWorldPos.xy);
-  float alpha = clamp((uBevelRadius - d) / fwidth(d) + 0.5, 0.0, 1.0);
+  float alpha = clamp((uBevelRadius - d) / max(fwidth(d), 1e-7) + 0.5, 0.0, 1.0);
   outColor = vec4(litColor(mix(uColor, label.rgb, label.a), n), alpha);
 }
 `;

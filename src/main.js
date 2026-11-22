@@ -19,7 +19,7 @@ import { createMotion, onFirstGesture, unlockOnFirstGesture } from './input/moti
 import { createPointer } from './input/pointer.js';
 import { createHaptics } from './audio/haptics.js';
 import { createSound } from './audio/sound.js';
-import { createPanel } from './ui/panel.js';
+import { createPanel, showMessage } from './ui/panel.js';
 
 const SPAWN_SPEED = 0.2;
 const SPAWN_TRIES = 50;
@@ -33,22 +33,33 @@ function randomAxis(out) {
   );
 }
 
-function showUnsupported(ui) {
-  const message = document.createElement('p');
-  message.id = 'unsupported';
-  message.textContent = 'WebGL2 is not supported by this browser';
-  ui.append(message);
-}
-
 const canvas = document.querySelector('#view');
 const ui = document.querySelector('#ui');
-const gl = canvas.getContext('webgl2');
+
+function showError(error) {
+  console.error(error);
+  showMessage(ui, error instanceof Error ? error.message : String(error));
+}
+
+addEventListener('error', (event) => showError(event.error ?? event.message));
+addEventListener('unhandledrejection', (event) => showError(event.reason));
+
+function tryCreateRenderer(gl) {
+  try {
+    return createRenderer(gl, { onError: showError });
+  } catch (error) {
+    showError(error);
+    return null;
+  }
+}
+
+const gl = canvas.getContext('webgl2', { alpha: false });
+const renderer = gl ? tryCreateRenderer(gl) : null;
 
 if (!gl) {
-  showUnsupported(ui);
-} else {
+  showMessage(ui, 'WebGL2 is not supported by this browser');
+} else if (renderer) {
   const world = createWorld(boxFromViewport(innerWidth, innerHeight, devicePixelRatio));
-  const renderer = createRenderer(gl);
   const sound = createSound();
   const haptics = createHaptics();
 

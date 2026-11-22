@@ -7,6 +7,7 @@ import {
   canRemove,
   createPanel,
   parseStoredSet,
+  showMessage,
 } from './panel.js';
 
 const setOf = (counts) => Object.fromEntries(DICE_TYPES.map((type) => [type, counts[type] ?? 0]));
@@ -238,6 +239,23 @@ describe('createPanel disclosure', () => {
     const stopPropagation = vi.fn();
     container.fire('pointerdown', { stopPropagation });
     expect(stopPropagation).toHaveBeenCalled();
+  });
+});
+
+describe('showMessage', () => {
+  beforeEach(() => {
+    globalThis.document = stubDocument;
+  });
+
+  it('puts the text in one element that later messages reuse', () => {
+    const root = stubDocument.createElement('div');
+    showMessage(root, 'WebGL2 is not supported by this browser');
+    expect(root.children).toHaveLength(1);
+    expect(root.children[0].textContent).toBe('WebGL2 is not supported by this browser');
+    expect(root.children[0].id).toBe('unsupported');
+    showMessage(root, 'fragment shader compile failed: ERROR: 0:1');
+    expect(root.children).toHaveLength(1);
+    expect(root.children[0].textContent).toBe('fragment shader compile failed: ERROR: 0:1');
   });
 });
 
