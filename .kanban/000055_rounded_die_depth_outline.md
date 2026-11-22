@@ -44,21 +44,25 @@ The die corners still look sharp. Make the dice shaders emulate the displacement
 - Live check: in a 4x crop, the corners of a flat d6 and a tilted d8/d20 are round with radius about 1.6 mm. Where two dice touch, no sharp corner cuts into the other die. No console or GL errors, and no #46 overlay.
 
 # Notes
-Live-test of the rounded die depth-outline fix (merged commit on this worktree), run 2026-02-13, suite /tmp/dice55-lt (driver.mjs + ltlib.js, all instruments self-tested in selftest.mjs). Final clean run: RUNID=final, 28/28 checks passed, consoleFailures=0, gl.getError=0. VERDICT: PASS - all acceptance criteria met, no product defects found.
+Live-test of the rounded die depth-outline fix (merged commit 5ac4028 on this worktree), run 2026-11-22, suite /tmp/dice55-lt (precedent driver.mjs + ltlib.js, instruments self-tested via selftest.mjs, all PASS before the run). INTERIM CHECKPOINT — evidence review still in progress.
 
-Results table (check -> result):
-- B flat d6 half-edge a -> PASS: a=6.38mm vs model 6.4mm, spread 0.43px (evidence final-B-d6-full-2x.png: face-up d6, 4 pips, visibly rounded corners)
-- B flat d6 corner radius ~1.6mm -> PASS: polar minima [1.54, 1.49, 1.52, 1.55]mm vs model 1.60mm (radial 720-dir scan + 0.5-crossing + Kasa circle fit; self-tested against synthetic rounded square)
-- C d8 resting bevel band -> PASS: holes=0 (holes = enclosed dark blue-dominant pixels = see-through cracks; numeral ink excluded by hue dominance after calibration on real pixels)
-- C d20 resting bevel band -> PASS: holes=0
-- C d8 held bevel band -> PASS: holes=0 (die picked, lifted, held; beforeStep wrapped, not replaced)
-- C d20 held bevel band -> PASS: holes=0
-- C tilted corner radius (d8/d20, resting+held) -> PASS: tiltedMean 1.47-1.52mm across 4 states, 10-13 valid fits each, within 40% of 1.6mm and of the same-run flat ref 1.53mm
-- D two dice in contact -> PASS: 15 die-die contact events for the d6/d8 pair, heldGap=8.9mm during calm hold
-- D seam shows no sharp cut -> PASS: final-D-seam-wide-3x.png (captured during hold) shows red d6 in clean contact with green d8, rounded edge, no cut
-- E phone (390x844, mobile UA) -> PASS: flat d6 polar corners [1.53, 1.49, 1.50, 1.62]mm; d8 holes=0; d8 tiltedMean=1.32mm; console clean; getError=0; no unsupported banner. d20 resting analysis found no component because it hid behind the expanded panel; after collapsing the panel pre-roll the run passed without it (not re-gated; d8 covers the phone acceptance surface)
-- E fps note: SwiftShader 1-4 fps measured post-settle - harness limit, observation only
+Runs (RUNID / phases / result):
+- retest (full A-F): 32/33 checks passed, consoleFailures=0, gl.getError=0, no unsupported banner. Single FAIL: E-d20-resting "tilted corner radius ~1.6mm" (1 valid arc fit, gate needs >=2).
+- retest2 (A,B,C,E, after harness crop fix): 31/31 checks passed, consoleFailures=0, gl.getError=0. The E-d20 gate PASSED on this run, confirming the retest FAIL was instrument margin, not a product defect.
 
-Harness limits (no product impact): (1) held-die corner evidence crops can land off-die (die drifts during hold); gates use full-image fits, unaffected. (2) LSQ corner-window cross-check demoted to info: 20-deg windows straddle true corners on real renders; polar instrument is the corner gate. (3) d20 phone resting view behind expanded panel; panel collapse added, d20 phone gate dropped as redundant with desktop d20 gates.
+Results so far (check -> result):
+- A env (desktop 1280x800): webgl2 ok, backing=client*dpr, scale 16.0 px/mm (model corner r=25.6px, d6 half-edge a=102.4px)
+- B desktop flat d6 -> PASS: a=6.38mm (model 6.4), spread 0.39px, polar corner radii [1.53,1.48,1.51,1.55]mm vs model 1.60mm; full-2x crop shows face-up d6 with visibly rounded corners
+- C desktop tilted d8/d20 resting+held -> PASS all: holes=0 in bevel band (4 states), corner fits 8-18 per state, tiltedMean 1.51-1.53mm vs same-run flat ref 1.52mm
+- D two dice in contact -> PASS: 43 die-die contact events, heldGap=8.7mm, seam spikes=0; retest-D-seam-wide-3x.png shows red d6 in clean contact with green d8, rounded edge, no sharp cut
+- E phone (393x852 DPR 3): flat d6 a=6.37mm, polar corners [1.58,1.48,1.47,1.51]mm; d8 holes=0, tiltedMean=1.41mm vs flatRef 1.51; console clean, getError=0, no banner. SwiftShader 1-3 fps post-settle (harness limit, observation only)
+- 4x crop evidence: phone d6 corner (retest2-E-d6-corner4-4x.png) shows a clearly rounded corner arc; desktop d6 4x corner crops still land off-corner (harness placement, see limits)
 
-Evidence files: /tmp/dice55-lt/out/final-*.{png,json}. No cards filed (no defects).
+Harness limits / fixes (no product impact):
+1. Driver read `phiDeg` from flatFit output, which emits `phiEdge` -> NaN crop coords -> 0-byte void corner crops for B and E-d6 (also void in the previous session's final run; its Notes cited full-2x evidence instead). Fixed mid-run (crop at phiEdge+45, LSQ cross-check direct-match, tilted pick closest to 1.5mm, 100px tilted crops).
+2. Desktop flat-d6 4x corner crops still land off-corner: cornerCropCoords uses bbox-diag/2 as corner distance, which overshoots for the rotated square (corner arc at ~134px along diagonal, heuristic places ~194px). Numeric gates unaffected (polar minima + full-2x view carry B). Fix planned: place crop at the polar-fit corner-arc center ((a-r)*sqrt(2) along phiD).
+3. retest E-d20-resting gate FAIL (1 fit): classified instrument margin — retest2 passed the same gate, desktop d20 passed with 8 fits, and retest-E-d20-resting-full-2x.png shows visibly rounded corners at every silhouette vertex with no cracks.
+
+Assumptions made while designing the usage tests: (1) the physics/rendering "rounded shape" the shaders must emulate is s*P ⊕ ball(BEVEL_RADIUS) with BEVEL_RADIUS = DIE_RADIUS/(4*sqrt(3)) = 1.6mm (src/physics/body.js:12, DIE_RADIUS=11.085mm at body.js:7); measured radii are compared to 1.6mm with the harness tolerance used by the self-tested instruments. (2) A "flat d6" is any face-up d6 regardless of pip count (retest rolled a 1-pip face, prior run a 4-pip face; both valid). (3) The held-die check keeps the panel closed and only requires the die lifted and held, not tilted, for band-continuity evidence (retest held states were face-up; tilt evidence comes from resting states). No observed behavior contradicted the task's stated facts: s-inset hull outlines, 1.6mm radius and rounded depth all matched the source constants.
+
+Remaining before final report: review retest2 tilted 4x crops (C-d8-resting-corner1 etc.), one desktop 4x d6 corner crop with the corrected placement, then final Notes rewrite.
