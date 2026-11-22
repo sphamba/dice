@@ -55,6 +55,12 @@ describe('restitution', () => {
     nearRel(body.linearVelocity[2], RESTITUTION_BOX);
   });
 
+  it('gives a speculative fresh contact the restitution target after the step', () => {
+    const body = makeBody([0, 0, 0.01], [0, 0, -1]);
+    solveContacts(makeWorld(floorContact(body, { depth: -0.001 })), FIXED_DT);
+    nearRel(body.linearVelocity[2], RESTITUTION_BOX);
+  });
+
   it('kills the approach speed below the threshold instead of bouncing', () => {
     const body = makeBody([0, 0, 0.01], [0, 0, -0.05]);
     solveContacts(makeWorld(floorContact(body)), FIXED_DT);

@@ -275,4 +275,24 @@ describe('rounded core contacts', () => {
     for (const contact of contacts) near(contact.normal[2], -1, 1e-9);
     near(Math.max(...contacts.map((contact) => contact.depth)), 1e-6, 1e-9);
   });
+
+  it('lets two dice touch when the core gap reaches 2r corner to corner', () => {
+    const top = 2 * INSET * DIE_RADIUS;
+    const apartLower = createBody(die6(), { position: [0, 0, BASE_Z], orientation: cornerDown() });
+    const apartUpper = createBody(die6(), {
+      position: [0, 0, BASE_Z + top + 2 * BEVEL_RADIUS + 2 * SLOP],
+      orientation: cornerDown(),
+    });
+    expect(detect([apartLower, apartUpper]).filter(die)).toEqual([]);
+
+    const lower = createBody(die6(), { position: [0, 0, BASE_Z], orientation: cornerDown() });
+    const upper = createBody(die6(), {
+      position: [0, 0, BASE_Z + top + 2 * BEVEL_RADIUS - 1e-6],
+      orientation: cornerDown(),
+    });
+    const contacts = detect([lower, upper]).filter(die);
+    expect(contacts.length).toBeGreaterThan(0);
+    for (const contact of contacts) near(contact.normal[2], -1, 1e-9);
+    near(Math.max(...contacts.map((contact) => contact.depth)), 1e-6, 1e-9);
+  });
 });

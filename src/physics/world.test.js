@@ -9,13 +9,17 @@ import {
 } from './world.js';
 import { LINEAR_DAMPING } from './integrator.js';
 import { RESTITUTION_BOX, RESTITUTION_THRESHOLD } from './contacts.js';
-import { DIE_RADIUS, createBody } from './body.js';
+import { BEVEL_RADIUS, DIE_RADIUS, createBody } from './body.js';
 import { createShape } from '../dice/shapes.js';
 import * as mat3 from '../math/mat3.js';
+import * as quat from '../math/quat.js';
 import * as vec3 from '../math/vec3.js';
 
 const nearRel = (actual, expected, eps = 1e-12) =>
   expect(Math.abs(actual - expected)).toBeLessThan(eps * Math.abs(expected));
+
+const near = (actual, expected, eps = 1e-9) =>
+  expect(Math.abs(actual - expected)).toBeLessThan(eps);
 
 const BOX = { W: 0.0681, H: 0.1476, D: 0.0681 };
 
@@ -353,5 +357,61 @@ describe('waking', () => {
     expect(Array.from(body.angularVelocity)).toEqual([0, 0, 0]);
     expect(world.contacts).toEqual([]);
     expect(world.events).toEqual([]);
+  });
+});
+
+describe('rounded rest', () => {
+  const H6 = DIE_RADIUS / Math.sqrt(3);
+  const INSET = 1 - BEVEL_RADIUS / H6;
+
+  const cornerDown = () => {
+    // Rotation mapping the (1,1,1) vertex direction straight down, built from its
+    // half-angle so the fixture check holds at 1e-15.
+    const w = Math.sqrt((1 - 1 / Math.sqrt(3)) / 2);
+    const s = Math.sqrt((1 + 1 / Math.sqrt(3)) / 2) / Math.SQRT2;
+    const q = new Float64Array([-s, s, 0, w]);
+    const third = 1 / Math.sqrt(3);
+    const down = vec3.transformQuat(new Float64Array(3), [third, third, third], q);
+    near(down[0], 0, 1e-12);
+    near(down[1], 0, 1e-12);
+    near(down[2], -1, 1e-12);
+    return q;
+  };
+
+  const lowestCoreZ = (body) => {
+    let low = Infinity;
+    for (const vertex of body.shape.coreVertices) {
+      const world = vec3.add(
+        new Float64Array(3),
+        vec3.transformQuat(new Float64Array(3), vertex, body.orientation),
+        body.position,
+      );
+      low = Math.min(low, world[2]);
+    }
+    return low;
+  };
+
+  it('holds a d6 placed at the sharp rest height on its face', () => {
+    const world = createWorld(BOX);
+    const body = createBody(createShape('d6', DIE_RADIUS), { position: [0, 0, H6] });
+    world.addBody(body);
+
+    for (let i = 0; i < 480; i += 1) world.step(FIXED_DT);
+
+    near(body.position[2], H6, 5e-5);
+    expect(vec3.length(body.linearVelocity)).toBeLessThan(1e-6);
+  });
+
+  it('containBody keeps the rounded corner of a corner-down die outside the floor', () => {
+    const world = createWorld(BOX);
+    const body = createBody(createShape('d6', DIE_RADIUS), {
+      position: [0, 0, INSET * DIE_RADIUS + BEVEL_RADIUS / 2],
+      orientation: cornerDown(),
+    });
+    world.addBody(body);
+
+    world.step(FIXED_DT);
+
+    expect(lowestCoreZ(body)).toBeGreaterThanOrEqual(BEVEL_RADIUS - 1e-9);
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { boxFromViewport } from './box.js';
-import { DIE_RADIUS, createBody } from './body.js';
+import { BEVEL_RADIUS, DIE_RADIUS, createBody } from './body.js';
 import { createShape } from '../dice/shapes.js';
 import { FIXED_DT, createWorld } from './world.js';
 import {
@@ -40,14 +40,15 @@ function mulberry32(seed) {
 }
 
 function exactVertices(body) {
-  return body.shape.vertices.map((vertex) =>
+  return body.shape.coreVertices.map((vertex) =>
     vec3.add(vec(), vec3.transformQuat(vec(), vertex, body.orientation), body.position),
   );
 }
 
-const lowestVertex = (body) => Math.min(...exactVertices(body).map((point) => point[2]));
+// Rounded-surface extremes: the surface is the core dilated by the bevel radius.
+const lowestVertex = (body) => Math.min(...exactVertices(body).map((point) => point[2])) - BEVEL_RADIUS;
 
-const highestVertex = (body) => Math.max(...exactVertices(body).map((point) => point[2]));
+const highestVertex = (body) => Math.max(...exactVertices(body).map((point) => point[2])) + BEVEL_RADIUS;
 
 function spin(body, random) {
   const axis = vec3.set(vec(), random() - 0.5, random() - 0.5, random() - 0.5);

@@ -1,6 +1,6 @@
 import * as vec3 from '../math/vec3.js';
 import { detectContacts } from './collision.js';
-import { DIE_RADIUS } from './body.js';
+import { BEVEL_RADIUS, DIE_RADIUS } from './body.js';
 import { integratePositions, integrateVelocities } from './integrator.js';
 import { solveContacts, RESTITUTION_BOX, RESTITUTION_THRESHOLD } from './contacts.js';
 
@@ -53,10 +53,12 @@ function clampIntoBox(box, body) {
 const scratchPoint = new Float64Array(3);
 const scratchPush = new Float64Array(3);
 
-// Per-vertex projection: a face may rest flush on a wall, so a radius clamp would float the die.
+// Per-vertex projection on the core polyhedron: holding every core vertex a bevel
+// radius inside each wall keeps the rounded surface inside, while a face may rest flush.
 function containBody(box, body) {
-  const vertices = body.shape?.vertices;
+  const vertices = body.shape?.coreVertices;
   if (!vertices) return;
+  const r = BEVEL_RADIUS;
   let underX = 0;
   let overX = 0;
   let underY = 0;
@@ -69,12 +71,12 @@ function containBody(box, body) {
       vec3.transformQuat(scratchPoint, vertex, body.orientation),
       body.position,
     );
-    underX = Math.max(underX, -box.W / 2 - point[0]);
-    overX = Math.max(overX, point[0] - box.W / 2);
-    underY = Math.max(underY, -box.H / 2 - point[1]);
-    overY = Math.max(overY, point[1] - box.H / 2);
-    underZ = Math.max(underZ, -point[2]);
-    overZ = Math.max(overZ, point[2] - box.D);
+    underX = Math.max(underX, -box.W / 2 + r - point[0]);
+    overX = Math.max(overX, point[0] - box.W / 2 + r);
+    underY = Math.max(underY, -box.H / 2 + r - point[1]);
+    overY = Math.max(overY, point[1] - box.H / 2 + r);
+    underZ = Math.max(underZ, r - point[2]);
+    overZ = Math.max(overZ, point[2] - box.D + r);
   }
   const push = vec3.set(scratchPush, underX - overX, underY - overY, underZ - overZ);
   if (push[0] === 0 && push[1] === 0 && push[2] === 0) return;

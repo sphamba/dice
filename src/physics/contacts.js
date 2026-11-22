@@ -5,6 +5,9 @@ export const SOLVER_ITERATIONS = 10;
 
 export const RESTITUTION_THRESHOLD = 0.1;
 
+// Residual (m/s) below which the restitution pass stops iterating.
+export const RESTITUTION_TOLERANCE = 1e-4;
+
 export const RESTITUTION_BOX = 0.5;
 
 export const RESTITUTION_DIE = 0.5;
@@ -109,16 +112,14 @@ function prepare(contact, dt, cache) {
   const normalSpeed = vec3.dot(scratchRelative, normal);
   prepared.approach = -normalSpeed;
   // A contact that persisted from the previous step is resting or rocking. Restitution there
-  // only feeds the rocking mode, so it applies to a fresh contact alone.
-  const fresh = findCached(cache, contact) === null;
-  const bounce =
-    fresh && prepared.approach > RESTITUTION_THRESHOLD
-      ? (b ? RESTITUTION_DIE : RESTITUTION_BOX) * prepared.approach
-      : 0;
+  // only feeds the rocking mode, so it applies to a fresh contact alone. It is applied by the
+  // pass after the velocity iterations, so a speculative fire keeps its stored approach.
+  prepared.fresh = findCached(cache, contact) === null;
+  prepared.restitution = b ? RESTITUTION_DIE : RESTITUTION_BOX;
   const depth = contact.depth ?? 0;
   prepared.target = depth < 0
-    ? (bounce > 0 ? bounce : depth / dt)
-    : bounce + Math.min((BAUMGARTE * Math.max(depth - SLOP, 0)) / dt, MAX_BIAS_SPEED);
+    ? depth / dt
+    : Math.min((BAUMGARTE * Math.max(depth - SLOP, 0)) / dt, MAX_BIAS_SPEED);
   return prepared;
 }
 
@@ -264,6 +265,32 @@ export function solveContacts(world, dt) {
       solveFriction(contact);
     }
   }
+
+  // The iterations can undershoot the bounce target on a small effective-mass contact, and a
+  // speculative fire can end the step impulse-free when the depth/dt cap exceeds the closing
+  // speed. Fresh contacts re-solve toward the stored-approach bounce while every other contact
+  // keeps its prepared target, so support chains stay pinned during the bounce. Accumulated
+  // impulses clamp at 0 inside solveNormal.
+  const bounced = prepared.filter(
+    (contact) => contact.fresh && contact.approach > RESTITUTION_THRESHOLD,
+  );
+  if (bounced.length > 0) {
+    for (const contact of bounced) {
+      contact.target = contact.restitution * contact.approach;
+    }
+    for (let iteration = 0; iteration < SOLVER_ITERATIONS; iteration += 1) {
+      for (const contact of prepared) solveNormal(contact);
+      let worst = 0;
+      for (const contact of bounced) {
+        relativeVelocity(scratchRelative, contact);
+        const speed = vec3.dot(scratchRelative, contact.normal.direction);
+        const residual = Math.abs(contact.target - speed);
+        if (residual > worst) worst = residual;
+      }
+      if (worst < RESTITUTION_TOLERANCE) break;
+    }
+  }
+  for (const contact of prepared) solveFriction(contact);
 
   for (const group of groups.values()) {
     for (const contact of group.contacts) group.impulse += contact.normal.impulse;
