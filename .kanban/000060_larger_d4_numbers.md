@@ -2,7 +2,7 @@
 name: "fix: enlarge the d4 numbers"
 priority: "medium"
 state: "done"
-worktree: "fix/60-larger-d4-numbers"
+worktree: ""
 issuer: "user"
 complexity: "simple"
 shortName: "larger-d4-numbers"
