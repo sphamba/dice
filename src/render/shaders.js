@@ -41,7 +41,7 @@ float sampleAo() {
   return weights > 0.0 ? total / weights : 1.0;
 }
 
-vec3 litColor(vec3 base, vec3 n) {
+vec3 litColor(vec3 base, vec3 n, float cavity) {
   vec3 toLight = -uLightDir;
   float ndotl = dot(n, toLight);
   float diffuse = max(ndotl, 0.0);
@@ -57,7 +57,7 @@ vec3 litColor(vec3 base, vec3 n) {
   // flat top faces).
   vec3 hemi = mix(vec3(0.5, 0.45, 0.4), vec3(1.0), n.z * 0.5 + 0.5);
   float rim = pow(1.0 - clamp(n.z, 0.0, 1.0), 5.0) * 0.3;
-  return base * (uAmbient * hemi * ao + uIntensity * diffuse * mix(1.0, ao, uDirectAo)) + vec3((specular + rim) * uIntensity * ao);
+  return base * (uAmbient * hemi * ao * cavity + uIntensity * diffuse * mix(1.0, ao, uDirectAo)) + vec3((specular + rim) * uIntensity * ao);
 }
 `;
 
@@ -129,10 +129,10 @@ vec2 insetOffset(vec2 p) {
 
 // Face normal on the flat region, the exact two-face bisector at each sharp
 // edge, smooth in between.
-vec3 bevelNormal(vec3 n) {
+vec3 bevelNormal(vec3 n, vec2 q) {
   vec3 t = normalize(vTangent);
   vec3 b = cross(n, t);
-  vec3 nts = normalize(vec3(insetOffset(vFacePos), uBevelRadius));
+  vec3 nts = normalize(vec3(q, uBevelRadius));
   return normalize(t * nts.x + b * nts.y + n * nts.z);
 }
 
@@ -168,7 +168,7 @@ ${BEVEL_FRAG}
 
 void main() {
   if (hullDistance(vWorldPos.xy) > uBevelRadius) discard;
-  outColor = vec4(bevelNormal(normalize(vNormal)) * 0.5 + 0.5, 1.0);
+  outColor = vec4(bevelNormal(normalize(vNormal), insetOffset(vFacePos)) * 0.5 + 0.5, 1.0);
 }
 `;
 
@@ -309,6 +309,7 @@ precision highp float;
 
 uniform vec3 uColor;
 uniform highp sampler2D uAtlas;
+uniform highp sampler2D uCarve;
 
 in vec2 vUV;
 out vec4 outColor;
@@ -318,12 +319,23 @@ ${LIGHTING_FS}
 ${BEVEL_FRAG}
 
 void main() {
-  vec3 n = bevelNormal(normalize(vNormal));
+  vec3 nGeo = normalize(vNormal);
+  vec2 q = insetOffset(vFacePos);
+  vec3 n = bevelNormal(nGeo, q);
   vec4 label = texture(uAtlas, vUV);
+  vec4 carve = texture(uCarve, vUV);
+  // Carved labels carry a tangent-space normal; labels never reach the bevel
+  // band, so the carve normal replaces the flat geometric one outright.
+  if (q.x == 0.0 && q.y == 0.0) {
+    vec3 t = normalize(vTangent);
+    vec3 b = cross(nGeo, t);
+    vec3 c = carve.rgb * 2.0 - 1.0;
+    n = normalize(t * c.x + b * c.y + nGeo * c.z);
+  }
   // Rounded outline: coverage alpha from the distance to the body's 2D hull.
   float d = hullDistance(vWorldPos.xy);
   float alpha = clamp((uBevelRadius - d) / max(fwidth(d), 1e-7) + 0.5, 0.0, 1.0);
-  outColor = vec4(litColor(mix(uColor, label.rgb, label.a), n), alpha);
+  outColor = vec4(litColor(mix(uColor, label.rgb, label.a), n, carve.a), alpha);
 }
 `;
 
@@ -354,6 +366,6 @@ out vec4 outColor;
 ${LIGHTING_FS}
 
 void main() {
-  outColor = vec4(litColor(uColor, normalize(vNormal)), 1.0);
+  outColor = vec4(litColor(uColor, normalize(vNormal), 1.0), 1.0);
 }
 `;

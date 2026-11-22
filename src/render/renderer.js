@@ -11,9 +11,11 @@ import {
   createDepthTexture,
   createFramebuffer,
   createLabelTexture,
+  createCarveTexture,
   createVAO,
   deleteVAO,
 } from './gl.js';
+import { buildCarveAtlas } from '../dice/carve.js';
 
 // One color per dice type; label ink in the atlas contrasts via luminance.
 const DIE_COLORS = {
@@ -56,7 +58,7 @@ const GTAO_UNIFORMS = ['uNormalTex', 'uDepthTex', 'uHalfExtents', 'uTexelWorld',
 const BLUR_UNIFORMS = ['uAoTex', 'uDepthTex', 'uDepthRange', 'uBlurDz'];
 const LIGHT_UNIFORMS = ['uLightDir', 'uAmbient', 'uIntensity', 'uDirectAo', 'uAo', 'uAoDepth', 'uAoSize', 'uViewport', 'uDepthRange'];
 const FLOOR_UNIFORMS = ['uViewProj', 'uHalfExtents', 'uColor', ...LIGHT_UNIFORMS];
-const DICE_UNIFORMS = ['uViewProj', 'uModel', 'uColor', 'uAtlas', 'uHull', 'uHullCount', 'uBevelRadius', ...LIGHT_UNIFORMS];
+const DICE_UNIFORMS = ['uViewProj', 'uModel', 'uColor', 'uAtlas', 'uCarve', 'uHull', 'uHullCount', 'uBevelRadius', ...LIGHT_UNIFORMS];
 
 function uniformMap(gl, program, names) {
   const map = {};
@@ -201,9 +203,11 @@ export function createRenderer(gl, { onError = (error) => console.error(error) }
       const bevel = faceInsetData(shape, BEVEL_RADIUS);
       const mesh = buildDieMesh(gl, shape, bevel);
       const atlas = buildLabelAtlas(shape, DIE_COLORS[type]);
+      const carve = buildCarveAtlas(shape, atlas);
       dice.set(type, {
         mesh,
         texture: createLabelTexture(gl, atlas.canvas),
+        carveTexture: createCarveTexture(gl, carve.size, carve.data),
         color: DIE_COLORS[type],
         shape,
         bevelScale: bevel[0].scale,
@@ -229,9 +233,10 @@ export function createRenderer(gl, { onError = (error) => console.error(error) }
   }
 
   function destroyResources(r) {
-    for (const { mesh, texture } of r.dice.values()) {
+    for (const { mesh, texture, carveTexture } of r.dice.values()) {
       deleteVAO(gl, mesh);
       gl.deleteTexture(texture);
+      gl.deleteTexture(carveTexture);
     }
     deleteVAO(gl, r.floorMesh);
     gl.deleteProgram(r.diceProgram);
@@ -426,6 +431,7 @@ export function createRenderer(gl, { onError = (error) => console.error(error) }
     const u = resources.diceUniforms;
     gl.uniformMatrix4fv(u.uViewProj, false, viewProjection);
     gl.uniform1i(u.uAtlas, 1);
+    gl.uniform1i(u.uCarve, 4);
     setLightUniforms(u, options, direction, depthRange);
     gl.activeTexture(gl.TEXTURE1);
     // Coverage-masked edges: fragment alpha near the rounded outline turns
@@ -437,6 +443,9 @@ export function createRenderer(gl, { onError = (error) => console.error(error) }
       mat4.fromRotationTranslation(model, body.orientation, body.position);
       gl.bindVertexArray(entry.mesh.vao);
       gl.bindTexture(gl.TEXTURE_2D, entry.texture);
+      gl.activeTexture(gl.TEXTURE4);
+      gl.bindTexture(gl.TEXTURE_2D, entry.carveTexture);
+      gl.activeTexture(gl.TEXTURE1);
       gl.uniformMatrix4fv(u.uModel, false, model);
       gl.uniform3fv(u.uColor, entry.color);
       setHullUniform(gl, u, entry, model);

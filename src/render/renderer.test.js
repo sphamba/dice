@@ -38,7 +38,7 @@ function makeFakeGl() {
     TEXTURE_MAG_FILTER: 21, TEXTURE_WRAP_S: 22, TEXTURE_WRAP_T: 23,
     UNPACK_FLIP_Y_WEBGL: 24, FRAMEBUFFER: 25, FRAMEBUFFER_COMPLETE: 26,
     COLOR_ATTACHMENT0: 27, DEPTH_ATTACHMENT: 28,
-    TEXTURE0: 29, TEXTURE1: 30, TEXTURE2: 31, TEXTURE3: 32,
+    TEXTURE0: 29, TEXTURE1: 30, TEXTURE2: 31, TEXTURE3: 32, TEXTURE4: 90,
     TRIANGLES: 33, TRIANGLE_STRIP: 34, UNSIGNED_SHORT: 35,
     DEPTH_TEST: 36, CULL_FACE: 37, BACK: 38, COLOR_BUFFER_BIT: 39, DEPTH_BUFFER_BIT: 40,
     createShader: (type) => fresh('shader'),
@@ -103,7 +103,11 @@ beforeAll(() => {
     constructor(width, height) { this.width = width; this.height = height; }
     getContext() {
       return new Proxy({}, {
-        get: (target, prop) => (prop === 'measureText' ? () => ({ width: 10 }) : () => {}),
+        get: (target, prop) => (prop === 'measureText'
+          ? () => ({ width: 10 })
+          : prop === 'getImageData'
+            ? (x, y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4), width: w, height: h })
+            : () => {}),
         set: () => true,
       });
     }
