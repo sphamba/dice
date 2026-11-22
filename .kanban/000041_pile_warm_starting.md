@@ -1,12 +1,14 @@
 ---
 name: "fix: warm-start the contact solver for resting piles"
 priority: "medium"
-state: "merging"
+state: "to-live-test"
 worktree: "fix/41-pile-warm-starting"
 issuer: "#40"
 complexity: "moderate"
 shortName: "pile-warm-starting"
 splitter: "done"
+changes: "{\"base\":\"main\",\"ins\":152,\"del\":3,\"files\":2}"
+commits: "[{\"hash\":\"6497126\",\"subject\":\"fix(physics): compare cached normal directions for warm-start matching\",\"when\":\"2026-11-22T02:07:20+01:00\"},{\"hash\":\"147d43a\",\"subject\":\"fix(physics): warm start the contact solver from the previous step\",\"when\":\"2026-11-22T02:03:06+01:00\"}]"
 ---
 
 # Summary
