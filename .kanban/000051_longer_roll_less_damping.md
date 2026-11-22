@@ -1,7 +1,7 @@
 ---
 name: "fix: remove the non-physical contact spin damping so rolled dice roll out longer"
 priority: "medium"
-state: "to-do"
+state: "doing"
 worktree: "fix/51-longer-roll-less-damping"
 issuer: "user"
 complexity: "moderate"
