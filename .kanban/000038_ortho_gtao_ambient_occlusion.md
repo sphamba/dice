@@ -1,7 +1,7 @@
 ---
 name: "feat: replace directional shadows with orthographic GTAO ambient occlusion"
 priority: "medium"
-state: "reviewing"
+state: "to-review"
 worktree: "feat/38-ortho-gtao-ambient-occlusion"
 issuer: "user"
 complexity: "complex"
@@ -88,26 +88,8 @@ Remove the directional shadow map and add a custom screen-space GTAO pass in raw
 # Notes
 # Notes
 # Notes
-
-## Deliverable
-- Shadow mapping removed entirely: shadow shaders (depth pass, shadowFactor, PCF), light frustum (createLightViewProjection + tests), shadowSize, drawShadowPass, light matrix cache, and all shadow uniforms. Directional light kept for diffuse and specular face shading.
-- GTAO screen-space pass in raw WebGL2 (no library): AO prepass at AO resolution (RGBA8 normal + DEPTH_COMPONENT16, dice only, cleared to the floor plane state), GTAO slice-integral pass (XeGTAO convention: 4x4 tile jitter, quadratic sample distribution, z-scaled falloff, nAng±PI/2 horizon clamp, iarc integral, 2 slices x 4 steps), edge-aware 4x4 blur, depth-aware bilinear upsample into forward lighting (ambient and specular scaled by ao, direct diffuse mixed by DIRECT_AO 0.5).
-- camera.js: createLightViewProjection removed; worldZFromDepth(d, box) and floorClearDepth(box) added. createCamera and the frustum unchanged from main.
-- gl.js: createColorTexture (RGBA8/R8), createFramebuffer with color + optional depth attachments and a clear incomplete-FBO error, depth format parameter on createDepthTexture.
-- renderer.js: AO constants (AO_TEXEL 0.2 mm, AO_SLICES 2, AO_STEPS 4, AO_RADIUS 1.2 x DIE_RADIUS, AO_FALLOFF_RANGE 0.615, AO_Z_FALLOFF_SCALE 0.5, AO_FINAL_POWER 2.2, AO_BLUR_DZ 1 mm, DIRECT_AO 0.5), aoTargetSize export (phone box 67.5x146.2 mm gives 338x731), resize recreates AO targets only when the AO size changes, context restore rebuilds programs/resources and retries the AO setup, AO setup failure falls back to a 1x1 white R8 texture without stopping rendering. Lighting: ambient 0.5, intensity 0.65 (spec starting values).
-
-## Verification
-- HEAD b040085: 6e66e05 (feature), cec943f, b040085 (live-check fixes). npx vitest run src/render 19/19; npm test 257/257; npm run build green + asset check.
-- Live checks (headless chrome-headless-shell, swiftshader, all acceptance criteria): no console/page/GL errors across boot, roll, hold, resize, context loss. Settled d6: floor 2 mm from all four sides darker than open floor by 6.0-8.0 RGB units, symmetric (LR <= 1.6, TB <= 0.6). Held die (lifted to z = 39.8 mm, bottom 25.9 mm up): floor at the old footprint equals the open-floor median exactly (delta 0.00). Resize phone to desktop: darkening stays centred (symLR 0.28, symTB 0.56). WEBGL_lose_context lose/restore: getError 0, scene re-renders with identical AO.
-- Two defects found by live checks and fixed: (1) the AO setup was never built at startup, so the pipeline rendered the white fallback (cec943f); (2) a perspective leftover normalize(uEye - vWorldPos) put a position-dependent specular pool on the floor that masked AO symmetry; fixed with the constant ortho view vector (0,0,1) (b040085).
-
-## Assumptions
-- XeGTAO convention verified against upstream src/integration/xeGTAO.fs.glsl: side-1 horizon angle negated (h0 = -acos(horizonCos1)), falloff mul/add = -1/(range*R) and (1-range)/range+1; a flat floor gives exactly 1.0. The mirror wall test uses a 10 mm wall (inside the falloff reach) because a truly infinite wall is cut by the falloff by design.
-- AO upsample weights are normalized by their sum (the spec formula without normalization diverges on open floor).
-- Constant ortho view vector (0,0,1) for specular: correct for this camera; the floor now shows uniform specular instead of main's position-dependent pool (visible baseline change, measured +9.1 luminance uniformly).
-
-## Blockers
-- None.
-
-## Manual checks left to other roles
-- Visual tuning on a real device: AO strength/falloff look at the spec starting constants (FINAL_POWER 2.2, BLUR_DZ 1 mm, radius 1.2 x DIE_RADIUS, SLICES 2 / STEPS 4); raise SLICES/STEPS if banding shows.
+- Outcome: fixed. The spec-required fake-GL AO wiring test existed only uncommitted in the worktree; committed as 6272387 after verifying it passes on HEAD and fails on 6e66e05 (real regression teeth for the cec943f startup-build fix, covering compile, FBO binds during draw, and target recreation after context restore).
+- Spec sweep against main...HEAD (6e66e05, cec943f, b040085, 6272387): all Remove items gone (zero shadow references outside the forbidden-token source check; createLightViewProjection and its tests deleted from camera.js/camera.test.js, normalized light direction kept). Constant view vector (0,0,1) in the shared LIGHTING_FS so dice and floor both use it, uEye fully removed. GL helpers as specced: depth format parameter, createColorTexture (RGBA8/R8, NEAREST, CLAMP), createFramebuffer with color + optional depth and a clear incomplete-FBO throw. All four passes match the spec formulas line-by-line: prepass clear depth/color and dice-only draw, AO texel size rule (338x731 phone example), 4x4 noise with permutation jitter, quadratic sample distribution, XeGTAO falloff + nAng±PI/2 clamp + iarc, blur offsets -2..1, depth-aware normalized upsample, lighting = base*(ambient*ao + intensity*diffuse*mix(1,ao,DIRECT_AO)) + spec*intensity*ao. Starting constants all at spec values; light direction unchanged from main; resize/restore/context-loss/white-fallback behavior as specced; main.js and physics untouched.
+- Tests: JS slice-integral mirror gives 1.0 on open floor (1e-9) and about 0.5 at a wall base (10 mm wall since the falloff cuts an infinite wall by design; accepted, documented assumption). Depth helpers tested against the camera VP. Source check covers uEye - vWorldPos.
+- Evidence: npx vitest run src/render 21/21, npm test 259/259, npm run build green (all rerun in this review). Live GL checks stay deferred to live-testing.
+- Guidance: write every deliverable test into a commit before requesting review; an uncommitted test is invisible to the board and nearly was lost.
