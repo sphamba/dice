@@ -1,7 +1,7 @@
 ---
 name: "fix: render the rounded die shape with true rounded depth and a visibly rounded outline"
 priority: "high"
-state: "to-do"
+state: "doing"
 worktree: "fix/55-rounded-die-depth-outline"
 issuer: "user"
 complexity: "complex"
