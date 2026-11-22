@@ -117,7 +117,7 @@ function findCached(cache, contact) {
   for (const cached of cache) {
     if (cached.a !== contact.a || cached.b !== contact.b) continue;
     if (cached.surface !== contact.surface) continue;
-    if (vec3.dot(cached.normal, contact.normal) <= WARM_START_NORMAL_DOT) continue;
+    if (vec3.dot(cached.normal.direction, contact.normal) <= WARM_START_NORMAL_DOT) continue;
     if (vec3.distance(cached.point, contact.point) > WARM_START_DISTANCE) continue;
     return cached;
   }

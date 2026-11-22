@@ -276,6 +276,16 @@ describe('warm starting', () => {
     expect(warm.tangents[1]).toBeCloseTo(0, 12);
   });
 
+  it('starts at zero when the cached normal disagrees', () => {
+    const body = makeBody([0, 0, 0.0139]);
+    const cached = cachedContact(body, 0.02, [0.001, 0]);
+    cached.normal = { direction: Float64Array.from([1, 0, 0]), impulse: 0.02 };
+    const warm = warmStartImpulses([cached], freshContact(body), FRICTION_BOX);
+    expect(warm.normal).toBe(0);
+    expect(warm.tangents[0]).toBeCloseTo(0, 12);
+    expect(warm.tangents[1]).toBeCloseTo(0, 12);
+  });
+
   it('clamps the warm-started friction impulse to the friction disk', () => {
     const body = makeBody([0, 0, 0.0139]);
     const warm = warmStartImpulses(
