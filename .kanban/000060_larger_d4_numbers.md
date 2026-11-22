@@ -1,7 +1,7 @@
 ---
 name: "fix: enlarge the d4 numbers"
 priority: "medium"
-state: "to-merge"
+state: "merging"
 worktree: "fix/60-larger-d4-numbers"
 issuer: "user"
 complexity: "simple"
