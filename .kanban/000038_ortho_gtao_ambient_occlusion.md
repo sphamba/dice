@@ -90,16 +90,20 @@ Remove the directional shadow map and add a custom screen-space GTAO pass in raw
 # Notes
 # Notes
 # Notes
+## PM hint
+- `FIXED_DT` is 1/480 (`src/physics/world.js`), not 1/120. A 1.47 m/s fall moves about 3 mm per step, so tunnelling through the floor is unlikely.
+- The z=0 state appeared in probe9/9b (2/2) and never in probe12 (0/8). Diff the two setups first (spy install order, resize or `setBox` before the bodies spawn, whole-world sleep from #42 starting before the spawn positions are set). File a defect card only if the z=0 state comes from a real user flow (load, resize, drag, Roll), with the exact repro.
+- Keep the rest of the test bounded: the AO checks of this task already pass.
+
 Live-testing #38 (ortho GTAO AO), worktree feat/38-ortho-gtao-ambient-occlusion. Harness /tmp/dice-lt38/, vite :8841.
 
-RESOLVED SINCE LAST CHECKPOINT:
-1. Stale-bitmap readback fixed (gl.readPixels in the app-draw-following rAF tick). All "missing AO" artifacts from stale composited frames are gone. Fresh-load, roll, and drag contact shadows verified repeatedly: symmetric dark ring ~10-15 bytes around every resting die (probe6b, probe8/9 grids, probe12).
-2. driver4's earlier "two-dice: A outer sides open" FAIL was MY bad expectation: those patches sat 28mm from the die centre (20mm from the face, beyond AO_RADIUS ~16mm) where open floor is CORRECT. Real contact evidence (seam 42.8 vs open 50.1) is correct. driver4 rerun 11/11 PASS. Reclassified as harness error; no two-dice product defect found.
-3. Two-dice screenshot (two-dice-phone.png) shows both dice with correct soft symmetric shadows.
+Resolved:
+1. Stale-bitmap readback fixed (gl.readPixels in the rAF tick after the app draw). Fresh-load, roll and drag contact shadows verified repeatedly: symmetric dark ring ~10-15 bytes around every resting die (probe6b, probe8/9 grids, probe12).
+2. driver4 "two-dice: A outer sides open" was a wrong expectation (patches 28 mm from the die centre, beyond the AO radius). The seam evidence (42.8 vs open 50.1) is correct. driver4 rerun 11/11 PASS.
+3. Two-dice screenshot shows both dice with soft symmetric shadows.
 
-NEW PRODUCT-DEFECT SUSPECT (under active investigation): a die can end up resting at z=0 (centre on the floor plane = half-buried) and SLEEPS there forever. Evidence:
-- probe9/probe9b (2/2 runs, same script): on fresh load BOTH dice at exactly (0,0,0), z=0.0, asleep=true, random quats. State persists through Roll (orientation changes, position does not) and drag-grab checks. Render matches world (die at canvas centre, half-buried, weak shadow).
-- probe12 (8 fresh pages, minimal harness): 0/8 broken - all spawn z 33-56mm, fall, rest at z=8. probe10/11 similar clean.
-- driver2b's post-resize "no shadow" (P6/P6b/P7) likely the SAME bug: P5's re-centre drag used stale phone-dims mapping on the desktop page, releasing the die from ~110mm hold; fall speed sqrt(2*9.81*0.11)=1.47 m/s = ~12mm per physics step (if FIXED_DT=1/120) > die circumradius 11.3mm -> tunnelling through the floor plane -> clamped at z=0 -> half-buried -> weak/no contact shadow -> patches read ~open. Matches M4/M5 numbers.
-- Working theory: contact solver does not resolve deep penetrations; below-floor bodies clamp at the floor plane (z>=0, not z>=r), stay half-buried, and the sleep gate freezes them (step() early-returns while asleep and !moving). Roll sets velocities but the die stays at z=0 (orientations still integrate - observed).
-NEXT: read world.js containBody/clampIntoBox/moving()/FIXED_DT + contact generation penetration limits, then one discriminating probe (drop a die from controlled heights, log z per step; check whether z=0 half-buried state occurs and whether Roll/physics ever recovers). If confirmed: file card (high priority - dice can become permanently half-buried; repro: release a die from a tall drag hold, i.e. any long drag on a large box; acceptance: a die released from any height must rest at z=r with normal contact shadow, and a Roll must recover a buried die). Console clean in all runs (0 product messages).
+Suspect under investigation: a die resting at z=0 (half-buried) and asleep.
+- probe9/probe9b: on fresh load both dice at exactly (0,0,0), asleep, random quats; persists through Roll and drag.
+- probe12 (8 fresh pages, minimal harness): 0/8, all spawn at z 33-56 mm, fall, rest at z=8. probe10/11 also clean.
+- driver2b post-resize "no shadow" (P6/P6b/P7) may share this cause: P5's re-centre drag used the phone mapping on the desktop page.
+Console clean in all runs.

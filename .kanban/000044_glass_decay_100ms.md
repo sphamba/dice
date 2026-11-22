@@ -34,8 +34,28 @@ The glass lid impact rings too long. Set the slowest glass mode T60 from 200 ms 
 - `npm run build`
 
 # Notes
-- Review outcome: approved. HEAD 16595ab, diff touches exactly `src/audio/modes.js` (GLASS.tau `t60Tau(0.2)` -> `t60Tau(0.1)`, damp factor kept) and the matching expectation in `src/audio/modes.test.js`.
-- Spec bullets all map to evidence: glass slowest-mode T60 100 ms (test `toBeCloseTo(0.1, 6)` green), box 80 ms and dies <= 30 ms tests green, 'glass longer than box' green, f11 900, dampHF 0.45, positions/gains untouched (diff scope).
-- 'Clean buffer end' preserved structurally: `src/audio/sound.js` derives buffer duration from the modes' peak tau (renderModes), so it shortens with the new tau; no hardcoded decay anywhere else (grep round: GLASS consumed only at sound.js lid routing line 43).
-- Evidence: `npx vitest run src/audio` 30 passed, `npm test` 300 passed (26 files), `npm run build` green (29 modules, dist assets emitted). All exit 0.
-- Developer assumptions verified, none silent or load-bearing beyond the task text.
+Live test in progress (held at watch checkpoint).
+
+## Harness
+- Worktree serves the merged commit: HEAD 16595ab == main, `git diff main...HEAD` empty; the 2-line change (GLASS.tau t60Tau(0.2)->t60Tau(0.1) + test expectation) is what is under test.
+- Reused the proven /tmp/dice-lt-audio harness (init.js verbatim, driver adapted and focused to task scope) in /tmp/dice-lt44; vite on port 4671; Playwright chromium 1280x800.
+- sound.js is routed through an observer patch: every played voice and its exact rendered AudioBuffer are captured in-page; served modes.js is fetched and used as theory source (GLASS.tau/t60Tau(0.1) == 1 exactly, so the served app carries the new constant).
+- Smoke run 7/7 PASS (spies, patch, audio unlock, capture flow, analyzer instrument) before the full run.
+
+## Full run 1 (89 played voices, 20 checks): 17/20
+- PASS page loads WebGL2, no page errors, unlock preserved, one buffer per played voice (89/89).
+- PASS coverage: floor/wall/glass-lid/die-die impacts all sounded and were analyzed (21 glass, 48 box, 20 die buffers).
+- PASS rendered glass slowest-mode T60 == 100 ms: median 100.0 ms over 18 measurable band fits (2 unmeasurable), per-buffer tolerance max(20%, 4 ms).
+- PASS rendered box T60 stays 80 ms: median 79.8 ms over 17 fits; all die theory <= 30 ms, rendered die aggregate diff 1.2 ms.
+- PASS ordering glass > box > die rendered (100.0 > 79.8 > 20.6 ms).
+- PASS glass buffer durations all 115.8 ms (8 * t60Tau(0.1); old tau would render ~232 ms) and clean buffer end on all 89 buffers (last sample 0, no end click, tail below audible).
+- PASS gains match gainForImpulse on all buffers.
+- FAIL 2/89 per-buffer band fits: box#27@wall 30.7 ms vs 80 @200 Hz, glass#47@lid 13.4 ms vs 100 @900 Hz. Both fits span exactly 20 dB (the analyzer's minimum range), i.e. the fitted band peak is very weak. Suspected instrument limit (weak mode buried under spectral leakage of louder, faster modes), not a product defect; medians and ordering are unaffected.
+
+## In progress when held
+- Added a band-peak-level field (peakRelDb) to the band-fit analyzer copy; next step: calibrate the instrument on synthetic buffers with known amps/T60, dump per-buffer records, then one rerun with the calibrated validity floor to classify the 2 failures as harness limit or product defect.
+
+## Assumptions made in the usage-test design
+- The audio change is verified through the real Web Audio pipeline: real gesture unlock, real physics impacts (roll plus device-tilt lid strikes), and the actual rendered AudioBuffers of played voices.
+- Band-fit T60 at the lowest excited mode is the accepted proxy for perceived decay; fits are trusted only above a calibrated amplitude/span floor.
+- Positions, gains, pitch (f11) and per-mode damping are keep-bullets verified by diff scope (2-line change) plus the per-buffer gain check; no separate spectral position test was rerun.
