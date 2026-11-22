@@ -1,12 +1,14 @@
 ---
 name: "feat: shrink every die to 80% of its current size"
 priority: "medium"
-state: "merging"
+state: "to-live-test"
 worktree: "feat/50-dice-scale-80-percent"
 issuer: "user"
 complexity: "complex"
 shortName: "dice-scale-80-percent"
 splitter: "done"
+changes: "{\"base\":\"main\",\"ins\":59,\"del\":37,\"files\":12}"
+commits: "[{\"hash\":\"ce0e5bd\",\"subject\":\"test: use the imported die radius in the integrator fixture\",\"when\":\"2026-11-22T13:33:33+01:00\"},{\"hash\":\"b6e5e2e\",\"subject\":\"feat: shrink every die to 80% of its size\",\"when\":\"2026-11-22T13:24:46+01:00\"}]"
 ---
 
 # Summary
