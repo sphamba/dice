@@ -1,7 +1,7 @@
 ---
 name: "fix: let resting dice piles settle with warm starting and whole-world sleep"
 priority: "medium"
-state: "doing"
+state: "to-review"
 worktree: "fix/40-pile-warm-start-sleep"
 issuer: "#31"
 complexity: "moderate"
@@ -34,14 +34,22 @@ Verify warm starting (#41) and whole-world sleep (#42) end to end, and fix the p
 - `npm run build`
 
 # Notes
-- Plan per PM steer: fix the corner/die chatter at its root, add its regression test, then the e2e suite.
-- Two findings since the last checkpoint.
-- Finding 1, the earlier probe fixture was invalid: spawning 10 dice at random positions inside a box only 4 die-widths wide put 16 pairs closer than one die diameter, the worst with centres 7.4 mm apart against a 27.7 mm diameter. Deep spawn overlap handed the solver a violent initial state and polluted every variant sweep in the previous notes. The corrected fixture spawns on a 2x5 jittered grid with random orientations and random drop heights, no initial overlap.
-- Finding 2, on the corrected fixture restitution is the driver: `RESTITUTION_BOX`/`RESTITUTION_DIE` at 0 settles every seed and both axes at 0/15/30 degrees within 0.19-1.25 s, while the shipped values leave the y-axis (long slide, 0.146 m) piles in a permanent limit cycle, max |w| oscillating 2-12 rad/s with no decay over 20 s and the world never sleeping.
-- Root-cause measurement: freeze the settled pile by zeroing every velocity and gravity, then step. With the warm-start cache kept, |w| jumps to 3.67 rad/s at once; with the cache cleared the pile stays frozen (0.029 to 0). So cached impulses are replayed into a state that no longer needs them, and restitution on top of a persistent contact keeps pumping the rocking mode.
-- Candidate fix now measured (candidate only, `/tmp/ab40v16`, worktree still untouched): keep the restitution constants exactly as they are and change only the condition, so restitution applies to a fresh contact and a contact already present in the previous step is inelastic. Grid matrix, seeds 20240601/7/99/1234/55, 6 s budget: level 0.27-0.33 s, 15 degrees 0.36-0.91 s, 30 degrees 0.44-1.25 s, both axes, every seed inside the 3 s bar and the |v|/|w| bar.
-- Ruled out on the corrected fixture: SOLVER_ITERATIONS 40 (still fails), CONTACT_ANGULAR_DAMPING 10/20/40/80 (all still fail), feature-id warm-start matching alone (worse, y-axis fails on all seeds), skipping impact-step replays (worse), containment teleport (not the cause), no speculative contact margin (much worse).
-- Constraints honoured: friction 0.10, restitution values, Baumgarte, SOLVER_ITERATIONS, FIXED_DT and `src/input/motion.js` untouched in the worktree; all experiments in `/tmp/ab40*` overlays.
-- Assumption: tilt = gravity rotated 15/30 degrees about either horizontal axis through `world.setGravity`; the e2e fixture spawns 10 mixed dice on the non-overlapping grid described above.
-- Next: land the fresh-contact restitution condition in `src/physics/contacts.js` with a regression test for the failing tilt case, then the e2e suite and the three acceptance commands.
-- Manual checks left to other roles: none.
+## Deliverable
+- `src/physics/contacts.js`, two root fixes. Every approach is now measured before the first replay: `solveContacts` prepares all contacts, then applies warm start in a second pass. Before, a replay applied mid-prepare inflated the approach of the contacts behind it (a die-die contact measured 1.585 m/s while the die hit at 1.259 m/s). Restitution applies to a fresh contact only, so a contact carried over from the previous step is inelastic. Replay itself is kept unchanged.
+- `src/physics/world.js`: the sleep drops `world.contactCache`, so a wake cannot replay impulses that describe a motion that has stopped.
+- Tests: `contacts.test.js` gains the persistent-contact rule and the approach-ordering regression; `world.e2e.test.js` gains the floor and die-on-die rebound, five pile cases (level, 15 and 30 degrees about x and y, three seeds each, settled within 3 s and held to 6 s, contained, finite), the sleep/idle/wake case and the re-settle-without-launching case.
+
+## Verification
+- HEAD d29f7a9. `npx vitest run src/physics`: 103 passed. `npm test`: 284 passed (24 files). `npm run build`: built in 102 ms, assets `index-BsRmDAHG.js` and `index-DA_12YQk.css`.
+- Red evidence for the two new unit tests: on the pre-fix code they both fail (2 failed, 24 passed).
+
+## Assumptions
+- Tilt is gravity rotated 15 or 30 degrees about x or y through `world.setGravity`.
+- The pile fixture spawns 10 mixed dice on a 2x5 grid with random orientations and drop heights, with no initial overlap.
+- The rebound tolerances are 5% around the measured first apex at a 0.1 m drop: floor 0.01001 m, die-on-die 0.02827 m. The floor apex is identical to the old code at 0.02, 0.05, 0.1 and 0.2 m drops. The die-on-die apex is within 3.3% at drops of 0.1 m and above. At smaller drops the old code took extra bounces inside one impact chain (15 and 27 events against 3), so its apex was higher.
+
+## Blockers
+- none
+
+## Manual checks left to other roles
+- none
