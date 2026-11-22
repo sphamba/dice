@@ -2,7 +2,7 @@ import * as vec3 from '../math/vec3.js';
 import { detectContacts } from './collision.js';
 import { DIE_RADIUS } from './body.js';
 import { integratePositions, integrateVelocities } from './integrator.js';
-import { solveContacts } from './contacts.js';
+import { solveContacts, RESTITUTION_BOX, RESTITUTION_THRESHOLD } from './contacts.js';
 
 export const FIXED_DT = 1 / 480;
 
@@ -81,9 +81,11 @@ function containBody(box, body) {
   vec3.add(body.position, body.position, push);
   for (let axis = 0; axis < 3; axis += 1) {
     if (push[axis] === 0) continue;
-    if (push[axis] > 0 ? body.linearVelocity[axis] < 0 : body.linearVelocity[axis] > 0) {
-      body.linearVelocity[axis] = 0;
-    }
+    const into = push[axis] > 0 ? -1 : 1;
+    const speed = body.linearVelocity[axis] * into;
+    if (speed <= 0) continue;
+    // A wall is elastic like the floor and the lid: it reflects the incoming speed.
+    body.linearVelocity[axis] = speed < RESTITUTION_THRESHOLD ? 0 : -into * RESTITUTION_BOX * speed;
   }
 }
 

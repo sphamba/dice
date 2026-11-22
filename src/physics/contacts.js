@@ -5,9 +5,9 @@ export const SOLVER_ITERATIONS = 10;
 
 export const RESTITUTION_THRESHOLD = 0.1;
 
-export const RESTITUTION_BOX = 0.3;
+export const RESTITUTION_BOX = 0.5;
 
-export const RESTITUTION_DIE = 0.4;
+export const RESTITUTION_DIE = 0.5;
 
 export const FRICTION_FLOOR = 0.4;
 

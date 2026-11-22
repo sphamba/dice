@@ -8,6 +8,7 @@ import {
   createWorld,
 } from './world.js';
 import { LINEAR_DAMPING } from './integrator.js';
+import { RESTITUTION_BOX, RESTITUTION_THRESHOLD } from './contacts.js';
 import { DIE_RADIUS, createBody } from './body.js';
 import { createShape } from '../dice/shapes.js';
 import * as mat3 from '../math/mat3.js';
@@ -140,6 +141,29 @@ describe('falling dice', () => {
     expect(body.position[2]).toBeGreaterThan(0);
     expect(body.position[2]).toBeLessThan(BOX.H / 2);
     expect(Math.abs(body.linearVelocity[2])).toBeLessThan(0.01);
+  });
+});
+
+describe('wall bounce', () => {
+  const D6 = createShape('d6', DIE_RADIUS);
+  const WALL_X = Math.max(...D6.vertices.map((vertex) => vertex[0]));
+
+  const intoWall = (speed) => {
+    const world = createWorld(BOX);
+    world.setGravity([0, 0, 0]);
+    const body = createBody(D6, { position: [BOX.W / 2 - WALL_X, 0, BOX.D * 0.75] });
+    world.addBody(body);
+    vec3.set(body.linearVelocity, speed, 0, 0);
+    world.step(FIXED_DT);
+    return body.linearVelocity[0];
+  };
+
+  it('bounces a die driven into a wall with the box restitution', () => {
+    expect(intoWall(1)).toBeCloseTo(-RESTITUTION_BOX, 3);
+  });
+
+  it('stops a die driven into a wall below the restitution threshold', () => {
+    expect(Math.abs(intoWall(RESTITUTION_THRESHOLD * 0.5))).toBeLessThan(0.001);
   });
 });
 

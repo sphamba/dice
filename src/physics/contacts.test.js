@@ -11,6 +11,7 @@ import {
   FRICTION_LID,
   FRICTION_WALL,
   RESTITUTION_BOX,
+  RESTITUTION_DIE,
   SLOP,
   SOLVER_ITERATIONS,
   solveContacts,
@@ -256,7 +257,7 @@ describe('die-die contacts', () => {
 
     solveContacts(world, FIXED_DT);
 
-    const speed = (0.4 * 2) / 2;
+    const speed = (RESTITUTION_DIE * 2) / 2;
     nearRel(a.linearVelocity[2], speed);
     nearRel(b.linearVelocity[2], -speed);
     nearRel(a.angularVelocity[1], 0, 1e-9);
