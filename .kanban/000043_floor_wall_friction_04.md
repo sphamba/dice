@@ -1,7 +1,7 @@
 ---
 name: "fix: raise floor and wall friction to 0.4, keep lid and die-die at 0.1"
 priority: "medium"
-state: "doing"
+state: "to-review"
 worktree: "fix/43-floor-wall-friction-04"
 issuer: "user"
 complexity: "simple"
@@ -36,3 +36,10 @@ Give die-floor and die-wall contacts a Coulomb friction of 0.4 and keep the glas
 - `npm run build`
 
 # Notes
+# Notes
+- Deliverable: `src/physics/contacts.js` picks friction per contact surface: `FRICTION_FLOOR = 0.4`, `FRICTION_WALL = 0.4`, `FRICTION_LID = 0.1`, `FRICTION_DIE = 0.1`. `FRICTION_BOX` removed (no other caller). Restitution, Baumgarte, iterations, FIXED_DT, warm start, sleep and the friction disk unchanged.
+- Verification at HEAD 417e7cc: `npx vitest run src/physics` 105 passed, `npm test` 293 passed, `npm run build` green with `dist/index.html` linking the hashed js and css assets.
+- Tests: `contacts.test.js` checks the coefficient per surface (floor, wall, lid, die), a floor contact holds at 20 degrees and slides at 25 degrees, a lid contact slides at 10 degrees. `world.e2e.test.js` tilted-gravity case uses 30 degrees. The #40 pile cases stay green.
+- Assumption: `roll.test.js` now counts a lid contact only when its depth is positive. With floor friction 0.4 the tossed die enters the 1e-4 m speculative skin near the lid (gaps of 0.15 to 0.5 mm, no penetration) and the old check counted those as touches. `highest < box.D` still guards a real touch.
+- Blockers: none.
+- Manual checks left to other roles: none.

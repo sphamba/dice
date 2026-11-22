@@ -2,7 +2,7 @@
 name: "fix: shorten the glass lid ring to a 100 ms decay"
 priority: "medium"
 state: "to-do"
-worktree: ""
+worktree: "fix/44-glass-decay-100ms"
 issuer: "user"
 complexity: "simple"
 shortName: "glass-decay-100ms"
