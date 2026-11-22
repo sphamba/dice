@@ -9,7 +9,8 @@ const INK_LIGHT = [0.96, 0.95, 0.93];
 // Arial bold metrics at a 100px reference size.
 const CAP_HEIGHT = 71;
 
-const PIP_OFFSET = 0.42;const PIP_RADIUS = 0.13;
+const PIP_OFFSET = 0.42;
+const PIP_RADIUS = 0.13;
 const PIP_LAYOUTS = {
   1: [[0, 0]],
   2: [[-1, 1], [1, -1]],
