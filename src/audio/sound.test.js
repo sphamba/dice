@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import {
+  LIMITER_CEILING,
+  LIMITER_THRESHOLD_DB,
   MAX_DURATION,
   MAX_IMPULSE,
   MAX_VOICES,
@@ -7,6 +9,7 @@ import {
   MIN_IMPULSE,
   PAIR_GAP,
   createSound,
+  gainForImpulse,
 } from './sound.js';
 import { DIE_RADIUS } from '../physics/body.js';
 
@@ -43,7 +46,16 @@ function fakeAudio() {
 
     createDynamicsCompressor() {
       created.compressors += 1;
-      return { connect() {} };
+      const param = () => ({ value: 0 });
+      created.compressor = {
+        threshold: param(),
+        knee: param(),
+        ratio: param(),
+        attack: param(),
+        release: param(),
+        connect() {},
+      };
+      return created.compressor;
     }
 
     createBuffer(channels, length, sampleRate) {
@@ -164,6 +176,82 @@ test('raises the gain with the impulse', async () => {
   expect(quiet).toBeGreaterThan(0);
   expect(loud).toBeGreaterThan(quiet);
   expect(loud).toBeLessThanOrEqual(1);
+});
+
+test('maps the gain linearly in the impulse below the clamp', () => {
+  expect(gainForImpulse(0.002)).toBeGreaterThan(0);
+  expect(gainForImpulse(0.004) / gainForImpulse(0.002)).toBeCloseTo(2, 9);
+  expect(gainForImpulse(0.01)).toBeCloseTo(0.01 / MAX_IMPULSE, 9);
+});
+
+test('clamps the gain at one voice amplitude', () => {
+  expect(gainForImpulse(MAX_IMPULSE)).toBe(1);
+  expect(gainForImpulse(MAX_IMPULSE * 10)).toBe(1);
+  expect(gainForImpulse(MAX_IMPULSE / 2)).toBeCloseTo(0.5, 9);
+});
+
+test('is silent at and below the minimum impulse', () => {
+  expect(gainForImpulse(MIN_IMPULSE)).toBe(0);
+  expect(gainForImpulse(MIN_IMPULSE / 2)).toBe(0);
+});
+
+test('configures the compressor as a peak limiter', async () => {
+  const sound = createSound();
+  await sound.resume();
+  const limiter = audio.created.compressor;
+  expect(limiter.threshold.value).toBe(LIMITER_THRESHOLD_DB);
+  expect(limiter.knee.value).toBe(0);
+  expect(limiter.ratio.value).toBe(20);
+  expect(limiter.attack.value).toBeCloseTo(0.003, 9);
+  expect(limiter.release.value).toBeCloseTo(0.1, 9);
+});
+
+test('keeps one constant voice scale so loud overlaps stay below the ceiling', async () => {
+  const sound = createSound();
+  await sound.resume();
+  sound.play([impact({ impulse: MAX_IMPULSE })], BOX);
+  const data = audio.created.buffers[0].getChannelData(0);
+  const peak = data.reduce((max, value) => Math.max(max, Math.abs(value)), 0);
+  sound.play([impact({ impulse: MAX_IMPULSE })], BOX);
+  const [first, second] = audio.created.gains.map((node) => node.gain.value);
+  expect(first).toBeGreaterThan(0);
+  expect(peak * first).toBeLessThanOrEqual(LIMITER_CEILING + 1e-9);
+  expect(second).toBe(first);
+});
+
+test('plays only the strongest event of a pair in one batch', async () => {
+  const sound = createSound();
+  await sound.resume();
+  const body = die();
+  sound.play(
+    [impact({ a: body, impulse: 0.002 }), impact({ a: body, impulse: 0.006 })],
+    BOX,
+  );
+  expect(audio.created.sources).toHaveLength(1);
+  sound.play([impact({ impulse: 0.002 })], BOX);
+  const [strongest, reference] = audio.created.gains.map((node) => node.gain.value);
+  expect(strongest / reference).toBeCloseTo(3, 6);
+});
+
+test('replays an open slot only for an event at least half again as strong', async () => {
+  const sound = createSound();
+  await sound.resume();
+  const body = die();
+  sound.play([impact({ a: body, impulse: 0.002 })], BOX);
+  audio.created.contexts[0].currentTime = PAIR_GAP * 0.5;
+  sound.play([impact({ a: body, impulse: 0.0029 })], BOX);
+  expect(audio.created.sources).toHaveLength(1);
+  sound.play([impact({ a: body, impulse: 0.003 })], BOX);
+  expect(audio.created.sources).toHaveLength(2);
+});
+
+test('does not take the slot for a silent event', async () => {
+  const sound = createSound();
+  await sound.resume();
+  const body = die();
+  expect(sound.play([impact({ a: body, impulse: MIN_IMPULSE })], BOX)).toBe(0);
+  expect(sound.play([impact({ a: body, impulse: 0.002 })], BOX)).toBe(1);
+  expect(audio.created.sources).toHaveLength(1);
 });
 
 test('limits one body pair to one voice per gap', async () => {

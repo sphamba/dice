@@ -4,6 +4,8 @@ export const MIN_EVENT_SPEED = 0.15;
 
 export const PAIR_GAP = 0.04;
 
+export const SLOT_OVERRIDE = 1.5;
+
 export const MAX_VOICES = 12;
 
 export const MAX_DURATION = 0.6;
@@ -12,7 +14,11 @@ export const FULL_BRIGHTNESS_SPEED = 2;
 
 export const MIN_IMPULSE = 1e-4;
 
-export const MAX_IMPULSE = 1e-1;
+export const MAX_IMPULSE = 0.015;
+
+export const LIMITER_THRESHOLD_DB = -3;
+
+export const LIMITER_CEILING = 10 ** (LIMITER_THRESHOLD_DB / 20);
 
 const MIN_DURATION = 0.05;
 
@@ -24,11 +30,10 @@ const PAIR_GAP_PRUNE = 64;
 
 const clamp = (value, lo, hi) => Math.min(Math.max(value, lo), hi);
 
-// Log scale: a tenfold impulse is a fixed loudness step, and MIN_IMPULSE is silence.
-function gainForImpulse(impulse) {
+// Linear in the impulse: MIN_IMPULSE is silence and MAX_IMPULSE is a full voice.
+export function gainForImpulse(impulse) {
   if (!(impulse > MIN_IMPULSE)) return 0;
-  if (impulse >= MAX_IMPULSE) return 1;
-  return Math.log(impulse / MIN_IMPULSE) / Math.log(MAX_IMPULSE / MIN_IMPULSE);
+  return Math.min(1, impulse / MAX_IMPULSE);
 }
 
 function plateArgs(surface, point, box) {
@@ -91,6 +96,8 @@ export function createSound() {
   const voices = [];
   const pairTimes = new Map();
   const bodyIds = new Map();
+  let voiceScale = 1;
+  let scaleMeasured = false;
 
   function idOf(body) {
     if (!bodyIds.has(body)) bodyIds.set(body, bodyIds.size);
@@ -102,9 +109,17 @@ export function createSound() {
   }
 
   function prunePairs() {
-    for (const [key, time] of pairTimes) {
-      if (context.currentTime - time >= PAIR_GAP) pairTimes.delete(key);
+    for (const [key, slot] of pairTimes) {
+      if (context.currentTime - slot.time >= PAIR_GAP) pairTimes.delete(key);
     }
+  }
+
+  function peakOf(data) {
+    let peak = 0;
+    for (let index = 0; index < data.length; index += 1) {
+      peak = Math.max(peak, Math.abs(data[index]));
+    }
+    return peak;
   }
 
   function release(voice) {
@@ -126,8 +141,13 @@ export function createSound() {
     }
     const source = context.createBufferSource();
     source.buffer = renderModes(context, modes, event.speed);
+    if (!scaleMeasured) {
+      scaleMeasured = true;
+      const peak = peakOf(source.buffer.getChannelData(0));
+      if (peak > LIMITER_CEILING) voiceScale = LIMITER_CEILING / peak;
+    }
     const node = context.createGain();
-    node.gain.value = gainValue;
+    node.gain.value = gainValue * voiceScale;
     source.connect(node);
     node.connect(master);
     const voice = { source, gain: node, gainValue };
@@ -144,6 +164,11 @@ export function createSound() {
         if (typeof AudioCtor !== 'function') return;
         context = new AudioCtor();
         master = context.createDynamicsCompressor();
+        master.threshold.value = LIMITER_THRESHOLD_DB;
+        master.knee.value = 0;
+        master.ratio.value = 20;
+        master.attack.value = 0.003;
+        master.release.value = 0.1;
         master.connect(context.destination);
       }
       if (context.state !== 'running') await context.resume();
@@ -151,14 +176,24 @@ export function createSound() {
     play(events, box) {
       if (!context) return 0;
       if (pairTimes.size > PAIR_GAP_PRUNE) prunePairs();
+      const strongest = new Map();
+      for (const event of events ?? []) {
+        const key = pairKey(event);
+        const best = strongest.get(key);
+        if (best === undefined || event.impulse > best.impulse) strongest.set(key, event);
+      }
       let played = 0;
       for (const event of events ?? []) {
         if (!event?.a || !(event.speed >= MIN_EVENT_SPEED)) continue;
         const key = pairKey(event);
-        const previous = pairTimes.get(key);
-        if (previous !== undefined && context.currentTime - previous < PAIR_GAP) continue;
-        pairTimes.set(key, context.currentTime);
-        if (playVoice(event, box)) played += 1;
+        if (strongest.get(key) !== event) continue;
+        const slot = pairTimes.get(key);
+        if (slot !== undefined && context.currentTime - slot.time < PAIR_GAP) {
+          if (!(event.impulse >= SLOT_OVERRIDE * slot.impulse)) continue;
+        }
+        if (!playVoice(event, box)) continue;
+        pairTimes.set(key, { time: context.currentTime, impulse: event.impulse });
+        played += 1;
       }
       return played;
     },
