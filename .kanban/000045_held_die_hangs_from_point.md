@@ -1,7 +1,7 @@
 ---
 name: "feat: let a held die hang from the grabbed point under gravity"
 priority: "medium"
-state: "backlog"
+state: "to-do"
 worktree: ""
 issuer: "user"
 complexity: "moderate"
