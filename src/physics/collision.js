@@ -48,9 +48,6 @@ function buildFrame(body) {
     indices: face.indices,
     normal: vec3.transformQuat(vec(), face.normal, body.orientation),
   }));
-  const edgeDirs = body.shape.edgeDirs.map((dir) =>
-    vec3.transformQuat(vec(), dir, body.orientation),
-  );
   const edges = body.shape.edges.map(([i, j]) => {
     const a = vertices[i];
     const b = vertices[j];
@@ -59,9 +56,16 @@ function buildFrame(body) {
       b,
       dir: vec3.normalize(vec(), vec3.sub(vec(), b, a)),
       mid: vec3.scale(vec(), vec3.add(vec(), a, b), 0.5),
+      halfLen: 0.5 * vec3.distance(a, b),
     };
   });
-  return { vertices, velocities, faces, edgeDirs, edges };
+  const dirGroups = [];
+  for (const edge of edges) {
+    const group = dirGroups.find((candidate) => Math.abs(vec3.dot(candidate.dir, edge.dir)) > 1 - 1e-6);
+    if (group) group.edges.push(edge);
+    else dirGroups.push({ dir: Float64Array.from(edge.dir), edges: [edge] });
+  }
+  return { vertices, velocities, faces, dirGroups, edges };
 }
 
 function detectBox(world, body, frame, dt) {
@@ -98,17 +102,22 @@ function project(frame, dir) {
 }
 
 // Picks the closest face plane pair and the closest core edge pair of the two inset
-// cores. The face axis is the classic minimum-overlap SAT axis; edge pairs carry their
-// exact core distance so detectPair can prefer whichever feature pair sits deeper on
-// the rounded surfaces. Axes are oriented along refDir so the support edges hug the
-// other die.
-function separatingAxis(fa, fb, refDir) {
+// cores. Pass 1 measures the classic SAT separation over the face normals and the
+// unique edge-cross axes; if the core hulls are farther apart than any rounded
+// contact can bridge within this step, the exact feature scan is skipped. Pass 2
+// enumerates every parallel edge pair per axis (the closest segments along a cross
+// axis are not necessarily the support extremes) plus vertex/vertex, vertex/edge and
+// vertex/face pairs, each pruned by a cheap distance bound. Axes are oriented along
+// refDir so the support edges hug the other die.
+function separatingAxis(fa, fb, refDir, band) {
   let bestFace = null;
   let bestOverlap = Infinity;
+  let maxSep = -Infinity;
   const considerFace = (face, owner) => {
     const [minA, maxA] = project(fa, face.normal);
     const [minB, maxB] = project(fb, face.normal);
     const overlap = Math.min(maxA, maxB) - Math.max(minA, minB);
+    if (-overlap > maxSep) maxSep = -overlap;
     if (overlap < bestOverlap) {
       bestOverlap = overlap;
       bestFace = { normal: face.normal, owner, overlap };
@@ -117,36 +126,40 @@ function separatingAxis(fa, fb, refDir) {
   for (const face of fa.faces) considerFace(face, 'a');
   for (const face of fb.faces) considerFace(face, 'b');
 
-  let bestEdge = null;
-  let bestEdgeDist = Infinity;
-  const limit = Math.max(-bestOverlap, RECESS + SLOP);
-  for (const da of fa.edgeDirs) {
-    for (const db of fb.edgeDirs) {
-      const dir = vec3.cross(vec(), da, db);
+  const axes = [];
+  for (const ga of fa.dirGroups) {
+    for (const gb of fb.dirGroups) {
+      const dir = vec3.cross(vec(), ga.dir, gb.dir);
       if (vec3.lengthSq(dir) < EPS) continue;
       vec3.normalize(dir, dir);
       if (vec3.dot(dir, refDir) < 0) vec3.negate(dir, dir);
       const [minA, maxA] = project(fa, dir);
       const [minB, maxB] = project(fb, dir);
       const overlap = Math.min(maxA, maxB) - Math.max(minA, minB);
-      // The 3D edge distance is at least its projection: skip pairs that can neither
-      // beat the face axis nor improve the best edge so far.
-      if (-overlap >= Math.min(limit, bestEdgeDist)) continue;
-      // The closest segments along a cross axis are not necessarily the support
-      // extremes, so every parallel edge pair is measured; the pair's line distance
-      // bounds its segment distance from below.
-      for (const edgeA of fa.edges) {
-        if (Math.abs(vec3.dot(edgeA.dir, da)) < 1 - 1e-6) continue;
-        for (const edgeB of fb.edges) {
-          if (Math.abs(vec3.dot(edgeB.dir, db)) < 1 - 1e-6) continue;
-          const lineDist = Math.abs(vec3.dot(vec3.sub(vec(), edgeA.mid, edgeB.mid), dir));
-          if (lineDist >= Math.min(bestEdgeDist, limit)) continue;
-          const [ca, cb] = closestPoints(edgeA.a, edgeA.b, edgeB.a, edgeB.b);
-          const dist = vec3.distance(ca, cb);
-          if (dist < bestEdgeDist) {
-            bestEdgeDist = dist;
-            bestEdge = { normal: Float64Array.from(dir), ca: Float64Array.from(ca), cb: Float64Array.from(cb), dist };
-          }
+      if (-overlap > maxSep) maxSep = -overlap;
+      axes.push({ dir: Float64Array.from(dir), overlap, ga, gb });
+    }
+  }
+  if (maxSep > band) return { face: bestFace, edge: null };
+
+  let bestEdge = null;
+  let bestEdgeDist = Infinity;
+  const limit = Math.max(-bestOverlap, RECESS + SLOP);
+  for (const axis of axes) {
+    const dir = axis.dir;
+    // The 3D edge distance is at least its projection: skip pairs that can neither
+    // beat the face axis nor improve the best edge so far.
+    if (-axis.overlap >= Math.min(limit, bestEdgeDist)) continue;
+    for (const edgeA of axis.ga.edges) {
+      for (const edgeB of axis.gb.edges) {
+        const reach = Math.min(bestEdgeDist, limit);
+        if (vec3.distance(edgeA.mid, edgeB.mid) - edgeA.halfLen - edgeB.halfLen >= reach) continue;
+        if (Math.abs(vec3.dot(vec3.sub(vec(), edgeA.mid, edgeB.mid), dir)) >= reach) continue;
+        const [ca, cb] = closestPoints(edgeA.a, edgeA.b, edgeB.a, edgeB.b);
+        const dist = vec3.distance(ca, cb);
+        if (dist < bestEdgeDist) {
+          bestEdgeDist = dist;
+          bestEdge = { normal: Float64Array.from(dir), ca: Float64Array.from(ca), cb: Float64Array.from(cb), dist };
         }
       }
     }
@@ -167,6 +180,7 @@ function separatingAxis(fa, fb, refDir) {
   ]) {
     for (const vertex of vertexFrame.vertices) {
       for (const edge of edgeFrame.edges) {
+        if (vec3.distance(vertex, edge.mid) - edge.halfLen >= bestEdgeDist) continue;
         const point = closestVertexEdge(vertex, edge);
         const dist = vec3.distance(vertex, point);
         if (dist >= bestEdgeDist) continue;
@@ -282,7 +296,7 @@ function clipPolygon(polygon, planes) {
   return poly;
 }
 
-function addFaceContacts(contacts, a, b, normal, refFrame, incFrame) {
+function addFaceContacts(contacts, a, b, normal, refFrame, incFrame, closing, dt) {
   const target = refFrame.owner === 'a' ? vec3.negate(vec(), normal) : Float64Array.from(normal);
   const refFace = findFace(refFrame.frame, target);
   const refVertices = refFace.indices.map((index) => refFrame.frame.vertices[index]);
@@ -293,7 +307,7 @@ function addFaceContacts(contacts, a, b, normal, refFrame, incFrame) {
   for (const point of clipped) {
     // Point sits midway between the two rounded surfaces, r outside each core face.
     const separation = vec3.dot(refFace.normal, point) - refOffset;
-    if (separation > RECESS + SLOP) continue;
+    if (separation > RECESS + SLOP + closing * dt) continue;
     contacts.push({
       a,
       b,
@@ -343,7 +357,7 @@ function closestPoints(p1, q1, p2, q2) {
   ];
 }
 
-function addEdgeContact(contacts, a, b, hit, dt) {
+function addEdgeContact(contacts, a, b, hit, dt, recent) {
   const normal = hit.normal;
   const { ca, cb } = hit;
   const coreGap = vec3.distance(ca, cb);
@@ -360,12 +374,16 @@ function addEdgeContact(contacts, a, b, hit, dt) {
   const towards = coreGap > EPS ? vec3.scale(vec(), vec3.sub(vec(), cb, ca), 1 / coreGap) : vec3.negate(vec(), normal);
   const closing = Math.max(0, -vec3.dot(vec3.sub(vec(), velocityB, velocityA), towards));
   if (coreGap >= RECESS + SLOP + closing * dt) return;
+  // The cross axis is degenerate when perpendicular edges meet near a corner; the true
+  // gap direction between the closest points is always a valid contact normal.
+  const contactNormal = coreGap > EPS ? vec3.negate(vec(), towards) : Float64Array.from(normal);
+  if (recent.some((contact) => vec3.distance(contact.normal, contactNormal) < 1e-6)) return;
   contacts.push({
     a,
     b,
     surface: 'die',
     point: vec3.scale(vec(), vec3.add(vec(), ca, cb), 0.5),
-    normal: Float64Array.from(normal),
+    normal: Float64Array.from(contactNormal),
     // Core-edge distance mapped onto the rounded surfaces: surface gap = coreGap - 2r.
     depth: RECESS - coreGap,
   });
@@ -377,7 +395,12 @@ function detectPair(contacts, a, b, fa, fb, dt) {
   if (vec3.lengthSq(delta) > reach * reach) return;
   const length = vec3.length(delta);
   const refDir = length > 0 ? vec3.scale(vec(), delta, 1 / length) : Float64Array.from([0, 0, 1]);
-  const hit = separatingAxis(fa, fb, refDir);
+  // Widest closing the pair can reach this step; the speculative contact band grows
+  // with it, so the SAT gate never eats a contact addEdgeContact would fire.
+  const closing = vec3.distance(a.linearVelocity, b.linearVelocity)
+    + vec3.length(a.angularVelocity) * a.radius
+    + vec3.length(b.angularVelocity) * b.radius;
+  const hit = separatingAxis(fa, fb, refDir, RECESS + SLOP + closing * dt);
   if (!hit) return;
 
   const before = contacts.length;
@@ -386,16 +409,11 @@ function detectPair(contacts, a, b, fa, fb, dt) {
     if (vec3.dot(normal, refDir) < 0) vec3.negate(normal, normal);
     const refFrame = hit.face.owner === 'a' ? { owner: 'a', frame: fa } : { owner: 'b', frame: fb };
     const incident = hit.face.owner === 'a' ? fb : fa;
-    addFaceContacts(contacts, a, b, normal, refFrame, incident);
+    addFaceContacts(contacts, a, b, normal, refFrame, incident, closing, dt);
   }
   // The closest core feature pair adds the true contact when the clipped polygon
   // only describes a different, shallower region of the rounded shells.
-  if (hit.edge) {
-    const covered = contacts
-      .slice(before)
-      .some((contact) => vec3.distance(contact.normal, hit.edge.normal) < 1e-6);
-    if (!covered) addEdgeContact(contacts, a, b, hit.edge, dt);
-  }
+  if (hit.edge) addEdgeContact(contacts, a, b, hit.edge, dt, contacts.slice(before));
 }
 
 export function detectContacts(world, dt) {

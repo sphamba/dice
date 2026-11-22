@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { boxFromViewport } from './box.js';
-import { DIE_RADIUS, createBody } from './body.js';
+import { BEVEL_RADIUS, DIE_RADIUS, createBody } from './body.js';
 import { DICE_TYPES, createShape } from '../dice/shapes.js';
 import { FIXED_DT, SLEEP_TIME, createWorld } from './world.js';
+import { RESTITUTION_DIE } from './contacts.js';
 import { ROLL_RISE_MAX, ROLL_RISE_MIN, ROLL_SPEED_MAX, ROLL_SPEED_MIN, ROLL_SPIN_MAX, ROLL_SPIN_MIN, rollVelocity } from './roll.js';
 import * as quat from '../math/quat.js';
 import * as vec3 from '../math/vec3.js';
@@ -55,8 +56,8 @@ function worldVertex(body, vertex) {
 
 function lowestVertex(body) {
   let low = Infinity;
-  for (const vertex of body.shape.vertices) low = Math.min(low, worldVertex(body, vertex)[2]);
-  return low;
+  for (const vertex of body.shape.coreVertices) low = Math.min(low, worldVertex(body, vertex)[2]);
+  return low - BEVEL_RADIUS;
 }
 
 function deepestFaceAgainstFloor(body) {
@@ -70,16 +71,16 @@ function deepestFaceAgainstFloor(body) {
 
 function boxOvershoot(box, body) {
   let worst = 0;
-  for (const local of body.shape.vertices) {
+  for (const local of body.shape.coreVertices) {
     const vertex = worldVertex(body, local);
     worst = Math.max(
       worst,
-      -vertex[0] - box.W / 2,
-      vertex[0] - box.W / 2,
-      -vertex[1] - box.H / 2,
-      vertex[1] - box.H / 2,
-      -vertex[2],
-      vertex[2] - box.D,
+      -vertex[0] - box.W / 2 + BEVEL_RADIUS,
+      vertex[0] - box.W / 2 + BEVEL_RADIUS,
+      -vertex[1] - box.H / 2 + BEVEL_RADIUS,
+      vertex[1] - box.H / 2 + BEVEL_RADIUS,
+      -vertex[2] + BEVEL_RADIUS,
+      vertex[2] - box.D + BEVEL_RADIUS,
     );
   }
   return worst;
@@ -259,7 +260,12 @@ describe('energy', () => {
 
 const D6_REST = -Math.min(...createShape('d6', DIE_RADIUS).vertices.map((vertex) => vertex[2]));
 
-const FIRST_REBOUND = { floor: 0.02619, die: 0.03997 };
+// Die-on-die bounce fires speculatively within one step of rest-height contact, so the rise
+// matches the analytic (e·approach)²/(2g) with the approach taken from the 0.1 m drop.
+const FIRST_REBOUND = {
+  floor: 0.02619,
+  die: (RESTITUTION_DIE * Math.sqrt(2 * GRAVITY * 0.1)) ** 2 / (2 * GRAVITY),
+};
 
 function firstReboundRise(world, body, rest, events) {
   let launched = false;
