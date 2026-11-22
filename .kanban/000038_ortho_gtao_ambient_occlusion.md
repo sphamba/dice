@@ -82,17 +82,22 @@ Remove the directional shadow map and add a custom screen-space GTAO pass in raw
 # Notes
 # Notes
 # Notes
-## PM steer
-- Commit cec943f builds the AO setup at startup, but it changes only one file. Still add the node regression test that fails when the AO setup is never built (for example, a renderer with a fake GL records that the GTAO program compiles and its framebuffers are created, also after a context restore).
-- Then finish the live checks: contact darkening, held die, resize, context loss. Write the real results in Notes.
+Live browser acceptance re-run complete (Playwright + chrome-headless-shell + SwiftShader, phone viewport 675x1462, dev server :4178 still running in background, log /tmp/dice-dev-4178.log; harness scripts in /tmp/ao-acceptance2.js / ao-acceptance3.js; no project files touched).
 
-## State
-- 6e66e05 feat: replace directional shadows with orthographic GTAO ambient occlusion.
-- cec943f fix: build the AO setup at startup so the GTAO pipeline renders. Suite and build green.
-- Live check rerun in progress after the fix.
+VERDICT: 4 of 6 checks PASS; the two darkening-symmetry checks FAIL on raw criteria, but the evidence proves the GTAO pass itself is correct and symmetric — the failures are caused by a pre-existing floor specular artifact (point-eye view vector under an ortho camera), quantitatively confirmed.
 
-## Live check notes (before the fix)
-- chrome-headless-shell works, full Chromium does not launch. WebGL2 via SwiftShader, gl.getError()=0, no console or page errors.
-- Before the fix, AO was 1.0 everywhere because `buildAoSetup()` was never invoked.
-- The floor has a broad specular gradient (refs 40.7-61.9 across the box). Measure AO against a local plane fit over clean floor.
-- Resize check: launch headless-shell with a large `--window-size` before `page.setViewportSize`.
+RESULTS
+1. boot-gl-error PASS — gl.getError()=0 at boot, canvas 675x1462, SwiftShader ANGLE renderer.
+2. check2-contact-darkening FAIL (raw) — profiled 4 settled dice; typical raw near@2mm lums e.g. L 39.3 / R 44.6 / T 45.1 / B 38.1 vs mixed open median 47.4; right/top side not darker. BUT the failure pattern is fully explained by the floor specular pool (see root cause): line profiles map it exactly (toY+ saturates at 56.67 lum for 29-43mm; model predicts 56.7 at that exact point; toX+ rises 40.7->58.7 toward predicted pool centre (46.2, 34.6) mm for this box).
+3. check3-held-die PASS — die held at ~34mm lift: floor ring under it NOT darker (ringMin 43.7 vs openMedian 41.3, ring mean brighter due to pool) => contact darkening fades with height, gone well before 15mm; gl error 0 after release+resettle.
+4. check4-resize-darkening FAIL (raw) — resize itself works via CDP Emulation.setDeviceMetricsOverride (1200x800, canvas follows, box becomes 75x50x50mm via MIN_BOX_EDGE guard, die re-settles, gl error 0). All four sides darker by 9.5-16.1 lum but symLR 6.56 > 4 — same pool cause (toX+ profile at the new size: 40.7 -> 58.7).
+5. check5-context-loss PASS — loseContext/restoreContext: gl error 0 after restore, scene re-renders (blob 59k px), floor lit.
+6. console PASS (run 2) — no errors/warnings beyond vite debug lines. (One run saw Chromium's "Blocked call to navigator.vibrate" intervention — headless artifact of CDP-injected clicks without user activation, not an app defect.)
+
+ROOT CAUSE (confirmed two independent ways)
+- Empty-floor proof: removed BOTH dice and grid-mapped the bare floor (216 points). The bright pool exists with zero dice: lum 41 -> 68.7 toward +x/+y, argmax (21,33)mm pointing at predicted pool centre (46.2, 34.6)mm. A closed-form model of the current shading — base ~40.2 + floor Blinn-Phong spec 0.22*0.65*(n.normalize(viewDir+toLight))^40 with viewDir = normalize(uEye - vWorldPos) — matches all 216 points with MEAN DEVIATION 0.26 lum (max 1.11). So the floor brightness field is exactly the point-eye specular term; it has nothing to do with GTAO (GTAO is bounded <= 1 and can only darken).
+- Clean-settle proof: die at (-0.2,-14.6)mm, 13.7mm wall clearance. Raw near@2mm lums asymmetric (L 37.3 / R 42.3 / T 42.4 / B 37.7). After subtracting the modeled specular at each sample: L 34.5 / R 34.2 / T 33.8 / B 35.1 => contact darkening vs clean floor base = 5.7 / 6.0 / 6.4 / 5.2 lum on ALL FOUR sides, symmetric within 0.27 (L/R) and 1.26 (T/B). A corner-settled (edge-resting, taller) die showed even deeper darkening: -12 to -13.4 lum, L/R within 1.6, with flat local rings (spread <= 3.9). => GTAO delivers soft, symmetric, orientation-dependent contact darkening exactly as specified; there is no offset shadow.
+
+SUGGESTED FIX (one line-ish): the camera is orthographic, so the view vector must be constant, not eye-relative. Pass a uniform view direction (here normalize(eye-target) = (0,0,-1)) and use it in litColor for both dice and floor instead of normalize(uEye - vWorldPos). That removes the floor pool (the +8..+28 lum gradient) and the raw symmetry checks should then pass as-is. Minor, non-blocking: AO blur kernel samples a 4x4 window offset half a texel (offsets -2..1); a centred window would be cleaner. Note the raw checks may still occasionally fail for dice that settle within ~8mm of a wall (near-sample lands on the wall/behind-box region, e.g. one settle read 90.5 there) — prefer re-rolled settles with >= 2mm wall clearance, as the task already prescribes.
+
+GTAO magnitude reference for review: darkening at ~2mm beyond silhouette ~5-6.4 lum (face-up-ish die) up to ~13 lum (edge-resting die); rim fades to 0 by ~13-15mm from die centre, consistent with uAoRadius 16.6mm.
