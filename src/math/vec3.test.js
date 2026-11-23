@@ -88,4 +88,17 @@ describe('vec3', () => {
     close(out[1], 3);
     close(out[2], 4);
   });
+
+  it('decides a squared distance gate outside a band the exact hypot decides inside', () => {
+    const a = [0.3, -1.2, 2.7];
+    const b = [0.1, 0.4, -2.2];
+    const d = vec3.distance(a, b);
+    expect(vec3.squaredDistance(a, b)).toBeCloseTo(d * d, 12);
+    expect(vec3.compareDistance(a, b, d * (1 + 1e-6))).toBe(-1);
+    expect(vec3.compareDistance(a, b, d * (1 - 1e-6))).toBe(1);
+    expect(vec3.compareDistance(a, b, d)).toBe(0);
+    expect(vec3.compareDistance(a, b, 0)).toBe(1);
+    expect(vec3.compareDistance(a, a, 0)).toBe(0);
+    expect(vec3.compareDistance(a, b, Infinity)).toBe(-1);
+  });
 });

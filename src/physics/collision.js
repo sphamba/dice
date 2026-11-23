@@ -33,42 +33,100 @@ function boxPlanes(box) {
   ];
 }
 
-function buildFrame(body) {
-  const vertices = body.shape.coreVertices.map((vertex) =>
-    vec3.add(vec(), vec3.transformQuat(vec(), vertex, body.orientation), body.position),
-  );
-  const velocities = vertices.map((vertex) =>
-    vec3.add(
-      vec(),
-      body.linearVelocity,
-      vec3.cross(vec(), body.angularVelocity, vec3.sub(vec(), vertex, body.position)),
-    ),
-  );
-  const faces = body.shape.faces.map((face) => {
-    const normal = vec3.transformQuat(vec(), face.normal, body.orientation);
-    project(spanA, vertices, normal);
+// Frames are reused per body: the buffers and the views into them are built once, so a
+// step rebuilds the geometry in place instead of allocating a vector per vertex.
+const FRAMES = new WeakMap();
+
+let frameGeneration = 0;
+
+const scratchLever = vec();
+const scratchSpin = vec();
+
+function createFrame(shape) {
+  const count = shape.coreVertices.length;
+  const vertexBuffer = new Float64Array(3 * count);
+  const velocityBuffer = new Float64Array(3 * count);
+  const vertices = [];
+  const velocities = [];
+  for (let index = 0; index < count; index += 1) {
+    vertices.push(vertexBuffer.subarray(index * 3, index * 3 + 3));
+    velocities.push(velocityBuffer.subarray(index * 3, index * 3 + 3));
+  }
+  return {
+    shape,
+    generation: -1,
+    groupCount: 0,
+    vertices,
+    velocities,
+    faces: shape.faces.map((face) => ({
+      indices: face.indices,
+      normal: new Float64Array(3),
+      min: 0,
+      max: 0,
+    })),
+    edges: shape.edges.map(() => ({
+      a: null,
+      b: null,
+      dir: new Float64Array(3),
+      mid: new Float64Array(3),
+      halfLen: 0,
+    })),
+    dirGroups: [],
+  };
+}
+
+function buildFrame(frame, body) {
+  const { vertices, velocities, faces, edges, dirGroups } = frame;
+  const core = body.shape.coreVertices;
+  const { position, orientation, linearVelocity, angularVelocity } = body;
+  for (let index = 0; index < core.length; index += 1) {
+    const vertex = vertices[index];
+    vec3.transformQuat(vertex, core[index], orientation);
+    vec3.add(vertex, vertex, position);
+    vec3.sub(scratchLever, vertex, position);
+    vec3.cross(scratchSpin, angularVelocity, scratchLever);
+    vec3.add(velocities[index], linearVelocity, scratchSpin);
+  }
+  for (let index = 0; index < faces.length; index += 1) {
+    const face = faces[index];
+    vec3.transformQuat(face.normal, body.shape.faces[index].normal, orientation);
     // Own-frame span on this normal never changes with the partner, so pass 1 of the
     // SAT reads it instead of projecting the same core once per candidate pair.
-    return { indices: face.indices, normal, min: spanA[0], max: spanA[1] };
-  });
-  const edges = body.shape.edges.map(([i, j]) => {
-    const a = vertices[i];
-    const b = vertices[j];
-    return {
-      a,
-      b,
-      dir: vec3.normalize(vec(), vec3.sub(vec(), b, a)),
-      mid: vec3.scale(vec(), vec3.add(vec(), a, b), 0.5),
-      halfLen: 0.5 * vec3.distance(a, b),
-    };
-  });
-  const dirGroups = [];
-  for (const edge of edges) {
-    const group = dirGroups.find((candidate) => Math.abs(vec3.dot(candidate.dir, edge.dir)) > 1 - 1e-6);
-    if (group) group.edges.push(edge);
-    else dirGroups.push({ dir: Float64Array.from(edge.dir), edges: [edge] });
+    project(spanA, vertices, face.normal);
+    face.min = spanA[0];
+    face.max = spanA[1];
   }
-  return { vertices, velocities, faces, dirGroups, edges };
+  for (let index = 0; index < edges.length; index += 1) {
+    const edge = edges[index];
+    const [from, to] = body.shape.edges[index];
+    edge.a = vertices[from];
+    edge.b = vertices[to];
+    vec3.sub(edge.dir, edge.b, edge.a);
+    vec3.normalize(edge.dir, edge.dir);
+    vec3.add(edge.mid, edge.a, edge.b);
+    vec3.scale(edge.mid, edge.mid, 0.5);
+    edge.halfLen = 0.5 * vec3.distance(edge.a, edge.b);
+  }
+  for (const group of dirGroups) group.edges.length = 0;
+  let groupCount = 0;
+  for (let index = 0; index < edges.length; index += 1) {
+    const edge = edges[index];
+    let group = null;
+    for (let candidate = 0; candidate < groupCount; candidate += 1) {
+      if (Math.abs(vec3.dot(dirGroups[candidate].dir, edge.dir)) > 1 - 1e-6) {
+        group = dirGroups[candidate];
+        break;
+      }
+    }
+    if (!group) {
+      if (groupCount === dirGroups.length) dirGroups.push({ dir: new Float64Array(3), edges: [] });
+      group = dirGroups[groupCount];
+      groupCount += 1;
+      vec3.copy(group.dir, edge.dir);
+    }
+    group.edges.push(edge);
+  }
+  frame.groupCount = groupCount;
 }
 
 function detectBox(world, body, frame, dt) {
@@ -95,6 +153,40 @@ function detectBox(world, body, frame, dt) {
 
 const spanA = new Float64Array(2);
 const spanB = new Float64Array(2);
+
+// Duplicate-normal radius of the edge contact dedupe, in meters.
+const NORMAL_DUPLICATE = 1e-6;
+
+const scratchDir = vec();
+const scratchRefDir = vec();
+const scratchDelta = vec();
+const scratchSide = vec();
+const scratchEdgeAxis = vec();
+const scratchPointDelta = vec();
+const scratchClosestA = vec();
+const scratchClosestB = vec();
+const scratchVertexEdge = vec();
+const scratchEdgeVector = vec();
+
+// Candidate axes of the cross-axis pass: a flat buffer plus parallel arrays, so a pair
+// with a few hundred candidates reaches the edge scan without allocating.
+let axisDir = new Float64Array(0);
+let axisOverlap = new Float64Array(0);
+let axisGroupA = [];
+let axisGroupB = [];
+
+function reserveAxes(count) {
+  if (count <= axisOverlap.length) return;
+  const size = Math.max(2 * axisOverlap.length, 256);
+  const dir = new Float64Array(3 * size);
+  dir.set(axisDir);
+  axisDir = dir;
+  const overlap = new Float64Array(size);
+  overlap.set(axisOverlap);
+  axisOverlap = overlap;
+  axisGroupA.length = size;
+  axisGroupB.length = size;
+}
 
 function project(out, vertices, dir) {
   const x = dir[0];
@@ -138,10 +230,12 @@ function separatingAxis(fa, fb, refDir, band) {
   // pair on its own: the cross axes only feed maxSep, and the best face is fixed.
   if (maxSep > band) return { face: bestFace, edge: null };
 
-  const axes = [];
-  for (const ga of fa.dirGroups) {
-    for (const gb of fb.dirGroups) {
-      const dir = vec3.cross(vec(), ga.dir, gb.dir);
+  let axisCount = 0;
+  for (let indexA = 0; indexA < fa.groupCount; indexA += 1) {
+    const ga = fa.dirGroups[indexA];
+    for (let indexB = 0; indexB < fb.groupCount; indexB += 1) {
+      const gb = fb.dirGroups[indexB];
+      const dir = vec3.cross(scratchDir, ga.dir, gb.dir);
       if (vec3.lengthSq(dir) < EPS) continue;
       vec3.normalize(dir, dir);
       if (vec3.dot(dir, refDir) < 0) vec3.negate(dir, dir);
@@ -150,7 +244,14 @@ function separatingAxis(fa, fb, refDir, band) {
       const overlap = Math.min(spanA[1], spanB[1]) - Math.max(spanA[0], spanB[0]);
       if (-overlap > maxSep) maxSep = -overlap;
       if (maxSep > band) break;
-      axes.push({ dir: Float64Array.from(dir), overlap, ga, gb });
+      reserveAxes(axisCount + 1);
+      axisDir[axisCount * 3] = dir[0];
+      axisDir[axisCount * 3 + 1] = dir[1];
+      axisDir[axisCount * 3 + 2] = dir[2];
+      axisOverlap[axisCount] = overlap;
+      axisGroupA[axisCount] = ga;
+      axisGroupB[axisCount] = gb;
+      axisCount += 1;
     }
   }
   if (maxSep > band) return { face: bestFace, edge: null };
@@ -158,21 +259,44 @@ function separatingAxis(fa, fb, refDir, band) {
   let bestEdge = null;
   let bestEdgeDist = Infinity;
   const limit = Math.max(-bestOverlap, RECESS + SLOP);
-  for (const axis of axes) {
-    const dir = axis.dir;
+  for (let index = 0; index < axisCount; index += 1) {
     // The 3D edge distance is at least its projection: skip pairs that can neither
     // beat the face axis nor improve the best edge so far.
-    if (-axis.overlap >= Math.min(limit, bestEdgeDist)) continue;
-    for (const edgeA of axis.ga.edges) {
-      for (const edgeB of axis.gb.edges) {
+    if (-axisOverlap[index] >= Math.min(limit, bestEdgeDist)) continue;
+    const dir = vec3.set(
+      scratchDir,
+      axisDir[index * 3],
+      axisDir[index * 3 + 1],
+      axisDir[index * 3 + 2],
+    );
+    for (const edgeA of axisGroupA[index].edges) {
+      for (const edgeB of axisGroupB[index].edges) {
         const reach = Math.min(bestEdgeDist, limit);
-        if (vec3.distance(edgeA.mid, edgeB.mid) - edgeA.halfLen - edgeB.halfLen >= reach) continue;
-        if (Math.abs(vec3.dot(vec3.sub(vec(), edgeA.mid, edgeB.mid), dir)) >= reach) continue;
-        const [ca, cb] = closestPoints(edgeA.a, edgeA.b, edgeB.a, edgeB.b);
-        const dist = vec3.distance(ca, cb);
+        const gapOrder = vec3.compareDistance(
+          edgeA.mid,
+          edgeB.mid,
+          reach + edgeA.halfLen + edgeB.halfLen,
+        );
+        if (gapOrder === 1) continue;
+        if (
+          gapOrder === 0 &&
+          vec3.distance(edgeA.mid, edgeB.mid) - edgeA.halfLen - edgeB.halfLen >= reach
+        ) {
+          continue;
+        }
+        vec3.sub(scratchDelta, edgeA.mid, edgeB.mid);
+        if (Math.abs(vec3.dot(scratchDelta, dir)) >= reach) continue;
+        closestPoints(scratchClosestA, scratchClosestB, edgeA.a, edgeA.b, edgeB.a, edgeB.b);
+        if (vec3.compareDistance(scratchClosestA, scratchClosestB, bestEdgeDist) === 1) continue;
+        const dist = vec3.distance(scratchClosestA, scratchClosestB);
         if (dist < bestEdgeDist) {
           bestEdgeDist = dist;
-          bestEdge = { normal: Float64Array.from(dir), ca: Float64Array.from(ca), cb: Float64Array.from(cb), dist };
+          bestEdge = {
+            normal: Float64Array.from(dir),
+            ca: Float64Array.from(scratchClosestA),
+            cb: Float64Array.from(scratchClosestB),
+            dist,
+          };
         }
       }
     }
@@ -181,6 +305,7 @@ function separatingAxis(fa, fb, refDir, band) {
   // vertex pair or a vertex against an edge, which the edge x edge axes miss.
   for (const va of fa.vertices) {
     for (const vb of fb.vertices) {
+      if (vec3.compareDistance(va, vb, bestEdgeDist) === 1) continue;
       const dist = vec3.distance(va, vb);
       if (dist >= bestEdgeDist) continue;
       bestEdgeDist = dist;
@@ -193,8 +318,10 @@ function separatingAxis(fa, fb, refDir, band) {
   ]) {
     for (const vertex of vertexFrame.vertices) {
       for (const edge of edgeFrame.edges) {
-        if (vec3.distance(vertex, edge.mid) - edge.halfLen >= bestEdgeDist) continue;
-        const point = closestVertexEdge(vertex, edge);
+        const gapOrder = vec3.compareDistance(vertex, edge.mid, bestEdgeDist + edge.halfLen);
+        if (gapOrder === 1) continue;
+        if (gapOrder === 0 && vec3.distance(vertex, edge.mid) - edge.halfLen >= bestEdgeDist) continue;
+        const point = closestVertexEdge(scratchVertexEdge, vertex, edge);
         const dist = vec3.distance(vertex, point);
         if (dist >= bestEdgeDist) continue;
         bestEdgeDist = dist;
@@ -235,7 +362,11 @@ function insidePolygon(point, face, frame) {
     const current = frame.vertices[face.indices[i]];
     const next = frame.vertices[face.indices[(i + 1) % face.indices.length]];
     const side = vec3.dot(
-      vec3.cross(vec(), vec3.sub(vec(), next, current), vec3.sub(vec(), point, current)),
+      vec3.cross(
+        scratchSide,
+        vec3.sub(scratchEdgeAxis, next, current),
+        vec3.sub(scratchPointDelta, point, current),
+      ),
       face.normal,
     );
     if (side > EPS) positive += 1;
@@ -250,10 +381,10 @@ function vertexEdgeHit(vertex, edgePoint, ca, cb, dist, refDir) {
   return { normal: Float64Array.from(normal), ca: Float64Array.from(ca), cb: Float64Array.from(cb), dist };
 }
 
-function closestVertexEdge(vertex, edge) {
-  const ab = vec3.sub(vec(), edge.b, edge.a);
-  const t = clamp(vec3.dot(vec3.sub(vec(), vertex, edge.a), ab) / Math.max(vec3.dot(ab, ab), EPS), 0, 1);
-  return vec3.scaleAndAdd(vec(), edge.a, ab, t);
+function closestVertexEdge(out, vertex, edge) {
+  const ab = vec3.sub(scratchEdgeVector, edge.b, edge.a);
+  const t = clamp(vec3.dot(vec3.sub(scratchPointDelta, vertex, edge.a), ab) / Math.max(vec3.dot(ab, ab), EPS), 0, 1);
+  return vec3.scaleAndAdd(out, edge.a, ab, t);
 }
 
 function findFace(frame, target) {
@@ -332,17 +463,19 @@ function addFaceContacts(contacts, a, b, normal, refFrame, incFrame, closing, dt
   }
 }
 
-function closestPoints(p1, q1, p2, q2) {
-  const d1 = vec3.sub(vec(), q1, p1);
-  const d2 = vec3.sub(vec(), q2, p2);
-  const r = vec3.sub(vec(), p1, p2);
+function closestPoints(outA, outB, p1, q1, p2, q2) {
+  const d1 = vec3.sub(scratchEdgeAxis, q1, p1);
+  const d2 = vec3.sub(scratchEdgeVector, q2, p2);
+  const r = vec3.sub(scratchPointDelta, p1, p2);
   const a = vec3.dot(d1, d1);
   const e = vec3.dot(d2, d2);
   const f = vec3.dot(d2, r);
   let s = 0;
   let t = 0;
   if (a <= EPS && e <= EPS) {
-    return [Float64Array.from(p1), Float64Array.from(p2)];
+    vec3.copy(outA, p1);
+    vec3.copy(outB, p2);
+    return;
   }
   if (a <= EPS) {
     t = clamp(f / e, 0, 1);
@@ -364,13 +497,11 @@ function closestPoints(p1, q1, p2, q2) {
       }
     }
   }
-  return [
-    vec3.scaleAndAdd(vec(), p1, d1, s),
-    vec3.scaleAndAdd(vec(), p2, d2, t),
-  ];
+  vec3.scaleAndAdd(outA, p1, d1, s);
+  vec3.scaleAndAdd(outB, p2, d2, t);
 }
 
-function addEdgeContact(contacts, a, b, hit, dt, recent) {
+function addEdgeContact(contacts, a, b, hit, dt, before) {
   const normal = hit.normal;
   const { ca, cb } = hit;
   const coreGap = vec3.distance(ca, cb);
@@ -390,7 +521,12 @@ function addEdgeContact(contacts, a, b, hit, dt, recent) {
   // The cross axis is degenerate when perpendicular edges meet near a corner; the true
   // gap direction between the closest points is always a valid contact normal.
   const contactNormal = coreGap > EPS ? vec3.negate(vec(), towards) : Float64Array.from(normal);
-  if (recent.some((contact) => vec3.distance(contact.normal, contactNormal) < 1e-6)) return;
+  for (let index = before; index < contacts.length; index += 1) {
+    const existing = contacts[index];
+    const order = vec3.compareDistance(existing.normal, contactNormal, NORMAL_DUPLICATE);
+    if (order === -1) return;
+    if (order === 0 && vec3.distance(existing.normal, contactNormal) < NORMAL_DUPLICATE) return;
+  }
   contacts.push({
     a,
     b,
@@ -403,11 +539,11 @@ function addEdgeContact(contacts, a, b, hit, dt, recent) {
 }
 
 function detectPair(contacts, a, b, fa, fb, dt) {
-  const delta = vec3.sub(vec(), a.position, b.position);
+  const delta = vec3.sub(scratchDelta, a.position, b.position);
   const reach = a.radius + b.radius + BROADPHASE_MARGIN;
   if (vec3.lengthSq(delta) > reach * reach) return;
   const length = vec3.length(delta);
-  const refDir = length > 0 ? vec3.scale(vec(), delta, 1 / length) : Float64Array.from([0, 0, 1]);
+  const refDir = length > 0 ? vec3.scale(scratchRefDir, delta, 1 / length) : vec3.set(scratchRefDir, 0, 0, 1);
   // Widest closing the pair can reach this step; the speculative contact band grows
   // with it, so the SAT gate never eats a contact addEdgeContact would fire.
   const closing = vec3.distance(a.linearVelocity, b.linearVelocity)
@@ -426,18 +562,22 @@ function detectPair(contacts, a, b, fa, fb, dt) {
   }
   // The closest core feature pair adds the true contact when the clipped polygon
   // only describes a different, shallower region of the rounded shells.
-  if (hit.edge) addEdgeContact(contacts, a, b, hit.edge, dt, contacts.slice(before));
+  if (hit.edge) addEdgeContact(contacts, a, b, hit.edge, dt, before);
 }
 
 export function detectContacts(world, dt) {
   if (!world.contacts) world.contacts = [];
   world.contacts.length = 0;
-  const frames = new Map();
+  frameGeneration += 1;
   const frameOf = (body) => {
-    let frame = frames.get(body);
-    if (!frame) {
-      frame = buildFrame(body);
-      frames.set(body, frame);
+    let frame = FRAMES.get(body);
+    if (!frame || frame.shape !== body.shape) {
+      frame = createFrame(body.shape);
+      FRAMES.set(body, frame);
+    }
+    if (frame.generation !== frameGeneration) {
+      frame.generation = frameGeneration;
+      buildFrame(frame, body);
     }
     return frame;
   };

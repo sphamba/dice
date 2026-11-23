@@ -115,7 +115,8 @@ function prepare(contact, dt, cache) {
   // A contact that persisted from the previous step is resting or rocking. Restitution there
   // only feeds the rocking mode, so it applies to a fresh contact alone. It is applied by the
   // pass after the velocity iterations, so a speculative fire keeps its stored approach.
-  prepared.fresh = findCached(cache, contact) === null;
+  prepared.cached = findCached(cache, contact);
+  prepared.fresh = prepared.cached === null;
   prepared.restitution = b ? RESTITUTION_DIE : RESTITUTION_BOX;
   const depth = contact.depth ?? 0;
   prepared.target = depth < 0
@@ -130,7 +131,9 @@ function findCached(cache, contact) {
     if (cached.a !== contact.a || cached.b !== contact.b) continue;
     if (cached.surface !== contact.surface) continue;
     if (vec3.dot(cached.normal.direction, contact.normal) <= WARM_START_NORMAL_DOT) continue;
-    if (vec3.distance(cached.point, contact.point) > WARM_START_DISTANCE) continue;
+    const order = vec3.compareDistance(cached.point, contact.point, WARM_START_DISTANCE);
+    if (order === 1) continue;
+    if (order === 0 && vec3.distance(cached.point, contact.point) > WARM_START_DISTANCE) continue;
     return cached;
   }
   return null;
@@ -138,7 +141,10 @@ function findCached(cache, contact) {
 
 // Impulses a new contact carries over from the previous step of the same contact.
 export function warmStartImpulses(cache, contact, friction) {
-  const cached = findCached(cache, contact);
+  return warmFrom(findCached(cache, contact), contact, friction);
+}
+
+function warmFrom(cached, contact, friction) {
   if (!cached) return { normal: 0, tangents: [0, 0] };
   const normalImpulse = Math.max(cached.normal.impulse, 0);
   const first = vec();
@@ -158,9 +164,8 @@ export function warmStartImpulses(cache, contact, friction) {
   return { normal: normalImpulse, tangents };
 }
 
-function warmStart(prepared, cache, contact) {
-  if (!cache) return;
-  const warm = warmStartImpulses(cache, contact, prepared.friction);
+function warmStart(prepared, contact) {
+  const warm = warmFrom(prepared.cached, contact, prepared.friction);
   prepared.warmNormal = warm.normal;
   if (warm.normal > 0) {
     prepared.normal.impulse = warm.normal;
@@ -235,7 +240,7 @@ export function solveContacts(world, dt) {
   world.contactCache = prepared;
   // Every approach is measured before any replay: a warm start applied mid-prepare would
   // inflate the approach of the contacts behind it.
-  prepared.forEach((preparedContact, index) => warmStart(preparedContact, cache, contacts[index]));
+  prepared.forEach((preparedContact, index) => warmStart(preparedContact, contacts[index]));
   const events = (world.events ??= []);
   const groups = new Map();
   const ids = new Map();

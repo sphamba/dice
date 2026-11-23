@@ -89,6 +89,27 @@ export function distance(a, b) {
   return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 }
 
+export function squaredDistance(a, b) {
+  const dx = a[0] - b[0];
+  const dy = a[1] - b[1];
+  const dz = a[2] - b[2];
+  return dx * dx + dy * dy + dz * dz;
+}
+
+// Relative half-width of the band around a comparison limit where the squared distance
+// cannot decide: far above the rounding error of the hypot and of the square root.
+export const DISTANCE_BAND = 1e-9;
+
+// Squared form of `distance(a, b)` compared with `limit`: 1 when certainly above,
+// -1 when certainly below, 0 inside the band, where the exact hypot must decide.
+export function compareDistance(a, b, limit) {
+  const squared = squaredDistance(a, b);
+  const bound = limit * limit;
+  if (squared > bound * (1 + DISTANCE_BAND)) return 1;
+  if (squared < bound * (1 - DISTANCE_BAND)) return -1;
+  return 0;
+}
+
 export function lerp(out, a, b, t) {
   out[0] = a[0] + t * (b[0] - a[0]);
   out[1] = a[1] + t * (b[1] - a[1]);
