@@ -44,10 +44,13 @@ function buildFrame(body) {
       vec3.cross(vec(), body.angularVelocity, vec3.sub(vec(), vertex, body.position)),
     ),
   );
-  const faces = body.shape.faces.map((face) => ({
-    indices: face.indices,
-    normal: vec3.transformQuat(vec(), face.normal, body.orientation),
-  }));
+  const faces = body.shape.faces.map((face) => {
+    const normal = vec3.transformQuat(vec(), face.normal, body.orientation);
+    project(spanA, vertices, normal);
+    // Own-frame span on this normal never changes with the partner, so pass 1 of the
+    // SAT reads it instead of projecting the same core once per candidate pair.
+    return { indices: face.indices, normal, min: spanA[0], max: spanA[1] };
+  });
   const edges = body.shape.edges.map(([i, j]) => {
     const a = vertices[i];
     const b = vertices[j];
@@ -90,15 +93,22 @@ function detectBox(world, body, frame, dt) {
   }
 }
 
-function project(frame, dir) {
+const spanA = new Float64Array(2);
+const spanB = new Float64Array(2);
+
+function project(out, vertices, dir) {
+  const x = dir[0];
+  const y = dir[1];
+  const z = dir[2];
   let min = Infinity;
   let max = -Infinity;
-  for (const vertex of frame.vertices) {
-    const value = vec3.dot(vertex, dir);
+  for (const vertex of vertices) {
+    const value = x * vertex[0] + y * vertex[1] + z * vertex[2];
     if (value < min) min = value;
     if (value > max) max = value;
   }
-  return [min, max];
+  out[0] = min;
+  out[1] = max;
 }
 
 // Picks the closest face plane pair and the closest core edge pair of the two inset
@@ -113,18 +123,20 @@ function separatingAxis(fa, fb, refDir, band) {
   let bestFace = null;
   let bestOverlap = Infinity;
   let maxSep = -Infinity;
-  const considerFace = (face, owner) => {
-    const [minA, maxA] = project(fa, face.normal);
-    const [minB, maxB] = project(fb, face.normal);
-    const overlap = Math.min(maxA, maxB) - Math.max(minA, minB);
+  const considerFace = (face, owner, opposite) => {
+    project(spanA, opposite.vertices, face.normal);
+    const overlap = Math.min(face.max, spanA[1]) - Math.max(face.min, spanA[0]);
     if (-overlap > maxSep) maxSep = -overlap;
     if (overlap < bestOverlap) {
       bestOverlap = overlap;
       bestFace = { normal: face.normal, owner, overlap };
     }
   };
-  for (const face of fa.faces) considerFace(face, 'a');
-  for (const face of fb.faces) considerFace(face, 'b');
+  for (const face of fa.faces) considerFace(face, 'a', fb);
+  for (const face of fb.faces) considerFace(face, 'b', fa);
+  // A face axis that separates the cores by more than the contact band settles the
+  // pair on its own: the cross axes only feed maxSep, and the best face is fixed.
+  if (maxSep > band) return { face: bestFace, edge: null };
 
   const axes = [];
   for (const ga of fa.dirGroups) {
@@ -133,10 +145,11 @@ function separatingAxis(fa, fb, refDir, band) {
       if (vec3.lengthSq(dir) < EPS) continue;
       vec3.normalize(dir, dir);
       if (vec3.dot(dir, refDir) < 0) vec3.negate(dir, dir);
-      const [minA, maxA] = project(fa, dir);
-      const [minB, maxB] = project(fb, dir);
-      const overlap = Math.min(maxA, maxB) - Math.max(minA, minB);
+      project(spanA, fa.vertices, dir);
+      project(spanB, fb.vertices, dir);
+      const overlap = Math.min(spanA[1], spanB[1]) - Math.max(spanA[0], spanB[0]);
       if (-overlap > maxSep) maxSep = -overlap;
+      if (maxSep > band) break;
       axes.push({ dir: Float64Array.from(dir), overlap, ga, gb });
     }
   }
