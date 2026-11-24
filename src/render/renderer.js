@@ -67,13 +67,32 @@ function uniformMap(gl, program, names) {
 }
 
 // Monotone chain convex hull: CCW, collinear and duplicate points dropped.
+// Monotone chain convex hull: CCW, collinear and duplicate points dropped.
+// Near-collinear points are dropped too (relative sine tolerance): at some
+// resting poses a shape corner lands within tens of nanometers of the edge
+// through its neighbours. Keeping it adds a degenerate ~10nm hull edge whose
+// orientation is decided by float64 noise; if it points against the winding,
+// the shader's min-cross inside test classifies half the die's interior as
+// outside and the bevel-radius discard punches a large hole into the dice and
+// the AO prepass for one frame (task #67). Dropping the point moves the hull
+// boundary by at most SIN_EPS x the edge length (~0.1um), far below the
+// bevel-radius discard margin.
+const SIN_EPS = 1e-4;
 export function convexHull2D(points) {
   const pts = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
   const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
   const chain = (source) => {
     const half = [];
     for (const p of source) {
-      while (half.length >= 2 && cross(half[half.length - 2], half[half.length - 1], p) <= 0) half.pop();
+      while (half.length >= 2) {
+        const o = half[half.length - 2];
+        const a = half[half.length - 1];
+        const cr = cross(o, a, p);
+        const oa = Math.hypot(a[0] - o[0], a[1] - o[1]);
+        const op = Math.hypot(p[0] - o[0], p[1] - o[1]);
+        if (cr <= 0 || (oa > 0 && op > 0 && cr / (oa * op) <= SIN_EPS)) half.pop();
+        else break;
+      }
       half.push(p);
     }
     return half;
@@ -101,7 +120,8 @@ export function projectedInsetHull(shape, model, scale) {
 }
 
 // JS mirror of the shader hull distance: 0 inside the CCW hull, the segment
-// distance outside.
+// distance outside. Same degenerate-edge tolerance as the shader (see
+// hullDistance in shaders.js).
 export function pointHullDistance2D(hull, p) {
   if (hull.length < 3) return Infinity;
   let best = Infinity;
@@ -117,7 +137,7 @@ export function pointHullDistance2D(hull, p) {
     best = Math.min(best, Math.hypot(wx - t * ex, wy - t * ey));
     minCr = Math.min(minCr, ex * wy - ey * wx);
   }
-  return minCr >= 0 ? 0 : best;
+  return minCr >= -1e-9 ? 0 : best;
 }
 
 const HULL_DATA = new Float32Array(40);

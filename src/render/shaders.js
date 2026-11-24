@@ -155,7 +155,15 @@ float surfaceDepth(vec3 surface) {
   return (uDepthRange.x - surface.z) / max(uDepthRange.y, 1e-6);
 }
 
-// 0 inside the CCW hull, segment distance outside.
+// 0 inside the CCW hull, segment distance outside. The inside test tolerates
+// tiny negative crosses: at some resting poses two shape corners project ~10nm
+// apart, and the resulting degenerate hull edge can point against the winding,
+// which would classify half the die's interior as outside (a cross of ~1e-10
+// for a 1e-8 edge) and discard everything more than the bevel radius from the
+// boundary — a large triangle-shaped hole in the dice (and in the AO prepass)
+// that appears for one frame during the final settling snap. Genuine outside
+// points sit at cross <= -2e-9 (1um out on a 2mm edge), so -1e-9 separates the
+// two by an order of magnitude.
 float hullDistance(vec2 p) {
   if (uHullCount < 3) return 1e30;
   float best = 1e30;
@@ -169,7 +177,7 @@ float hullDistance(vec2 p) {
     best = min(best, length(w - t * e));
     minCr = min(minCr, e.x * w.y - e.y * w.x);
   }
-  return minCr >= 0.0 ? 0.0 : best;
+  return minCr >= -1e-9 ? 0.0 : best;
 }
 `;
 

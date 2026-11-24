@@ -168,6 +168,58 @@ describe('inset hull helpers', () => {
       [0, 4],
     ]);
   });
+
+  it('keeps interior points inside when the hull has a degenerate edge (task #67)', () => {
+    // At some resting poses two shape corners project ~10nm apart, and the
+    // resulting degenerate hull edge can point against the winding. Before the
+    // tolerance fix, minCr went negative for half the die's interior, so the
+    // prepass discard (distance > bevel radius) punched a large hole in the
+    // dice and in the AO prepass for one frame during the final settle snap.
+    // The polygon below is CCW except for the last 10nm edge, which points
+    // down where the winding wants it to point right.
+    const hull = [
+      [0.01777, -0.00936],
+      [0.01777, -0.00937],
+      [0.02676, -0.01104],
+      [0.02969, -0.00707],
+      [0.02546, 0.00103],
+      [0.01647, 0.00271],
+    ];
+    // Deep inside the polygon, on the far side of the degenerate edge.
+    expect(pointHullDistance2D(hull, [0.024, -0.005])).toBe(0);
+    expect(pointHullDistance2D(hull, [0.026, -0.008])).toBe(0);
+    // A genuine outside point is still measured.
+    expect(pointHullDistance2D(hull, [0.035, -0.005])).toBeGreaterThan(0.001);
+  });
+
+  it('drops near-collinear points so the hull has no degenerate edges (task #67)', () => {
+    // A shape corner 10nm off the 9mm edge through its neighbours: keeping it
+    // would add a degenerate edge whose orientation is float64 noise.
+    const nearCollinear = [
+      [0, 0],
+      [0.009, 1e-8],
+      [0.018, 0],
+      [0.018, 0.018],
+    ];
+    const hull = convexHull2D(nearCollinear);
+    expect(hull).toEqual([
+      [0, 0],
+      [0.018, 0],
+      [0.018, 0.018],
+    ]);
+    // A genuinely convex corner at the same scale is kept: a 2mm-deep bump on
+    // the bottom edge of an 18mm square.
+    const convex = [
+      [0, 0],
+      [0.009, -0.002],
+      [0.018, 0],
+      [0.018, 0.018],
+      [0, 0.018],
+    ];
+    const bumped = convexHull2D(convex);
+    expect(bumped).toHaveLength(5);
+    expect(bumped).toContainEqual([0.009, -0.002]);
+  });
 });
 
 // JS copy of the shader bevelDrop: height of the emulated rounded surface
@@ -203,6 +255,11 @@ describe('rounded surface depth (emulated displacement)', () => {
     // The hull outline stays the only transparency test: the sharp mesh covers
     // every interior pixel exactly once, so a band discard punches holes.
     expect(aoPrepassFragmentSource).toContain('if (hullDistance(vWorldPos.xy) > uBevelRadius) discard;');
+    // The hull inside-test must tolerate the degenerate ~10nm edges that occur
+    // at some resting poses (task #67); without the tolerance the discard
+    // removes half the die's interior for one frame.
+    expect(aoPrepassFragmentSource).toContain('minCr >= -1e-9 ? 0.0 : best');
+    expect(diceFragmentSource).toContain('minCr >= -1e-9 ? 0.0 : best');
     // The forward pass drops fully uncovered outline fragments itself: alpha to
     // coverage does nothing on a single-sample drawing buffer.
     expect(diceFragmentSource.match(/discard;/g), 'one silhouette discard').toHaveLength(1);
