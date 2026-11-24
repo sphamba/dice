@@ -67,7 +67,6 @@ function uniformMap(gl, program, names) {
 }
 
 // Monotone chain convex hull: CCW, collinear and duplicate points dropped.
-// Monotone chain convex hull: CCW, collinear and duplicate points dropped.
 // Near-collinear points are dropped too (relative sine tolerance): at some
 // resting poses a shape corner lands within tens of nanometers of the edge
 // through its neighbours. Keeping it adds a degenerate ~10nm hull edge whose
