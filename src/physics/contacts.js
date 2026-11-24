@@ -220,6 +220,49 @@ function solveFriction(contact) {
   if (Math.abs(deltaSecond) > MIN_IMPULSE) applyPair(contact, second.direction, deltaSecond);
 }
 
+function slipSpeed(contact) {
+  relativeVelocity(scratchRelative, contact);
+  const normal = contact.normal.direction;
+  const along = vec3.dot(scratchRelative, normal);
+  return Math.hypot(
+    scratchRelative[0] - normal[0] * along,
+    scratchRelative[1] - normal[1] * along,
+    scratchRelative[2] - normal[2] * along,
+  );
+}
+
+// Keep the raw excitation of every contact of the step, copied into records reused frame to frame.
+function recordSound(world, time, contact) {
+  const normal = Math.max(contact.normal.impulse - contact.warmNormal, 0);
+  const friction = Math.hypot(contact.tangents[0].impulse, contact.tangents[1].impulse);
+  if (normal <= MIN_IMPULSE && friction <= MIN_IMPULSE) return;
+  const stream = world.soundSteps;
+  const pool = (world.soundPool ??= []);
+  const record = pool[stream.length] ??= {
+    t: 0,
+    a: null,
+    b: null,
+    surface: '',
+    px: 0,
+    py: 0,
+    pz: 0,
+    normal: 0,
+    friction: 0,
+    slip: 0,
+  };
+  record.t = time;
+  record.a = contact.a;
+  record.b = contact.b;
+  record.surface = contact.surface;
+  record.px = contact.point[0];
+  record.py = contact.point[1];
+  record.pz = contact.point[2];
+  record.normal = normal;
+  record.friction = friction;
+  record.slip = slipSpeed(contact);
+  stream.push(record);
+}
+
 function groupKey(ids, contact) {
   const idOf = (body) => {
     if (!ids.has(body)) ids.set(body, ids.size);
@@ -228,7 +271,7 @@ function groupKey(ids, contact) {
   return contact.b ? `${idOf(contact.a)}|${idOf(contact.b)}` : `${idOf(contact.a)}|${contact.surface}`;
 }
 
-export function solveContacts(world, dt) {
+export function solveContacts(world, dt, time = 0) {
   const contacts = world.contacts ?? [];
   if (contacts.length === 0 || !(dt > 0)) {
     world.contactCache = null;
@@ -298,6 +341,9 @@ export function solveContacts(world, dt) {
     }
   }
   for (const contact of prepared) solveFriction(contact);
+  if (world.soundSteps) {
+    for (const contact of prepared) recordSound(world, time, contact);
+  }
 
   for (const group of groups.values()) {
     // Only the impulse added over the warm start is the impulse of the impact.

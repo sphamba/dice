@@ -120,6 +120,8 @@ export function createWorld({ W, H, D }) {
     box: { W, H, D },
     contacts: [],
     events: [],
+    soundSteps: [],
+    simTime: 0,
     beforeStep: null,
     get asleep() {
       return asleep;
@@ -154,11 +156,13 @@ export function createWorld({ W, H, D }) {
         if (!moving(world.bodies)) return;
         wake();
       }
+      const time = world.simTime + dt;
       integrateVelocities(world.bodies, world.gravity, dt);
       detectContacts(world, dt);
-      solveContacts(world, dt);
+      solveContacts(world, dt, time);
       integratePositions(world.bodies, dt);
       for (const body of world.bodies) containBody(world.box, body);
+      world.simTime = time;
       if (fastestPoint(world.bodies) < SLEEP_SPEED) {
         stillTime += dt;
         if (stillTime >= SLEEP_TIME) sleep();
@@ -168,6 +172,7 @@ export function createWorld({ W, H, D }) {
     },
     update(frameDt) {
       world.events.length = 0;
+      world.soundSteps.length = 0;
       accumulator += Math.min(frameDt, MAX_FRAME_DT);
       let steps = 0;
       while (accumulator >= FIXED_DT && steps < MAX_STEPS) {
