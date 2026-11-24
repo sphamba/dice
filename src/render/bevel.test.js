@@ -175,11 +175,13 @@ describe('inset hull helpers', () => {
     // tolerance fix, minCr went negative for half the die's interior, so the
     // prepass discard (distance > bevel radius) punched a large hole in the
     // dice and in the AO prepass for one frame during the final settle snap.
-    // The polygon below is CCW except for the last 10nm edge, which points
-    // down where the winding wants it to point right.
+    // The polygon below is CCW except for the 10nm spike edge, which points
+    // up where the winding wants it to point right along the bottom. On the
+    // strict minCr >= 0 test both interior points below pick up a negative
+    // cross of ~-6e-11 from the spike alone and come back as outside.
     const hull = [
-      [0.01777, -0.00936],
       [0.01777, -0.00937],
+      [0.01777, -0.00936999],
       [0.02676, -0.01104],
       [0.02969, -0.00707],
       [0.02546, 0.00103],
@@ -193,11 +195,13 @@ describe('inset hull helpers', () => {
   });
 
   it('drops near-collinear points so the hull has no degenerate edges (task #67)', () => {
-    // A shape corner 10nm off the 9mm edge through its neighbours: keeping it
-    // would add a degenerate edge whose orientation is float64 noise.
+    // A shape corner bulging 10nm outward of the 9mm edge through its
+    // neighbours (a tiny positive cross, which the plain monotone chain
+    // keeps): it would add a degenerate edge whose orientation is float64
+    // noise.
     const nearCollinear = [
       [0, 0],
-      [0.009, 1e-8],
+      [0.009, -1e-8],
       [0.018, 0],
       [0.018, 0.018],
     ];
