@@ -47,15 +47,15 @@ export function createMotion({ onGravity }) {
   });
 }
 
+const ACTIVATION_EVENTS = ['pointerup', 'touchend', 'click', 'keydown'];
+
 const firstGestureCallbacks = new Set();
 let unlocked = false;
+let listening = false;
 
 export function onFirstGesture(callback) {
-  if (unlocked) {
-    callback();
-    return;
-  }
   firstGestureCallbacks.add(callback);
+  if (unlocked) callback();
 }
 
 async function requestMotionPermission() {
@@ -80,16 +80,17 @@ async function lockPortrait() {
 }
 
 export function unlockOnFirstGesture() {
-  if (unlocked) return;
-  unlocked = true;
+  if (listening) return;
+  listening = true;
   const handler = () => {
-    globalThis.removeEventListener('pointerdown', handler, true);
-    globalThis.removeEventListener('keydown', handler, true);
+    const first = !unlocked;
+    unlocked = true;
     for (const callback of firstGestureCallbacks) callback();
-    firstGestureCallbacks.clear();
+    if (!first) return;
     requestMotionPermission();
     lockPortrait();
   };
-  globalThis.addEventListener('pointerdown', handler, true);
-  globalThis.addEventListener('keydown', handler, true);
+  for (const type of ACTIVATION_EVENTS) {
+    globalThis.addEventListener(type, handler, { capture: true, passive: true });
+  }
 }

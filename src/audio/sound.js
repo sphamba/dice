@@ -33,6 +33,7 @@ export function createSound() {
   let context = null;
   let master = null;
   let node = null;
+  let loading = null;
   let boxState = null;
   let nextId = 0;
   const bodyIds = new Map();
@@ -52,43 +53,64 @@ export function createSound() {
     node?.port.postMessage(message);
   }
 
+  function resumeLater() {
+    context.resume().catch((error) => {
+      console.warn('The AudioContext could not resume', error);
+    });
+  }
+
+  async function loadWorklet(WorkletNode) {
+    try {
+      await context.audioWorklet.addModule(processorUrl);
+      const shaper = context.createWaveShaper();
+      shaper.curve = clipperCurve();
+      shaper.oversample = 'none';
+      master = context.createGain();
+      master.gain.value = 1 / CLIPPER_RANGE;
+      node = new WorkletNode(context, 'dice-resonator', {
+        numberOfInputs: 0,
+        outputChannelCount: [1],
+      });
+      node.connect(master);
+      master.connect(shaper);
+      shaper.connect(context.destination);
+      for (const [body, id] of bodyIds) sendBody(id, body);
+      if (boxState) post({ type: 'box', W: boxState.W, H: boxState.H, D: boxState.D });
+    } catch (error) {
+      console.warn('The audio worklet module failed to load', error);
+    }
+  }
+
+  globalThis.document?.addEventListener('visibilitychange', () => {
+    if (globalThis.document.visibilityState !== 'visible') return;
+    if (!context) return;
+    if (context.state === 'running') return;
+    if (!globalThis.navigator?.userActivation?.hasBeenActive) return;
+    resumeLater();
+  });
+
   function sendBody(id, body) {
     post({ type: 'add', id, die: body?.shape?.type, radius: body?.shape?.radius });
   }
 
   return {
-    async resume() {
+    resume() {
       const AudioCtor = globalThis.AudioContext ?? globalThis.webkitAudioContext;
       const WorkletNode = globalThis.AudioWorkletNode;
-      if (typeof AudioCtor !== 'function' || typeof WorkletNode !== 'function') return;
+      if (typeof AudioCtor !== 'function' || typeof WorkletNode !== 'function') return Promise.resolve();
       if (!context) {
         context = new AudioCtor({ latencyHint: 'interactive' });
         if (typeof context.audioWorklet?.addModule !== 'function') {
           context = null;
-          return;
+          return Promise.resolve();
         }
-        try {
-          await context.audioWorklet.addModule(processorUrl);
-        } catch {
-          context = null;
-          return;
-        }
-        const shaper = context.createWaveShaper();
-        shaper.curve = clipperCurve();
-        shaper.oversample = 'none';
-        master = context.createGain();
-        master.gain.value = 1 / CLIPPER_RANGE;
-        node = new WorkletNode(context, 'dice-resonator', {
-          numberOfInputs: 0,
-          outputChannelCount: [1],
-        });
-        node.connect(master);
-        master.connect(shaper);
-        shaper.connect(context.destination);
-        for (const [body, id] of bodyIds) sendBody(id, body);
-        if (boxState) post({ type: 'box', W: boxState.W, H: boxState.H, D: boxState.D });
       }
-      if (context.state !== 'running') await context.resume();
+      if (context.state !== 'running') resumeLater();
+      if (node || loading) return loading ?? Promise.resolve();
+      loading = loadWorklet(WorkletNode).finally(() => {
+        loading = null;
+      });
+      return loading;
     },
     addBody(body) {
       if (!body) return;
