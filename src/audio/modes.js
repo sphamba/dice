@@ -45,28 +45,43 @@ function clamp(value, lo, hi) {
   return value < lo ? lo : value > hi ? hi : value;
 }
 
-export function plateModes(a, b, u, v, material, maxModes = DEFAULT_MAX_MODES) {
+// Position-independent plate basis: every mode of the (a, b) grid below the frequency
+// ceiling, sorted by frequency, with the (m, n) indices a caller needs to evaluate
+// the mode shape at a contact point.
+export function plateGrid(a, b, material, maxModes = DEFAULT_MAX_MODES) {
   if (!(a > 0) || !(b > 0)) return [];
-  const cu = clamp(u, 0, a);
-  const cv = clamp(v, 0, b);
   const normalization = 1 / (a * a) + 1 / (b * b);
   const limit = (MAX_MODE_FREQUENCY / material.f11) * normalization;
-  const frequency = (m, n) => (material.f11 * ((m / a) ** 2 + (n / b) ** 2)) / normalization;
   const modes = [];
   for (let m = 1; (m * m) / (a * a) < limit; m++) {
-    const su = Math.abs(Math.sin((m * Math.PI * cu) / a));
     for (let n = 1; (n * n) / (b * b) < limit; n++) {
-      const f = frequency(m, n);
+      const f = (material.f11 * ((m / a) ** 2 + (n / b) ** 2)) / normalization;
       if (f >= MAX_MODE_FREQUENCY) continue;
       modes.push({
         f,
-        amp: clamp(su * Math.abs(Math.sin((n * Math.PI * cv) / b)), 0, 1),
+        amp: 1,
         tau: material.tau / (1 + (material.dampHF * f) / material.f11),
+        m,
+        n,
       });
     }
   }
   modes.sort((x, y) => x.f - y.f);
   return modes.slice(0, Math.max(0, maxModes));
+}
+
+export function plateModes(a, b, u, v, material, maxModes = DEFAULT_MAX_MODES) {
+  const cu = clamp(u, 0, a);
+  const cv = clamp(v, 0, b);
+  return plateGrid(a, b, material, maxModes).map(({ f, tau, m, n }) => ({
+    f,
+    tau,
+    amp: clamp(
+      Math.abs(Math.sin((m * Math.PI * cu) / a)) * Math.abs(Math.sin((n * Math.PI * cv) / b)),
+      0,
+      1,
+    ),
+  }));
 }
 
 export function dieModes(type, radius = DIE_REFERENCE_RADIUS) {

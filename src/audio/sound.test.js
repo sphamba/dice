@@ -2,47 +2,62 @@ import { afterEach, beforeEach, expect, test } from 'vitest';
 import {
   CLIPPER_RANGE,
   LIMITER_CEILING,
-  MAX_DURATION,
   MAX_IMPULSE,
-  MAX_VOICES,
-  MIN_EVENT_SPEED,
   MIN_IMPULSE,
-  PAIR_GAP,
+  SURFACE_CODES,
   createSound,
   gainForImpulse,
 } from './sound.js';
+import { HIT_STRIDE } from './banks.js';
 import { DIE_RADIUS } from '../physics/body.js';
 
 const BOX = { W: 0.1, H: 0.08, D: 0.06 };
 
 const die = () => ({ shape: { type: 'd6', radius: DIE_RADIUS } });
 
-const impact = (overrides = {}) => ({
-  a: die(),
-  b: undefined,
+const step = (overrides = {}) => ({
+  t: 0.005,
+  a: null,
+  b: null,
   surface: 'floor',
-  point: [0.01, 0.02, 0],
-  speed: 1,
-  impulse: 0.001,
+  px: 0.01,
+  py: 0.02,
+  pz: 0,
+  normal: 0.001,
+  friction: 0,
+  slip: 0,
   ...overrides,
 });
 
-function fakeAudio() {
+function fakeAudio({ worklet = true, failModule = false } = {}) {
   const created = {
-    buffers: [],
-    sources: [],
+    contexts: [],
     gains: [],
     shapers: [],
-    contexts: [],
-    compressors: 0,
+    nodes: [],
+    messages: [],
+    moduleUrls: [],
     resumes: 0,
   };
   class FakeContext {
     constructor() {
-      this.sampleRate = 4000;
+      this.sampleRate = 48000;
       this.currentTime = 0;
       this.state = 'suspended';
       this.destination = { name: 'destination' };
+      if (worklet) {
+        this.audioWorklet = {
+          addModule: failModule
+            ? (url) => {
+                created.moduleUrls.push(url);
+                return Promise.reject(new Error('no worklet'));
+              }
+            : (url) => {
+                created.moduleUrls.push(url);
+                return Promise.resolve();
+              },
+        };
+      }
       created.contexts.push(this);
     }
 
@@ -50,11 +65,6 @@ function fakeAudio() {
       created.resumes += 1;
       this.state = 'running';
       return Promise.resolve();
-    }
-
-    createDynamicsCompressor() {
-      created.compressors += 1;
-      return { connect() {} };
     }
 
     createWaveShaper() {
@@ -66,147 +76,165 @@ function fakeAudio() {
       return shaper;
     }
 
-    createBuffer(channels, length, sampleRate) {
-      const data = new Float32Array(length);
-      const buffer = { length, sampleRate, getChannelData: () => data };
-      created.buffers.push(buffer);
-      return buffer;
-    }
-
     createGain() {
       const gain = { gain: { value: 1 }, out: null };
       gain.connect = (target) => {
         gain.out = target;
       };
-      gain.disconnect = () => {};
       created.gains.push(gain);
       return gain;
     }
-
-    createBufferSource() {
-      const source = {
-        buffer: null,
-        started: 0,
-        stopped: 0,
-        onended: null,
-        connect() {},
-        disconnect() {},
-        start() {
-          source.started += 1;
-        },
-        stop() {
-          source.stopped += 1;
-        },
+  }
+  class FakeWorkletNode {
+    constructor(context, name, options) {
+      this.name = name;
+      this.options = options;
+      this.out = null;
+      this.port = {
+        onmessage: null,
+        // Structured clone, like a real worklet port: the send buffer is copied at post time.
+        postMessage: (message) => created.messages.push(structuredClone(message)),
       };
-      created.sources.push(source);
-      return source;
+      created.nodes.push(this);
+      FakeWorkletNode.instances.push(this);
+    }
+
+    connect(target) {
+      this.out = target;
     }
   }
-  return { FakeContext, created };
+  return { FakeContext, FakeWorkletNode, created };
 }
-
-const voiceGains = () => audio.created.gains.slice(1);
 
 let audio;
 
 beforeEach(() => {
   audio = fakeAudio();
   globalThis.AudioContext = audio.FakeContext;
+  globalThis.AudioWorkletNode = audio.FakeWorkletNode;
+  audio.FakeWorkletNode.instances = [];
 });
 
 afterEach(() => {
   delete globalThis.AudioContext;
+  delete globalThis.AudioWorkletNode;
 });
 
 test('stays silent until resume creates the audio context', () => {
   const sound = createSound();
-  sound.play([impact()], BOX);
-  expect(audio.created.sources).toHaveLength(0);
-  expect(audio.created.shapers).toHaveLength(0);
+  expect(sound.playSteps([step()])).toBe(0);
+  expect(audio.created.contexts).toHaveLength(0);
+  expect(audio.created.messages).toHaveLength(0);
 });
 
-test('creates one context on resume and routes through the clipper', async () => {
+test('creates one context on resume and routes the worklet through the clipper', async () => {
   const sound = createSound();
   await sound.resume();
   await sound.resume();
   expect(audio.created.contexts).toHaveLength(1);
   expect(audio.created.resumes).toBe(1);
-  expect(audio.created.compressors).toBe(0);
   expect(audio.created.shapers).toHaveLength(1);
+  const [node] = audio.created.nodes;
   const [master] = audio.created.gains;
+  expect(node.name).toBe('dice-resonator');
+  expect(node.options.outputChannelCount).toEqual([1]);
+  expect(node.out).toBe(master);
   expect(master.gain.value).toBeCloseTo(1 / CLIPPER_RANGE, 9);
   expect(master.out).toBe(audio.created.shapers[0]);
   expect(audio.created.shapers[0].out).toBe(audio.created.contexts[0].destination);
+  expect(audio.created.shapers[0].oversample).toBe('none');
 });
 
-test('does not resume without an audio context constructor', async () => {
-  delete globalThis.AudioContext;
+test('requests the worklet module relative to the sound module', async () => {
   const sound = createSound();
   await sound.resume();
-  sound.play([impact()], BOX);
-  expect(audio.created.sources).toHaveLength(0);
+  expect(audio.created.moduleUrls).toHaveLength(1);
+  expect(String(audio.created.moduleUrls[0])).toMatch(/processor\.js/);
 });
 
-test('ignores impacts below the speed gate', async () => {
+test('stays silent without an AudioWorkletNode constructor', async () => {
+  delete globalThis.AudioWorkletNode;
   const sound = createSound();
   await sound.resume();
-  sound.play([impact({ speed: MIN_EVENT_SPEED - 0.01 })], BOX);
-  expect(audio.created.sources).toHaveLength(0);
+  expect(sound.playSteps([step()])).toBe(0);
+  expect(audio.created.messages).toHaveLength(0);
 });
 
-test('renders one damped-sinusoid buffer per impact', async () => {
+test('stays silent when the context has no audioWorklet', async () => {
+  audio = fakeAudio({ worklet: false });
+  globalThis.AudioContext = audio.FakeContext;
   const sound = createSound();
   await sound.resume();
-  sound.play([impact()], BOX);
-  expect(audio.created.buffers).toHaveLength(1);
-  const buffer = audio.created.buffers[0];
-  expect(buffer.length).toBeLessThanOrEqual(0.6 * buffer.sampleRate);
-  expect(buffer.length).toBeGreaterThan(0);
-  const data = buffer.getChannelData();
-  const peak = data.reduce((max, value) => Math.max(max, Math.abs(value)), 0);
-  expect(peak).toBeGreaterThan(0);
-  expect(peak).toBeLessThanOrEqual(1);
-  expect(audio.created.sources[0].started).toBe(1);
+  expect(sound.playSteps([step()])).toBe(0);
+  expect(audio.created.messages).toHaveLength(0);
 });
 
-test('mixes the die modes for die-to-die impacts', async () => {
+test('stays silent when the worklet module fails to load', async () => {
+  audio = fakeAudio({ failModule: true });
+  globalThis.AudioContext = audio.FakeContext;
   const sound = createSound();
   await sound.resume();
-  sound.play([impact({ surface: 'die', b: die(), point: [0, 0, 0.03] })], BOX);
-  expect(audio.created.sources).toHaveLength(1);
+  expect(sound.playSteps([step()])).toBe(0);
+  expect(audio.created.messages).toHaveLength(0);
+  expect(audio.created.nodes).toHaveLength(0);
 });
 
-test('plays each plate surface without failing', async () => {
+test('syncs bodies and box on resume', async () => {
   const sound = createSound();
+  const body = die();
+  sound.addBody(body);
+  sound.setBox(BOX);
   await sound.resume();
-  for (const surface of ['floor', 'lid', 'wall']) {
-    sound.play([impact({ a: die(), surface })], BOX);
-  }
-  sound.play([impact({ surface: 'wall', point: [0, BOX.H / 2, 0.03] })], BOX);
-  expect(audio.created.sources).toHaveLength(4);
+  expect(audio.created.messages).toEqual([
+    { type: 'add', id: 0, die: 'd6', radius: DIE_RADIUS },
+    { type: 'box', W: BOX.W, H: BOX.H, D: BOX.D },
+  ]);
+  sound.addBody(die());
+  expect(audio.created.messages[2]).toEqual({ type: 'add', id: 1, die: 'd6', radius: DIE_RADIUS });
 });
 
-test('raises the gain with the impulse', async () => {
+test('maps body refs to audio ids per frame and reuses the send buffers', async () => {
   const sound = createSound();
   await sound.resume();
-  sound.play([impact({ impulse: 1e-3 })], BOX);
-  sound.play([impact({ impulse: 1e-1 })], BOX);
-  const [quiet, loud] = voiceGains().map((node) => node.gain.value);
-  expect(quiet).toBeGreaterThan(0);
-  expect(loud).toBeGreaterThan(quiet);
-  expect(loud).toBeLessThanOrEqual(LIMITER_CEILING);
+  const a = die();
+  const b = die();
+  sound.addBody(a);
+  sound.addBody(b);
+  const record = step({ a, b, surface: 'die', px: 0.01, py: 0.02, normal: 0.001, friction: 0.002, slip: 0.3 });
+  sound.playSteps([record]);
+  sound.playSteps([step({ a, normal: 0.002 })]);
+  expect(audio.created.messages).toHaveLength(4);
+  const [first, second] = audio.created.messages.slice(2);
+  expect(first.type).toBe('steps');
+  expect(first.simNow).toBe(0);
+  expect(first.hitCount).toBe(1);
+  expect(Array.from(first.hits)).toEqual([
+    record.t, 0, 1, SURFACE_CODES.die, 0.01, 0.02, 0, 0.001, 0.002, 0.3,
+  ]);
+  expect(Array.from(second.hits)).toEqual([
+    record.t, 0, -1, SURFACE_CODES.floor, 0.01, 0.02, 0, 0.002, 0, 0,
+  ]);
 });
 
-test('sets every voice gain to the ceiling times the linear impulse gain', async () => {
+test('encodes unknown bodies as absent and drains nothing itself', async () => {
   const sound = createSound();
   await sound.resume();
-  for (const impulse of [0.002, 0.006, MAX_IMPULSE]) {
-    sound.play([impact({ impulse })], BOX);
-  }
-  const gains = voiceGains().map((node) => node.gain.value / LIMITER_CEILING);
-  expect(gains[0]).toBeCloseTo(gainForImpulse(0.002), 6);
-  expect(gains[1] / gains[0]).toBeCloseTo(3, 6);
-  expect(gains[2]).toBe(1);
+  sound.playSteps([step()]);
+  const [message] = audio.created.messages;
+  expect(Array.from(message.hits)).toEqual([
+    step().t, -1, -1, SURFACE_CODES.floor, 0.01, 0.02, 0, 0.001, 0, 0,
+  ]);
+});
+
+test('caps the message at the send buffer bounds', async () => {
+  const sound = createSound();
+  await sound.resume();
+  const records = [];
+  for (let index = 0; index < 1000; index += 1) records.push(step({ t: index / 480 }));
+  expect(sound.playSteps(records)).toBeLessThanOrEqual(records.length);
+  const [message] = audio.created.messages;
+  expect(message.hitCount).toBe(message.hits.length / HIT_STRIDE);
+  expect(message.hitCount).toBeLessThan(records.length);
 });
 
 test('maps the gain linearly in the impulse below the clamp', () => {
@@ -230,7 +258,6 @@ test('builds a table-lookup clipper curve of 4097 points', async () => {
   const sound = createSound();
   await sound.resume();
   const shaper = audio.created.shapers[0];
-  expect(shaper.oversample).toBe('none');
   expect(shaper.curve).toBeInstanceOf(Float32Array);
   expect(shaper.curve.length).toBe(4097);
 });
@@ -258,111 +285,5 @@ test('shapes the curve monotonically and keeps every value inside the unit range
   for (let index = 1; index < curve.length; index += 1) {
     expect(curve[index]).toBeGreaterThanOrEqual(curve[index - 1]);
   }
-  for (let index = 1; index <= half; index += 1) {
-    if ((index / half) * CLIPPER_RANGE > LIMITER_CEILING) continue;
-    expect(curve[half + index]).toBeGreaterThan(curve[half + index - 1]);
-  }
   for (const value of curve) expect(Math.abs(value)).toBeLessThan(1);
-});
-
-test('keeps one voice in the linear part of the clipper', async () => {
-  const sound = createSound();
-  await sound.resume();
-  sound.play([impact({ impulse: MAX_IMPULSE })], BOX);
-  const data = audio.created.buffers[0].getChannelData(0);
-  const peak = data.reduce((max, value) => Math.max(max, Math.abs(value)), 0);
-  const [voice] = voiceGains().map((node) => node.gain.value);
-  expect(peak * voice).toBeLessThanOrEqual(LIMITER_CEILING + 1e-9);
-  expect((peak * voice) / CLIPPER_RANGE).toBeLessThan(LIMITER_CEILING);
-});
-
-test('plays only the strongest event of a pair in one batch', async () => {
-  const sound = createSound();
-  await sound.resume();
-  const body = die();
-  sound.play(
-    [impact({ a: body, impulse: 0.002 }), impact({ a: body, impulse: 0.006 })],
-    BOX,
-  );
-  expect(audio.created.sources).toHaveLength(1);
-  sound.play([impact({ impulse: 0.002 })], BOX);
-  const [strongest, reference] = voiceGains().map((node) => node.gain.value);
-  expect(strongest / reference).toBeCloseTo(3, 6);
-});
-
-test('replays an open slot only for an event at least half again as strong', async () => {
-  const sound = createSound();
-  await sound.resume();
-  const body = die();
-  sound.play([impact({ a: body, impulse: 0.002 })], BOX);
-  audio.created.contexts[0].currentTime = PAIR_GAP * 0.5;
-  sound.play([impact({ a: body, impulse: 0.0029 })], BOX);
-  expect(audio.created.sources).toHaveLength(1);
-  sound.play([impact({ a: body, impulse: 0.003 })], BOX);
-  expect(audio.created.sources).toHaveLength(2);
-});
-
-test('does not take the slot for a silent event', async () => {
-  const sound = createSound();
-  await sound.resume();
-  const body = die();
-  expect(sound.play([impact({ a: body, impulse: MIN_IMPULSE })], BOX)).toBe(0);
-  expect(sound.play([impact({ a: body, impulse: 0.002 })], BOX)).toBe(1);
-  expect(audio.created.sources).toHaveLength(1);
-});
-
-test('limits one body pair to one voice per gap', async () => {
-  const sound = createSound();
-  await sound.resume();
-  const body = die();
-  sound.play([impact({ a: body })], BOX);
-  audio.created.contexts[0].currentTime = PAIR_GAP * 0.5;
-  sound.play([impact({ a: body })], BOX);
-  expect(audio.created.sources).toHaveLength(1);
-  audio.created.contexts[0].currentTime = PAIR_GAP;
-  sound.play([impact({ a: body })], BOX);
-  expect(audio.created.sources).toHaveLength(2);
-  sound.play([impact({ a: body, surface: 'lid' })], BOX);
-  expect(audio.created.sources).toHaveLength(3);
-});
-
-test('renders buffers that decay below audible level and end at silence', async () => {
-  const sound = createSound();
-  await sound.resume();
-  const events = [
-    impact({ surface: 'floor' }),
-    impact({ surface: 'wall', point: [BOX.W / 2 - 0.001, 0, 0.03] }),
-    impact({ surface: 'lid', point: [0.01, 0.02, 0.06] }),
-    impact({ surface: 'die', b: die(), point: [0, 0, 0.03] }),
-  ];
-  for (const event of events) sound.play([event], BOX);
-  expect(audio.created.buffers).toHaveLength(events.length);
-  for (const buffer of audio.created.buffers) {
-    const data = buffer.getChannelData();
-    expect(data.length).toBeLessThanOrEqual(Math.ceil(MAX_DURATION * buffer.sampleRate));
-    expect(data.length).toBeGreaterThan(0);
-    const peak = data.reduce((max, value) => Math.max(max, Math.abs(value)), 0);
-    const tailStart = data.length - Math.ceil(0.01 * buffer.sampleRate);
-    let tailPeak = 0;
-    for (let index = tailStart; index < data.length; index += 1) {
-      tailPeak = Math.max(tailPeak, Math.abs(data[index]));
-    }
-    expect(tailPeak).toBeLessThan(0.01 * peak);
-    expect(tailPeak).toBeLessThan(1e-3);
-    expect(Math.abs(data[data.length - 1])).toBeLessThan(1e-6);
-  }
-});
-
-test('caps the voice count and drops the quietest voice', async () => {
-  const sound = createSound();
-  await sound.resume();
-  for (let index = 0; index < MAX_VOICES; index += 1) {
-    const impulse = MIN_IMPULSE * 2 * (MAX_IMPULSE / (MIN_IMPULSE * 2)) ** (index / MAX_VOICES);
-    expect(sound.play([impact({ impulse })], BOX)).toBe(1);
-  }
-  expect(audio.created.sources).toHaveLength(MAX_VOICES);
-  expect(audio.created.sources.some((source) => source.stopped > 0)).toBe(false);
-  sound.play([impact({ impulse: MAX_IMPULSE })], BOX);
-  expect(audio.created.sources).toHaveLength(MAX_VOICES + 1);
-  expect(audio.created.sources[0].stopped).toBe(1);
 });

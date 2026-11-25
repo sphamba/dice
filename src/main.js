@@ -119,6 +119,7 @@ if (!gl) {
       0,
     );
     world.addBody(body);
+    sound.addBody(body);
     const list = spawned.get(type);
     if (list) list.push(body);
     else spawned.set(type, [body]);
@@ -128,7 +129,9 @@ if (!gl) {
   function removeDie(type) {
     const list = spawned.get(type);
     if (!list?.length) return;
-    world.removeBody(list.pop());
+    const body = list.pop();
+    sound.removeBody(body);
+    world.removeBody(body);
   }
 
   const direction = new Float64Array(3);
@@ -183,7 +186,8 @@ if (!gl) {
     const dt = Math.min((now - previous) / 1000, MAX_FRAME_DT);
     previous = now;
     world.update(dt);
-    sound.play(world.events, world.box);
+    sound.playSteps(world.soundSteps, world.simTime);
+    world.soundSteps.length = 0;
     haptics.play(world.events);
     renderer.draw(world.bodies);
     requestAnimationFrame(frame);
