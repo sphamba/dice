@@ -1,6 +1,6 @@
 import * as vec3 from '../math/vec3.js';
 import { detectContacts } from './collision.js';
-import { BEVEL_RADIUS, DIE_RADIUS } from './body.js';
+import { BEVEL_RADIUS } from './body.js';
 import { integratePositions, integrateVelocities } from './integrator.js';
 import { solveContacts, RESTITUTION_BOX, RESTITUTION_THRESHOLD } from './contacts.js';
 
@@ -18,7 +18,7 @@ export const WAKE_GRAVITY_DELTA = 0.5;
 
 // Fastest point speed of a body: linear speed plus the spin of its farthest point.
 function pointSpeed(body) {
-  return vec3.length(body.linearVelocity) + DIE_RADIUS * vec3.length(body.angularVelocity);
+  return vec3.length(body.linearVelocity) + body.radius * vec3.length(body.angularVelocity);
 }
 
 function fastestPoint(bodies) {

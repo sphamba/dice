@@ -1,6 +1,6 @@
 import * as quat from './math/quat.js';
 import * as vec3 from './math/vec3.js';
-import { DIE_RADIUS, createBody } from './physics/body.js';
+import { dieRadius, createBody } from './physics/body.js';
 import { boxFromViewport } from './physics/box.js';
 import { MAX_FRAME_DT, createWorld } from './physics/world.js';
 import {
@@ -78,15 +78,16 @@ if (!gl) {
 
   const spawned = new Map();
 
-  function freePosition() {
+  function freePosition(type) {
     const { W, H, D } = world.box;
-    const xMin = -W / 2 + DIE_RADIUS;
-    const yMin = -H / 2 + DIE_RADIUS;
-    const xMax = W / 2 - DIE_RADIUS;
-    const yMax = H / 2 - DIE_RADIUS;
+    const radius = dieRadius(type);
+    const xMin = -W / 2 + radius;
+    const yMin = -H / 2 + radius;
+    const xMax = W / 2 - radius;
+    const yMax = H / 2 - radius;
     const zMin = D / 2;
-    const zMax = D - DIE_RADIUS;
-    const limit = 2 * DIE_RADIUS;
+    const zMax = D - radius;
+    const limit = 2 * radius;
     for (let attempt = 0; attempt < SPAWN_TRIES; attempt += 1) {
       const position = vec3.set(
         new Float64Array(3),
@@ -106,8 +107,8 @@ if (!gl) {
   }
 
   function spawnDie(type, color) {
-    const body = createBody(createShape(type, DIE_RADIUS), {
-      position: freePosition(),
+    const body = createBody(createShape(type, dieRadius(type)), {
+      position: freePosition(type),
       orientation: quat.random(new Float64Array(4)),
     });
     body.color = color;

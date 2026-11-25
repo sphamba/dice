@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { BEVEL_RADIUS, DIE_DENSITY, DIE_RADIUS, applyImpulse, createBody, updateDerived } from './body.js';
+import {
+  BEVEL_RADIUS,
+  D4_RADIUS,
+  DIE_DENSITY,
+  DIE_RADIUS,
+  applyImpulse,
+  createBody,
+  dieRadius,
+  updateDerived,
+} from './body.js';
 import * as mat3 from '../math/mat3.js';
 import * as quat from '../math/quat.js';
 import { createShape } from '../dice/shapes.js';
@@ -23,6 +32,14 @@ const massOf = (shape, density = DIE_DENSITY) => density * shape.volume;
 describe('BEVEL_RADIUS', () => {
   it('is a twelfth of the die diameter: 12.5% of the d6 edge', () => {
     expect(BEVEL_RADIUS).toBe(DIE_RADIUS / (4 * Math.sqrt(3)));
+  });
+});
+
+describe('dieRadius', () => {
+  it('makes the d4 20% larger than every other die type', () => {
+    expect(D4_RADIUS).toBe(DIE_RADIUS * 1.2);
+    expect(dieRadius('d4')).toBe(D4_RADIUS);
+    for (const type of ['d6', 'd8', 'd10', 'd12', 'd20']) expect(dieRadius(type)).toBe(DIE_RADIUS);
   });
 });
 

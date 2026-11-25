@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { boxFromViewport } from './box.js';
-import { BEVEL_RADIUS, DIE_RADIUS, createBody } from './body.js';
+import { BEVEL_RADIUS, DIE_RADIUS, createBody, dieRadius } from './body.js';
 import { DICE_TYPES, createShape } from '../dice/shapes.js';
 import { FIXED_DT, SLEEP_TIME, createWorld } from './world.js';
 import { RESTITUTION_DIE } from './contacts.js';
@@ -87,7 +87,7 @@ function boxOvershoot(box, body) {
 }
 
 function dropBody(type, position = [0, 0, BOX.D / 2], orientation = [0, 0, 0, 1]) {
-  return createBody(createShape(type, DIE_RADIUS), { position, orientation });
+  return createBody(createShape(type, dieRadius(type)), { position, orientation });
 }
 
 describe('settling', () => {
@@ -388,6 +388,35 @@ describe('pile settle', () => {
       }
     }, 60000);
   }
+});
+
+describe('d4 size', () => {
+  it('settles ten d4 that fit inside the box', () => {
+    const random = mulberry32(PILE_SEEDS[0]);
+    const world = createWorld(BOX);
+    world.setGravity([0, 0, -GRAVITY]);
+    const bodies = [];
+    for (let index = 0; index < PILE_COLUMNS * PILE_ROWS; index += 1) {
+      const column = index % PILE_COLUMNS;
+      const row = Math.floor(index / PILE_COLUMNS);
+      const body = dropBody(
+        'd4',
+        [
+          (column + 0.5) * (BOX.W / PILE_COLUMNS) - BOX.W / 2,
+          (row + 0.5) * (BOX.H / PILE_ROWS) - BOX.H / 2,
+          BOX.D * (0.55 + 0.35 * random()),
+        ],
+        randomQuat(random),
+      );
+      world.addBody(body);
+      bodies.push(body);
+    }
+
+    const at = settledAt(world, bodies, PILE_WINDOW);
+    expect(at).not.toBe(null);
+    expect(at).toBeLessThanOrEqual(SETTLE_LIMIT);
+    for (const body of bodies) expect(boxOvershoot(BOX, body)).toBeLessThan(0.001);
+  }, 60000);
 });
 
 describe('sleep and wake', () => {

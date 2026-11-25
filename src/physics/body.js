@@ -6,6 +6,11 @@ export const DIE_DENSITY = 1200;
 
 export const DIE_RADIUS = 0.0128 * Math.sqrt(3) / 2;
 
+// The d4 is 20% larger than the other die types; everything else derives from this radius.
+export const D4_RADIUS = DIE_RADIUS * 1.2;
+
+export const dieRadius = (type) => (type === 'd4' ? D4_RADIUS : DIE_RADIUS);
+
 // Fillet radius of the shaded rounded edges, in metres. One constant for all
 // dice; the d4 corner numbers stay on the flat part of the face at this size.
 export const BEVEL_RADIUS = DIE_RADIUS / (4 * Math.sqrt(3));

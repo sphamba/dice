@@ -2,7 +2,7 @@ import { DICE_TYPES, createShape } from '../dice/shapes.js';
 import { buildLabelAtlas, faceInsetData, faceVertexUvs } from '../dice/labels.js';
 import * as mat4 from '../math/mat4.js';
 import * as vec3 from '../math/vec3.js';
-import { BEVEL_RADIUS, DIE_RADIUS } from '../physics/body.js';
+import { BEVEL_RADIUS, DIE_RADIUS, dieRadius } from '../physics/body.js';
 import { createCamera, floorClearDepth, worldZFromDepth } from './camera.js';
 import * as shaders from './shaders.js';
 import {
@@ -212,7 +212,7 @@ export function createRenderer(gl, { onError = (error) => console.error(error) }
   function buildResources() {
     const dice = new Map();
     for (const type of DICE_TYPES) {
-      const shape = createShape(type, DIE_RADIUS);
+      const shape = createShape(type, dieRadius(type));
       const bevel = faceInsetData(shape, BEVEL_RADIUS);
       const mesh = buildDieMesh(gl, shape, bevel);
       const atlas = buildLabelAtlas(shape);
