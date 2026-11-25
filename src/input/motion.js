@@ -70,9 +70,8 @@ async function requestMotionPermission() {
 
 async function lockPortrait() {
   const orientation = globalThis.screen?.orientation;
-  if (!globalThis.document?.fullscreenEnabled || typeof orientation?.lock !== 'function') return;
+  if (typeof orientation?.lock !== 'function') return;
   try {
-    await globalThis.document.documentElement.requestFullscreen();
     await orientation.lock('portrait');
   } catch {
     // iOS Safari and desktop refuse the lock, so the app follows rotation.
