@@ -11,6 +11,8 @@ npm test      # unit tests (Vitest)
 npm run build # static build into dist/
 ```
 
+The dev server uses https with a self-signed certificate. To test on a phone, run `npm run dev -- --host`, open the https LAN URL and accept the certificate warning once.
+
 ## Directory layout
 
 - `src/math/` - vectors, matrices, quaternions.

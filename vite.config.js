@@ -1,7 +1,9 @@
 import { defineConfig } from 'vite';
+import basicSsl from '@vitejs/plugin-basic-ssl';
 
-export default defineConfig({
+export default defineConfig(({ command, mode }) => ({
   base: './',
+  plugins: command === 'serve' && mode !== 'test' ? [basicSsl()] : [],
   worker: {
     format: 'es',
   },
@@ -9,4 +11,4 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.test.js'],
   },
-});
+}));
