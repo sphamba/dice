@@ -1,8 +1,20 @@
 // GLSL ES 3.00 sources. Attribute locations are fixed by layout() qualifiers:
 // 0 = position, 1 = normal, 2 = uv.
 
+import {
+  AMBIENT_GROUND,
+  AMBIENT_SKY,
+  AO_STRENGTH,
+  DICE_MATERIAL,
+  F0,
+  LIGHT_DIRECTION,
+  LIGHT_RADIANCE,
+  ROUGHNESS,
+  SPECULAR_NORMALIZATION,
+} from './material.js';
+
 // Fraction of the GTAO darkening kept in the forward pass (1 = full, 0 = none).
-export const AO_STRENGTH = 0.5;
+export { AO_STRENGTH };
 
 const LIGHTING_FS = `
 uniform vec3 uLightDir;
@@ -39,7 +51,12 @@ float sampleAo(float z) {
   }
   return weights > 0.0 ? total / weights : 1.0;
 }
+`;
 
+// Present display-space lighting of the floor. The dice material below does not
+// share it, so the floor output stays exactly as it was before the dice moved
+// to a linear workflow.
+const FLOOR_LIGHTING_FS = `
 vec3 litColor(vec3 base, vec3 n, float cavity, float z) {
   vec3 toLight = -uLightDir;
   float ndotl = dot(n, toLight);
@@ -57,6 +74,127 @@ vec3 litColor(vec3 base, vec3 n, float cavity, float z) {
   vec3 hemi = mix(vec3(0.5, 0.45, 0.4), vec3(1.0), n.z * 0.5 + 0.5);
   float rim = pow(1.0 - clamp(n.z, 0.0, 1.0), 5.0) * 0.3;
   return base * (uAmbient * hemi * ao * cavity + uIntensity * diffuse * mix(1.0, ao, uDirectAo)) + vec3((specular + rim) * uIntensity * ao);
+}
+`;
+
+const glsl = (value) => (Number.isInteger(value) ? `${value}.0` : `${value}`);
+const glslVec3 = (v) => `vec3(${v.map(glsl).join(', ')})`;
+
+// Dice material: a metallic-free dielectric under one distant disk light,
+// evaluated in linear space, tone mapped, then encoded to sRGB. Every number
+// comes from material.js, the module the lighting test integrates against.
+const DICE_MATERIAL_FS = `
+const float PI = 3.141592653589793;
+const vec3 LIGHT_DIRECTION = ${glslVec3(LIGHT_DIRECTION)};
+const float LIGHT_COT = ${glsl(DICE_MATERIAL.cotLight)};
+const float LIGHT_COT_SQ = ${glsl(DICE_MATERIAL.cotLightSq)};
+const float LIGHT_ATAN_COT = ${glsl(DICE_MATERIAL.atanCotLight)};
+const float LIGHT_RADIANCE = ${glsl(LIGHT_RADIANCE)};
+const vec3 AMBIENT_SKY = ${glslVec3(AMBIENT_SKY)};
+const vec3 AMBIENT_GROUND = ${glslVec3(AMBIENT_GROUND)};
+const float ROUGHNESS = ${glsl(ROUGHNESS)};
+const float WIDENED_ALPHA = ${glsl(DICE_MATERIAL.widenedAlpha)};
+const float REPRESENTATIVE_RADIUS = ${glsl(DICE_MATERIAL.representativeRadius)};
+const float SPECULAR_NORMALIZATION = ${glsl(SPECULAR_NORMALIZATION)};
+const float F0 = ${glsl(F0)};
+
+vec3 srgbToLinear(vec3 c) {
+  vec3 s = max(c, vec3(0.0));
+  return mix(pow((s + 0.055) / 1.055, vec3(2.4)), s / 12.92, step(s, vec3(0.04045)));
+}
+
+vec3 linearToSrgb(vec3 c) {
+  vec3 s = max(c, vec3(0.0));
+  return mix(1.055 * pow(s, vec3(1.0 / 2.4)) - 0.055, s * 12.92, step(s, vec3(0.0031308)));
+}
+
+// Khronos PBR Neutral: compresses the highlights without shifting the hue.
+vec3 neutralToneMap(vec3 color) {
+  const float startCompression = 0.8 - 0.04;
+  const float desaturation = 0.15;
+  float x = min(color.r, min(color.g, color.b));
+  float offset = x < 0.08 ? x - 6.25 * x * x : 0.04;
+  color -= offset;
+  float peak = max(color.r, max(color.g, color.b));
+  if (peak < startCompression) return color;
+  float d = 1.0 - startCompression;
+  float newPeak = 1.0 - d * d / (peak + d - startCompression);
+  float g = 1.0 - 1.0 / (desaturation * (peak - newPeak) + 1.0);
+  return mix(color * (newPeak / peak), vec3(newPeak), g);
+}
+
+// Irradiance of the light disk above the horizon per unit radiance: closed form
+// of the spherical cap minus the part below the surface plane.
+float capIrradiance(float cosGamma) {
+  float cg = clamp(cosGamma, -1.0, 1.0);
+  float gamma = acos(cg);
+  if (gamma < LIGHT_ATAN_COT) return PI * cg / (1.0 + LIGHT_COT_SQ);
+  float sg = sqrt(max(1.0 - cg * cg, 0.0));
+  float cotGamma = cg / max(sg, 1e-8);
+  float horizon = sqrt(max(1.0 - LIGHT_COT_SQ * cotGamma * cotGamma, 0.0));
+  return -LIGHT_COT * horizon * sg / (1.0 + LIGHT_COT_SQ)
+    + atan(horizon * sg / LIGHT_COT)
+    + cg * (PI - acos(clamp(LIGHT_COT * cotGamma, -1.0, 1.0))) / (1.0 + LIGHT_COT_SQ);
+}
+
+float ggxDistribution(float alpha, float ndoth) {
+  float a2 = alpha * alpha;
+  float d = ndoth * ndoth * (a2 - 1.0) + 1.0;
+  return a2 / (PI * d * d);
+}
+
+float smithVisibility(float ndotv, float ndotl, float alpha) {
+  float a2 = alpha * alpha;
+  float lambdaV = ndotl * sqrt(ndotv * ndotv * (1.0 - a2) + a2);
+  float lambdaL = ndotv * sqrt(ndotl * ndotl * (1.0 - a2) + a2);
+  return 0.5 / max(lambdaV + lambdaL, 1e-6);
+}
+
+// Karis/Lazarov analytic environment BRDF: vec2(scale, bias) from NoV.
+vec2 envBrdfApprox(float ndotv, float roughness) {
+  const vec4 c0 = vec4(-1.0, -0.0275, -0.572, 0.022);
+  const vec4 c1 = vec4(1.0, 0.0425, 1.04, -0.04);
+  vec4 r = roughness * c0 + c1;
+  float a004 = min(r.x * r.x, exp2(-9.28 * ndotv)) * r.x + r.y;
+  return vec2(-1.04, 1.04) * a004 + r.zw;
+}
+
+// Widened GGX lobe at the representative point: the closest direction in the
+// eroded light cone to the mirror direction.
+float specularRadiance(vec3 n, float ndotv, float irradiance) {
+  vec3 viewDir = vec3(0.0, 0.0, 1.0);
+  vec3 mirror = reflect(-viewDir, n);
+  float cosMirror = clamp(dot(mirror, LIGHT_DIRECTION), -1.0, 1.0);
+  vec3 l = mirror;
+  if (acos(cosMirror) > REPRESENTATIVE_RADIUS) {
+    vec3 tangent = mirror - LIGHT_DIRECTION * cosMirror;
+    tangent /= max(length(tangent), 1e-6);
+    l = normalize(LIGHT_DIRECTION * cos(REPRESENTATIVE_RADIUS) + tangent * sin(REPRESENTATIVE_RADIUS));
+  }
+  float ndotl = dot(n, l);
+  if (ndotl <= 0.0) return 0.0;
+  vec3 h = viewDir + l;
+  h /= max(length(h), 1e-6);
+  float vdoth = clamp(dot(viewDir, h), 1e-6, 1.0);
+  float fresnel = F0 + (1.0 - F0) * pow(1.0 - vdoth, 5.0);
+  return SPECULAR_NORMALIZATION
+    * ggxDistribution(WIDENED_ALPHA, clamp(dot(n, h), 1e-6, 1.0))
+    * smithVisibility(ndotv, ndotl, WIDENED_ALPHA)
+    * fresnel * irradiance;
+}
+
+vec3 diceLitColor(vec3 baseSrgb, vec3 n, float cavity, float z) {
+  vec3 base = srgbToLinear(baseSrgb);
+  float ao = sampleAo(z);
+  ao = mix(1.0, ao, AO_STRENGTH);
+  float directAo = mix(1.0, ao, uDirectAo);
+  float ndotv = clamp(n.z, 1e-4, 1.0);
+  float irradiance = capIrradiance(dot(n, LIGHT_DIRECTION)) * LIGHT_RADIANCE;
+  vec3 hemi = mix(AMBIENT_GROUND, AMBIENT_SKY, n.z * 0.5 + 0.5);
+  vec2 ab = envBrdfApprox(ndotv, ROUGHNESS);
+  vec3 direct = base * (irradiance / PI * directAo) + vec3(specularRadiance(n, ndotv, irradiance) * directAo);
+  vec3 ambient = base * hemi * ao * cavity + (F0 * ab.x + ab.y) * hemi * ao;
+  return linearToSrgb(neutralToneMap(direct + ambient));
 }
 `;
 
@@ -350,6 +488,8 @@ out vec4 outColor;
 
 ${LIGHTING_FS}
 
+${DICE_MATERIAL_FS}
+
 ${BEVEL_FRAG}
 
 void main() {
@@ -378,7 +518,7 @@ void main() {
     vec3 c = carve.rgb * 2.0 - 1.0;
     n = normalize(t * c.x + b * c.y + nGeo * c.z);
   }
-  outColor = vec4(litColor(mix(uColor, uInk, label.a), n, carve.a, surface.z), alpha);
+  outColor = vec4(diceLitColor(mix(uColor, uInk, label.a), n, carve.a, surface.z), alpha);
 }
 `;
 
@@ -407,6 +547,8 @@ uniform vec3 uColor;
 out vec4 outColor;
 
 ${LIGHTING_FS}
+
+${FLOOR_LIGHTING_FS}
 
 void main() {
   outColor = vec4(litColor(uColor, normalize(vNormal), 1.0, vWorldPos.z), 1.0);

@@ -95,7 +95,7 @@ describe('AO source check', () => {
   });
 
   it('upsamples against the rounded surface depth', () => {
-    expect(diceFragmentSource).toContain('litColor(mix(uColor, uInk, label.a), n, carve.a, surface.z)');
+    expect(diceFragmentSource).toContain('diceLitColor(mix(uColor, uInk, label.a), n, carve.a, surface.z)');
     expect(floorFragmentSource).toContain('litColor(uColor, normalize(vNormal), 1.0, vWorldPos.z)');
     expect(aoPrepassFragmentSource).toContain('uniform vec2 uDepthRange;');
   });
