@@ -28,8 +28,12 @@ export const HIT_STRIDE = 10;
 
 export const SURFACE_CODES = { die: 0, floor: 1, wall: 2, lid: 3 };
 
-// Calibrated so one typical impact (normal 0.005 N·s) peaks at the legacy full scale.
-const SPIKE_GAIN = 0.6;
+// Impact and scrape calibrations against the legacy clip path, in engine-domain units.
+// A typical 0.005 N·s impact (SPIKE_GAIN) and a 0.2 m/s slide (FRICTION_GAIN) land at the
+// legacy impact peak and 15 to 20 dB under it, after the resonator gain.
+const SPIKE_GAIN = 0.22;
+
+const FRICTION_GAIN = 178;
 
 const SPIKE = 0;
 
@@ -191,7 +195,7 @@ export function createEngine(sampleRate) {
           targets,
           // Spread over STEP_DT * sampleRate samples: the same discrete impulse the
           // spike path delivers, so a scrape never overdrives narrow resonators.
-          level: (fGain * SPIKE_GAIN) / (total * sampleRate),
+          level: (fGain * FRICTION_GAIN) / (total * sampleRate),
           slip,
           dist,
         });

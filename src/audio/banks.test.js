@@ -3,14 +3,16 @@ import {
   FRICTION_IMPULSE_REF,
   FRAME_LAG,
   HIT_STRIDE,
-  LIMITER_CEILING,
   SLIP_MIN,
   SURFACE_CODES,
   createEngine,
-  gainForImpulse,
   stepSampleOffset,
 } from './banks.js';
-import { DIE_RADIUS } from '../physics/body.js';
+import { DIE_RADIUS, createBody } from '../physics/body.js';
+import { boxFromViewport } from '../physics/box.js';
+import { FIXED_DT, createWorld } from '../physics/world.js';
+import { createShape } from '../dice/shapes.js';
+import * as vec3 from '../math/vec3.js';
 
 const SR = 48000;
 
@@ -19,6 +21,20 @@ const BLOCK = 128;
 const BOX_W = 0.5;
 const BOX_H = 0.4;
 const BOX_D = 0.2;
+
+// Master gain of the shipped chain: the worklet output passes through 1/CLIPPER_RANGE
+// before the WaveShaper, so engine-domain levels are CLIPPER_RANGE times the audible ones.
+const CLIPPER_RANGE = 4;
+
+// Peak after that chain of one typical d6 floor impact (0.005 N·s) at (0.11, 0.06),
+// measured on the pre-worklet clip implementation of the same modes.
+const LEGACY_TYPICAL_IMPACT_PEAK = 0.0418;
+
+const DRAG_SPEED = 0.2;
+
+const DRAG_SECONDS = 0.3;
+
+const dB = (ratio) => 20 * Math.log10(ratio);
 
 function makeMessage(records, simNow) {
   const hits = new Float64Array(records.length * HIT_STRIDE);
@@ -117,12 +133,54 @@ describe('engine excitation', () => {
 
   it('keeps one typical impact near the legacy peak level', () => {
     const engine = setup();
-    engine.handleSteps(makeMessage([{ ...floorHit(), surface: 'die', b: 1, px: 0, py: 0, normal: 0.005 }]), 0);
-    const data = collect(engine, 0.05);
-    const reference = gainForImpulse(0.005) * LIMITER_CEILING;
-    expect(peak(data) / reference).toBeGreaterThan(0.3);
-    expect(peak(data) / reference).toBeLessThan(1.5);
+    engine.removeBody(1);
+    engine.handleSteps(makeMessage([{ ...floorHit(), px: 0.11, py: 0.06, normal: 0.005 }]), 0);
+    const level = peak(collect(engine, 0.05)) / CLIPPER_RANGE;
+    expect(Math.abs(dB(level / LEGACY_TYPICAL_IMPACT_PEAK))).toBeLessThan(3);
   });
+
+  // A d6 settled on the floor and then dragged at 0.2 m/s, which is the excitation a user
+  // produces by dragging a die, fed to the engine the way main.js feeds it.
+  function draggedSlide() {
+    const box = boxFromViewport(393, 852, 3);
+    const world = createWorld(box);
+    const body = createBody(createShape('d6', DIE_RADIUS), {
+      position: [0, 0.2, box.D / 2],
+      orientation: [0, 0, 0, 1],
+    });
+    world.addBody(body);
+    for (let step = 0; step < Math.round(0.6 / FIXED_DT); step += 1) world.step(FIXED_DT);
+    world.soundSteps.length = 0;
+    const engine = createEngine(SR);
+    engine.setBox(box.W, box.H, box.D);
+    engine.addBody(0, 'd6', DIE_RADIUS);
+    const start = world.simTime;
+    world.beforeStep = () => {
+      if (world.simTime - start < DRAG_SECONDS) vec3.set(body.linearVelocity, DRAG_SPEED, 0, 0);
+    };
+    const data = new Float32Array(Math.round(0.8 * 60) * Math.ceil(SR / 60 / BLOCK) * BLOCK);
+    let sample = 0;
+    for (let frame = 0; frame < Math.round(0.8 * 60); frame += 1) {
+      world.update(1 / 60);
+      const records = world.soundSteps.map((record) => ({ ...record, a: 0, b: null }));
+      world.soundSteps.length = 0;
+      engine.handleSteps(makeMessage(records, world.simTime), world.simTime);
+      for (let block = 0; block * BLOCK < SR / 60; block += 1) {
+        engine.render(data.subarray(sample, sample + BLOCK), world.simTime + (block * BLOCK) / SR);
+        sample += BLOCK;
+      }
+    }
+    world.beforeStep = null;
+    return data.subarray(0, sample);
+  }
+
+  it('sustains a scrape 15 to 20 dB under a typical impact on a dragged die', () => {
+    const data = draggedSlide();
+    const level = rms(data, (0.1 * SR) | 0, (DRAG_SECONDS * SR) | 0) / CLIPPER_RANGE;
+    expect(Number.isFinite(peak(data))).toBe(true);
+    expect(dB(level / LEGACY_TYPICAL_IMPACT_PEAK)).toBeGreaterThan(-20);
+    expect(dB(level / LEGACY_TYPICAL_IMPACT_PEAK)).toBeLessThan(-15);
+  }, 60000);
 
   it('sustains a constant slip within 30 percent RMS and decays after it stops', () => {
     const engine = setup();
