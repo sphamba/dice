@@ -1,4 +1,4 @@
-import { BOX, GLASS, dieModes, plateGrid } from './modes.js';
+import { BOX, GLASS, dieModes, maxModeFrequency, plateGrid } from './modes.js';
 
 export const MIN_IMPULSE = 1e-4;
 
@@ -16,7 +16,7 @@ export const SILENCE_FLOOR = 1e-6;
 
 export const ROUGHNESS_PER_METRE = 2000;
 
-export const MAX_BANK_MODES = 24;
+export const MAX_BANK_MODES = 48;
 
 export const MAX_PENDING = 1024;
 
@@ -31,9 +31,9 @@ export const SURFACE_CODES = { die: 0, floor: 1, wall: 2, lid: 3 };
 // Impact and scrape calibrations against the legacy clip path, in engine-domain units.
 // A typical 0.005 N·s impact (SPIKE_GAIN) and a 0.2 m/s slide (FRICTION_GAIN) land at the
 // legacy impact peak and 15 to 20 dB under it, after the resonator gain.
-const SPIKE_GAIN = 0.22;
+const SPIKE_GAIN = 0.7082;
 
-const FRICTION_GAIN = 178;
+const FRICTION_GAIN = 1289.7;
 
 const SPIKE = 0;
 
@@ -94,14 +94,14 @@ function makeBank(modes, sampleRate) {
 }
 
 function makeDieBank(die, radius, sampleRate) {
-  const modes = dieModes(die, radius);
+  const modes = dieModes(die, radius, maxModeFrequency(sampleRate));
   const bank = makeBank(modes, sampleRate);
   bank.amps = Float32Array.from(modes, (mode) => mode.amp);
   return bank;
 }
 
 function makePlateBank(a, b, material, sampleRate) {
-  const modes = plateGrid(a, b, material, MAX_BANK_MODES);
+  const modes = plateGrid(a, b, material, MAX_BANK_MODES, maxModeFrequency(sampleRate));
   const bank = makeBank(modes, sampleRate);
   bank.a = a;
   bank.b = b;

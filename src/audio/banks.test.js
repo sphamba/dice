@@ -3,6 +3,7 @@ import {
   FRICTION_IMPULSE_REF,
   FRAME_LAG,
   HIT_STRIDE,
+  MAX_BANK_MODES,
   SLIP_MIN,
   SURFACE_CODES,
   createEngine,
@@ -29,6 +30,14 @@ const CLIPPER_RANGE = 4;
 // Peak after that chain of one typical d6 floor impact (0.005 N·s) at (0.11, 0.06),
 // measured on the pre-worklet clip implementation of the same modes.
 const LEGACY_TYPICAL_IMPACT_PEAK = 0.0418;
+
+// Spectral centroids of the single-bank fixtures below, measured on the engine of the
+// pre-change mode set. Brightness is graded against them, not against a fixed pitch.
+const LEGACY_DIE_IMPACT_CENTROID = 3297.6;
+
+const LEGACY_BOX_IMPACT_CENTROID = 787.14;
+
+const CENTROID_WINDOW = 4096;
 
 const DRAG_SPEED = 0.2;
 
@@ -99,6 +108,34 @@ function goertzel(data, frequency, sampleRate) {
   return Math.sqrt(s1 * s1 + s2 * s2 - coeff * s1 * s2);
 }
 
+// Magnitude-squared weighted mean of the DFT bins of one window: a brightness figure in Hz.
+function spectralCentroid(data, start, length) {
+  let weighted = 0;
+  let total = 0;
+  for (let k = 1; k < length / 2; k += 1) {
+    const coeff = 2 * Math.cos((2 * Math.PI * k) / length);
+    let s1 = 0;
+    let s2 = 0;
+    for (const value of data.subarray(start, start + length)) {
+      const s = value + coeff * s1 - s2;
+      s2 = s1;
+      s1 = s;
+    }
+    const magnitude = Math.max(0, s1 * s1 + s2 * s2 - coeff * s1 * s2);
+    weighted += ((k * SR) / length) * magnitude;
+    total += magnitude;
+  }
+  return total > 0 ? weighted / total : 0;
+}
+
+// First sample carrying signal, so a brightness measurement never depends on the onset offset.
+function onset(data) {
+  for (let index = 0; index < data.length; index += 1) {
+    if (Math.abs(data[index]) > 1e-12) return index;
+  }
+  return 0;
+}
+
 const floorHit = (overrides = {}) => ({
   t: 0,
   a: 0,
@@ -137,6 +174,27 @@ describe('engine excitation', () => {
     engine.handleSteps(makeMessage([{ ...floorHit(), px: 0.11, py: 0.06, normal: 0.005 }]), 0);
     const level = peak(collect(engine, 0.05)) / CLIPPER_RANGE;
     expect(Math.abs(dB(level / LEGACY_TYPICAL_IMPACT_PEAK))).toBeLessThan(3);
+  });
+
+  it('makes a typical die impact and a typical box impact 1.8 times brighter', () => {
+    const dieOnly = setup();
+    dieOnly.removeBody(1);
+    dieOnly.handleSteps(makeMessage([{ ...floorHit(), surface: 'die', px: 0, py: 0, normal: 0.005 }]), 0);
+    const dieData = collect(dieOnly, 0.25);
+    expect(spectralCentroid(dieData, onset(dieData), CENTROID_WINDOW)).toBeGreaterThanOrEqual(
+      1.8 * LEGACY_DIE_IMPACT_CENTROID,
+    );
+    const boxOnly = setup();
+    boxOnly.removeBody(0);
+    boxOnly.removeBody(1);
+    boxOnly.handleSteps(
+      makeMessage([{ ...floorHit(), px: BOX_W / 2, py: BOX_H * 0.25, normal: 0.005 }]),
+      0,
+    );
+    const boxData = collect(boxOnly, 0.25);
+    expect(spectralCentroid(boxData, onset(boxData), CENTROID_WINDOW)).toBeGreaterThanOrEqual(
+      1.8 * LEGACY_BOX_IMPACT_CENTROID,
+    );
   });
 
   // A d6 settled on the floor and then dragged at 0.2 m/s, which is the excitation a user
@@ -288,7 +346,7 @@ describe('engine banks', () => {
       0,
     );
     expect(peak(collect(engine, 0.05))).toBe(0);
-    expect(engine.surfaces.floor.modes.length).toBeLessThanOrEqual(24);
+    expect(engine.surfaces.floor.modes.length).toBeLessThanOrEqual(MAX_BANK_MODES);
   });
 
   it('goes exactly silent after the modes decay below the silence floor', () => {

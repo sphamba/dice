@@ -1,4 +1,4 @@
-export const MAX_MODE_FREQUENCY = 8000;
+export const MAX_MODE_FREQUENCY = 16000;
 
 export const DEFAULT_MAX_MODES = 24;
 
@@ -7,21 +7,21 @@ const T60_DECAYS = Math.log(1000);
 // tau for an exponential mode to fall by 60 dB in the given time.
 const t60Tau = (seconds) => seconds / T60_DECAYS;
 
-const BOX_DAMP_HF = 0.8;
+const BOX_DAMP_HF = 0.2;
 
-const GLASS_DAMP_HF = 0.45;
+const GLASS_DAMP_HF = 0.15;
 
-export const BOX = { f11: 200, tau: t60Tau(0.08) * (1 + BOX_DAMP_HF), dampHF: BOX_DAMP_HF };
+export const BOX = { f11: 400, tau: t60Tau(0.08) * (1 + BOX_DAMP_HF), dampHF: BOX_DAMP_HF };
 
 export const GLASS = {
-  f11: 900,
+  f11: 1800,
   tau: t60Tau(0.1) * (1 + GLASS_DAMP_HF),
   dampHF: GLASS_DAMP_HF,
 };
 
 export const DIE_REFERENCE_RADIUS = 0.0139;
 
-const DIE_BASE_FREQUENCY = 2000;
+const DIE_BASE_FREQUENCY = 4000;
 
 const DIE_FREQUENCY_STEP = 100;
 
@@ -31,7 +31,12 @@ const DIE_MODE_RATIOS = [1, 1.47, 1.93, 2.4, 2.87];
 
 const DIE_TAU = t60Tau(0.03);
 
-const DIE_DAMP_REFERENCE = 4000;
+const DIE_DAMP_REFERENCE = 8000;
+
+// Highest usable mode: the fixed ceiling, but never close enough to Nyquist to alias.
+export function maxModeFrequency(sampleRate) {
+  return Math.min(MAX_MODE_FREQUENCY, 0.45 * sampleRate);
+}
 
 function hashType(type) {
   let hash = 0;
@@ -48,15 +53,15 @@ function clamp(value, lo, hi) {
 // Position-independent plate basis: every mode of the (a, b) grid below the frequency
 // ceiling, sorted by frequency, with the (m, n) indices a caller needs to evaluate
 // the mode shape at a contact point.
-export function plateGrid(a, b, material, maxModes = DEFAULT_MAX_MODES) {
+export function plateGrid(a, b, material, maxModes = DEFAULT_MAX_MODES, maxFrequency = MAX_MODE_FREQUENCY) {
   if (!(a > 0) || !(b > 0)) return [];
   const normalization = 1 / (a * a) + 1 / (b * b);
-  const limit = (MAX_MODE_FREQUENCY / material.f11) * normalization;
+  const limit = (maxFrequency / material.f11) * normalization;
   const modes = [];
   for (let m = 1; (m * m) / (a * a) < limit; m++) {
     for (let n = 1; (n * n) / (b * b) < limit; n++) {
       const f = (material.f11 * ((m / a) ** 2 + (n / b) ** 2)) / normalization;
-      if (f >= MAX_MODE_FREQUENCY) continue;
+      if (f >= maxFrequency) continue;
       modes.push({
         f,
         amp: 1,
@@ -70,10 +75,10 @@ export function plateGrid(a, b, material, maxModes = DEFAULT_MAX_MODES) {
   return modes.slice(0, Math.max(0, maxModes));
 }
 
-export function plateModes(a, b, u, v, material, maxModes = DEFAULT_MAX_MODES) {
+export function plateModes(a, b, u, v, material, maxModes = DEFAULT_MAX_MODES, maxFrequency = MAX_MODE_FREQUENCY) {
   const cu = clamp(u, 0, a);
   const cv = clamp(v, 0, b);
-  return plateGrid(a, b, material, maxModes).map(({ f, tau, m, n }) => ({
+  return plateGrid(a, b, material, maxModes, maxFrequency).map(({ f, tau, m, n }) => ({
     f,
     tau,
     amp: clamp(
@@ -84,7 +89,7 @@ export function plateModes(a, b, u, v, material, maxModes = DEFAULT_MAX_MODES) {
   }));
 }
 
-export function dieModes(type, radius = DIE_REFERENCE_RADIUS) {
+export function dieModes(type, radius = DIE_REFERENCE_RADIUS, maxFrequency = Number.POSITIVE_INFINITY) {
   const size = radius > 0 ? radius : DIE_REFERENCE_RADIUS;
   const seed = hashType(String(type));
   const scale = DIE_REFERENCE_RADIUS / size;
@@ -94,6 +99,7 @@ export function dieModes(type, radius = DIE_REFERENCE_RADIUS) {
   const modes = [];
   for (let k = 0; k < count; k++) {
     const f = base * DIE_MODE_RATIOS[k] * detune;
+    if (f >= maxFrequency) continue;
     modes.push({
       f,
       amp: clamp(1 / (1 + 0.6 * k), 0, 1),

@@ -6,6 +6,8 @@ import {
   GLASS,
   MAX_MODE_FREQUENCY,
   dieModes,
+  maxModeFrequency,
+  plateGrid,
   plateModes,
 } from './modes.js';
 import { DIE_RADIUS } from '../physics/body.js';
@@ -64,7 +66,7 @@ describe('plateModes', () => {
     near(modes[0].f, BOX.f11);
   });
 
-  it('keeps every mode below 8 kHz with sane amplitude and decay', () => {
+  it('keeps every mode below the 16 kHz ceiling with sane amplitude and decay', () => {
     for (const material of [BOX, GLASS]) {
       for (const mode of plateModes(A, B, ...center, material)) {
         expect(mode.f).toBeLessThan(MAX_F);
@@ -72,6 +74,21 @@ describe('plateModes', () => {
         expect(mode.amp).toBeLessThanOrEqual(1);
         expect(mode.tau).toBeGreaterThan(0);
       }
+    }
+  });
+
+  it('drops every mode at or above 0.45 times the sample rate', () => {
+    const ceiling = maxModeFrequency(32000);
+    expect(ceiling).toBe(14400);
+    expect(maxModeFrequency(48000)).toBe(MAX_F);
+    const dense = [0.05, 0.04];
+    const capped = plateGrid(...dense, BOX, 500, ceiling);
+    expect(capped.length).toBeLessThan(plateGrid(...dense, BOX, 500).length);
+    for (const mode of capped) expect(mode.f).toBeLessThan(ceiling);
+    for (const type of ['d4', 'd6', 'd8', 'd10', 'd12', 'd20']) {
+      const modes = dieModes(type, DIE_RADIUS, ceiling);
+      expect(modes.length).toBeGreaterThan(0);
+      for (const mode of modes) expect(mode.f).toBeLessThan(ceiling);
     }
   });
 
@@ -154,8 +171,8 @@ describe('dieModes', () => {
       expect(modes.length).toBeGreaterThanOrEqual(3);
       expect(modes.length).toBeLessThanOrEqual(5);
       for (let i = 0; i < modes.length; i++) {
-        expect(modes[i].f).toBeGreaterThanOrEqual(2000);
-        expect(modes[i].f).toBeLessThanOrEqual(7000);
+        expect(modes[i].f).toBeGreaterThanOrEqual(4000);
+        expect(modes[i].f).toBeLessThanOrEqual(16000);
         if (i > 0) expect(modes[i].f).toBeGreaterThan(modes[i - 1].f);
         expect(modes[i].amp).toBeGreaterThan(0);
         expect(modes[i].amp).toBeLessThanOrEqual(1);
