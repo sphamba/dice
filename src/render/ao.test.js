@@ -95,7 +95,11 @@ describe('AO source check', () => {
   });
 
   it('upsamples against the rounded surface depth', () => {
-    expect(diceFragmentSource).toContain('diceLitColor(mix(uColor, uInk, label.a), n, carve.a, surface.z)');
+    // The label mask is the last argument: the dice material needs it to occlude
+    // the specular inside the engraving.
+    expect(diceFragmentSource).toContain(
+      'diceLitColor(mix(uColor, uInk, label.a), n, carve.a, surface.z, label.a)',
+    );
     expect(floorFragmentSource).toContain('litColor(uColor, normalize(vNormal), 1.0, vWorldPos.z)');
     expect(aoPrepassFragmentSource).toContain('uniform vec2 uDepthRange;');
   });

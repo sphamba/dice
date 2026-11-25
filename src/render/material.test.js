@@ -3,9 +3,11 @@ import { hslToRgb } from '../dice/colors.js';
 import {
   ALPHA,
   F0,
+  INK_SPECULAR_OCCLUSION,
   LIGHT_ANGULAR_RADIUS,
   LIGHT_DIRECTION,
   capIrradiance,
+  diceLinear,
   diceSrgb,
   ggxDistribution,
   smithVisibility,
@@ -122,6 +124,19 @@ describe('dice lighting', () => {
       }
     }
     expect(failures).toEqual([]);
+  });
+
+  it('dims the specular inside an engraved glyph and leaves the face alone', () => {
+    // Black ink carries no diffuse, so its linear output is the specular alone.
+    const black = [0, 0, 0];
+    const n = tilted(20);
+    const face = Math.max(...diceLinear(black, n, 1, 1, 0.5, 0));
+    const ink = Math.max(...diceLinear(black, n, 1, 1, 0.5, 1));
+    expect(ink / face).toBeCloseTo(INK_SPECULAR_OCCLUSION, 6);
+    // The occlusion must not crush the ink to pure black on screen.
+    expect(Math.max(...diceSrgb(black, n, 1, 1, 0.5, 1))).toBeGreaterThan(0);
+    // A plain face is unaffected by the term: no ink, no occlusion.
+    expect(diceLinear(black, n, 1, 1, 0.5, 0)).toEqual(diceLinear(black, n, 1, 1, 0.5));
   });
 
   it('keeps the mean brightness of an upward face within 15%', () => {

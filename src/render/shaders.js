@@ -7,6 +7,7 @@ import {
   AO_STRENGTH,
   DICE_MATERIAL,
   F0,
+  INK_SPECULAR_OCCLUSION,
   LIGHT_DIRECTION,
   LIGHT_RADIANCE,
   ROUGHNESS,
@@ -97,6 +98,7 @@ const float WIDENED_ALPHA = ${glsl(DICE_MATERIAL.widenedAlpha)};
 const float REPRESENTATIVE_RADIUS = ${glsl(DICE_MATERIAL.representativeRadius)};
 const float SPECULAR_NORMALIZATION = ${glsl(SPECULAR_NORMALIZATION)};
 const float F0 = ${glsl(F0)};
+const float INK_SPECULAR_OCCLUSION = ${glsl(INK_SPECULAR_OCCLUSION)};
 
 vec3 srgbToLinear(vec3 c) {
   vec3 s = max(c, vec3(0.0));
@@ -183,7 +185,7 @@ float specularRadiance(vec3 n, float ndotv, float irradiance) {
     * fresnel * irradiance;
 }
 
-vec3 diceLitColor(vec3 baseSrgb, vec3 n, float cavity, float z) {
+vec3 diceLitColor(vec3 baseSrgb, vec3 n, float cavity, float z, float ink) {
   vec3 base = srgbToLinear(baseSrgb);
   float ao = sampleAo(z);
   ao = mix(1.0, ao, AO_STRENGTH);
@@ -192,8 +194,12 @@ vec3 diceLitColor(vec3 baseSrgb, vec3 n, float cavity, float z) {
   float irradiance = capIrradiance(dot(n, LIGHT_DIRECTION)) * LIGHT_RADIANCE;
   vec3 hemi = mix(AMBIENT_GROUND, AMBIENT_SKY, n.z * 0.5 + 0.5);
   vec2 ab = envBrdfApprox(ndotv, ROUGHNESS);
-  vec3 direct = base * (irradiance / PI * directAo) + vec3(specularRadiance(n, ndotv, irradiance) * directAo);
-  vec3 ambient = base * hemi * ao * cavity + (F0 * ab.x + ab.y) * hemi * ao;
+  // The ink sits at the bottom of the engraving, where the walls block most of
+  // the incoming light: the specular keeps only INK_SPECULAR_OCCLUSION of its
+  // face value, otherwise the wide lobe fills the glyph with a sheen.
+  float specularOcclusion = cavity * mix(1.0, INK_SPECULAR_OCCLUSION, clamp(ink, 0.0, 1.0));
+  vec3 direct = base * (irradiance / PI * directAo) + vec3(specularRadiance(n, ndotv, irradiance) * directAo * specularOcclusion);
+  vec3 ambient = base * hemi * ao * cavity + (F0 * ab.x + ab.y) * hemi * ao * specularOcclusion;
   return linearToSrgb(neutralToneMap(direct + ambient));
 }
 `;
@@ -518,7 +524,7 @@ void main() {
     vec3 c = carve.rgb * 2.0 - 1.0;
     n = normalize(t * c.x + b * c.y + nGeo * c.z);
   }
-  outColor = vec4(diceLitColor(mix(uColor, uInk, label.a), n, carve.a, surface.z), alpha);
+  outColor = vec4(diceLitColor(mix(uColor, uInk, label.a), n, carve.a, surface.z, label.a), alpha);
 }
 `;
 

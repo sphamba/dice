@@ -21,6 +21,15 @@ export const ROUGHNESS = 0.5;
 export const ALPHA = ROUGHNESS * ROUGHNESS;
 export const F0 = 0.04;
 
+// The ink sits on the floor of an engraved glyph, where the walls block most of
+// the incoming light, so the specular terms keep only this fraction of their
+// unengraved value. Fitted on the #75 body range: at 0.25 (the carve CAVITY
+// constant) the deep glyph walls round to 0/255 and a black ink loses its
+// contrast against a bright face; at 0.5 the black ink of the worst test colour
+// stays at 11/255 and keeps 97% of the contrast it had under display-space
+// lighting.
+export const INK_SPECULAR_OCCLUSION = 0.5;
+
 // Representative-point fit for a light much wider than the GGX lobe: the cone
 // eroded by the lobe half-width, the lobe widened by a tenth of the light
 // radius, and the energy normalization. Fitted for roughness 0.5 under the
@@ -142,23 +151,25 @@ export function toneMapNeutral(rgb) {
   return color.map((c) => c * (newPeak / peak) * (1 - g) + newPeak * g);
 }
 
-// Linear output of the dice material for one fragment.
-export function diceLinear(baseSrgb, n, cavity, ao, directAo) {
+// Linear output of the dice material for one fragment. `ink` is the label mask:
+// 1 inside an engraved glyph, 0 on the plain face.
+export function diceLinear(baseSrgb, n, cavity, ao, directAo, ink = 0) {
   const base = toLinear(baseSrgb);
   const occlusion = 1 + (ao - 1) * AO_STRENGTH;
   const directOcclusion = 1 + (occlusion - 1) * directAo;
   const irradiance = capIrradiance(dot(n, LIGHT_DIRECTION)) * LIGHT_RADIANCE;
   const hemi = ambientRadiance(n);
   const [scale, bias] = envBrdfApprox(Math.max(n[2], 1e-4), ROUGHNESS);
-  const directSpecular = specularRadiance(n, irradiance) * directOcclusion;
+  const specularOcclusion = cavity * (1 + (INK_SPECULAR_OCCLUSION - 1) * clamp(ink, 0, 1));
+  const directSpecular = specularRadiance(n, irradiance) * directOcclusion * specularOcclusion;
   return base.map((c, i) =>
     (c * irradiance * directOcclusion) / PI +
     c * hemi[i] * occlusion * cavity +
     directSpecular +
-    (F0 * scale + bias) * hemi[i] * occlusion);
+    (F0 * scale + bias) * hemi[i] * occlusion * specularOcclusion);
 }
 
-export function diceSrgb(baseSrgb, n, cavity, ao, directAo) {
-  const linear = diceLinear(baseSrgb, n, cavity, ao, directAo).map((c) => Math.max(c, 0));
+export function diceSrgb(baseSrgb, n, cavity, ao, directAo, ink = 0) {
+  const linear = diceLinear(baseSrgb, n, cavity, ao, directAo, ink).map((c) => Math.max(c, 0));
   return toneMapNeutral(linear).map((c) => linearToSrgb(Math.max(c, 0)));
 }
