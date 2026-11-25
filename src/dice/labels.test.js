@@ -18,7 +18,7 @@ const FACE_COUNT = { d4: 4, d6: 6, d8: 8, d10: 10, d12: 12, d20: 20 };
 const PIP_COUNT = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6 };
 const PIP_RADIUS_FRACTION = 0.13;
 const PIP_OFFSET_FRACTION = 0.38;
-const D6_COLOR = [0.78, 0.22, 0.18];
+const LABEL_INK = 'rgb(255,255,255)';
 
 const IDENTITY = [1, 0, 0, 1, 0, 0];
 
@@ -106,7 +106,7 @@ class RecordingContext {
   }
 }
 
-function recordAtlas(shape, color) {
+function recordAtlas(shape) {
   const previous = globalThis.OffscreenCanvas;
   const contexts = [];
   globalThis.OffscreenCanvas = class {
@@ -122,7 +122,7 @@ function recordAtlas(shape, color) {
   };
   let atlas;
   try {
-    atlas = buildLabelAtlas(shape, color);
+    atlas = buildLabelAtlas(shape);
   } finally {
     if (previous === undefined) delete globalThis.OffscreenCanvas;
     else globalThis.OffscreenCanvas = previous;
@@ -224,7 +224,7 @@ describe('faceVertexUvs', () => {
 describe('buildLabelAtlas d6 pips', () => {
   it('draws every pip inside its own cell at the face-radius scale', () => {
     const shape = createShape('d6', RADIUS);
-    const { atlas, ellipses } = recordAtlas(shape, D6_COLOR);
+    const { atlas, ellipses } = recordAtlas(shape);
     const { size, rects } = atlas;
     const total = shape.faces.reduce((n, face) => n + PIP_COUNT[face.value], 0);
     expect(ellipses).toHaveLength(total);
@@ -253,7 +253,7 @@ describe('buildLabelAtlas d6 pips', () => {
 
   it('places pips at the classic offsets around the cell center', () => {
     const shape = createShape('d6', RADIUS);
-    const { atlas, ellipses } = recordAtlas(shape, D6_COLOR);
+    const { atlas, ellipses } = recordAtlas(shape);
     const { size, rects } = atlas;
     const withCenter = new Set([1, 3, 5]);
     const offset = PIP_OFFSET_FRACTION / 2;
@@ -283,17 +283,12 @@ describe('buildLabelAtlas d6 pips', () => {
   });
 });
 
-const DIE_COLORS = [
-  { die: [0.78, 0.22, 0.18], ink: 'rgb(245,242,237)' },
-  { die: [0.93, 0.92, 0.88], ink: 'rgb(20,18,18)' },
-];
-
 const CENTERED_TYPES = ['d8', 'd10', 'd12', 'd20'];
 
 describe('buildLabelAtlas d4 corner numbers', () => {
   it('draws three distinct corner values inside every face cell', () => {
     const shape = createShape('d4', RADIUS);
-    const { atlas, texts } = recordAtlas(shape, DIE_COLORS[0].die);
+    const { atlas, texts } = recordAtlas(shape);
     const { size, rects } = atlas;
     const layout = faceVertexUvs(shape);
     expect(texts).toHaveLength(shape.faces.length * 3);
@@ -310,7 +305,7 @@ describe('buildLabelAtlas d4 corner numbers', () => {
         index += 1;
         values.push(label.text);
         expect(label.text).toBe(String(shape.vertexValues[vi]));
-        expect(label.fillStyle).toBe(DIE_COLORS[0].ink);
+        expect(label.fillStyle).toBe(LABEL_INK);
         expect(label.fontPx).toBeGreaterThan(0);
         expect(label.x).toBeCloseTo(centerX + D4_LABEL_CENTER * (size * uvs[k][0] - centerX), 6);
         expect(label.y).toBeCloseTo(centerY + D4_LABEL_CENTER * (size * (1 - uvs[k][1]) - centerY), 6);
@@ -417,7 +412,7 @@ function quadSeparated(a, b) {
 
 function measureD4() {
   const shape = createShape('d4', DIE_RADIUS);
-  const { atlas, texts } = recordAtlas(shape, DIE_COLORS[0].die);
+  const { atlas, texts } = recordAtlas(shape);
   const data = faceInsetData(shape, BEVEL_RADIUS);
   const { size, rects } = atlas;
   expect(texts).toHaveLength(shape.faces.length * 3);
@@ -484,7 +479,7 @@ const D6_CLEARANCE_MAX = 0.0003;
 // border of the flat square (the face plane minus the rounded edge band).
 function measureD6Clearance() {
   const shape = createShape('d6', DIE_RADIUS);
-  const { atlas, ellipses } = recordAtlas(shape, D6_COLOR);
+  const { atlas, ellipses } = recordAtlas(shape);
   const { size, rects } = atlas;
   let min = Infinity;
   let index = 0;
@@ -523,7 +518,7 @@ describe('buildLabelAtlas centered numbers', () => {
   it('centers the complete face value inside every cell', () => {
     for (const type of CENTERED_TYPES) {
       const shape = createShape(type, RADIUS);
-      const { atlas, texts } = recordAtlas(shape, DIE_COLORS[1].die);
+      const { atlas, texts } = recordAtlas(shape);
       expect(texts).toHaveLength(shape.faces.length);
       expect(new Set(shape.faces.map((face) => face.value)).size).toBe(shape.faces.length);
 
@@ -531,7 +526,7 @@ describe('buildLabelAtlas centered numbers', () => {
         const box = cellBox(atlas.size, atlas.rects[f]);
         const label = texts[f];
         expect(label.text).toBe(String(face.value));
-        expect(label.fillStyle).toBe(DIE_COLORS[1].ink);
+        expect(label.fillStyle).toBe(LABEL_INK);
         expect(label.fontPx).toBeGreaterThan(0);
         expect(label.x).toBeCloseTo((box.left + box.right) / 2, 6);
         expect(label.y).toBeCloseTo((box.top + box.bottom) / 2, 6);
@@ -547,7 +542,7 @@ describe('buildLabelAtlas centered numbers', () => {
     const digits = new Set();
     for (const type of CENTERED_TYPES) {
       const shape = createShape(type, RADIUS);
-      const { texts } = recordAtlas(shape, DIE_COLORS[0].die);
+      const { texts } = recordAtlas(shape);
       for (const label of texts) digits.add(Math.abs(Number(label.text)).toString().length);
     }
     expect(digits.has(1)).toBe(true);
@@ -556,7 +551,7 @@ describe('buildLabelAtlas centered numbers', () => {
 
   it('keeps the 6 and 9 underlines inside their own cell', () => {
     const shape = createShape('d10', RADIUS);
-    const { atlas, texts, rects } = recordAtlas(shape, DIE_COLORS[0].die);
+    const { atlas, texts, rects } = recordAtlas(shape);
     const marked = shape.faces.map((face, f) => ({ face, f })).filter(({ face }) => ['6', '9'].includes(String(face.value)));
     expect(marked).toHaveLength(2);
     expect(rects).toHaveLength(2);

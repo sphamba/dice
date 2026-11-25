@@ -453,7 +453,7 @@ describe('buildCarveAtlas on the real d6 label atlas', () => {
       }
     };
     try {
-      return { atlas: buildLabelAtlas(shape, [0.78, 0.22, 0.18]), ellipses };
+      return { atlas: buildLabelAtlas(shape), ellipses };
     } finally {
       if (previous === undefined) delete globalThis.OffscreenCanvas;
       else globalThis.OffscreenCanvas = previous;

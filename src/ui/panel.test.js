@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DICE_TYPES } from '../dice/shapes.js';
+import { randomDieColor, toHex } from '../dice/colors.js';
 import {
   DEFAULT_SET,
   MAX_DICE,
+  STORAGE_KEY,
   canAdd,
   canRemove,
   createPanel,
-  parseStoredSet,
+  parseStoredState,
   showMessage,
 } from './panel.js';
 
@@ -98,9 +100,9 @@ const byClass = (root, className) => {
   return null;
 };
 
-describe('parseStoredSet', () => {
+describe('parseStoredState counts', () => {
   it('returns every known type for a valid stored set', () => {
-    const set = parseStoredSet(JSON.stringify(setOf({ d4: 1, d20: 3 })));
+    const set = parseStoredState(JSON.stringify(setOf({ d4: 1, d20: 3 }))).set;
     expect(set).toEqual(setOf({ d4: 1, d20: 3 }));
     expect(Object.keys(set).sort()).toEqual([...DICE_TYPES].sort());
   });
@@ -120,28 +122,28 @@ describe('parseStoredSet', () => {
       null,
       undefined,
     ];
-    for (const raw of cases) expect(parseStoredSet(raw)).toEqual(DEFAULT_SET);
+    for (const raw of cases) expect(parseStoredState(raw).set).toEqual(DEFAULT_SET);
   });
 
   it('accepts a total equal to MAX_DICE', () => {
     const stored = setOf({ d4: 4, d8: 6 });
-    expect(parseStoredSet(JSON.stringify(stored))).toEqual(stored);
+    expect(parseStoredState(JSON.stringify(stored)).set).toEqual(stored);
     expect(MAX_DICE).toBe(10);
   });
 
   it('fills missing types with zero', () => {
-    expect(parseStoredSet('{"d6":3}')).toEqual(setOf({ d6: 3 }));
-    expect(parseStoredSet('{"d20":1}')).toEqual(setOf({ d20: 1 }));
-    expect(parseStoredSet('{"d20":1}').d6).toBe(0);
+    expect(parseStoredState('{"d6":3}').set).toEqual(setOf({ d6: 3 }));
+    expect(parseStoredState('{"d20":1}').set).toEqual(setOf({ d20: 1 }));
+    expect(parseStoredState('{"d20":1}').set.d6).toBe(0);
   });
 
   it('falls back to 2 x d6 only when storage is missing or invalid', () => {
-    expect(parseStoredSet(null)).toEqual(setOf({ d6: 2 }));
-    expect(parseStoredSet('{not json')).toEqual(setOf({ d6: 2 }));
+    expect(parseStoredState(null).set).toEqual(setOf({ d6: 2 }));
+    expect(parseStoredState('{not json').set).toEqual(setOf({ d6: 2 }));
   });
 
   it('does not share the DEFAULT_SET object', () => {
-    const set = parseStoredSet(null);
+    const set = parseStoredState(null).set;
     expect(set).not.toBe(DEFAULT_SET);
     expect(DEFAULT_SET).toEqual(setOf({ d6: 2 }));
   });
@@ -276,6 +278,144 @@ describe('showMessage', () => {
     showMessage(root, 'fragment shader compile failed: ERROR: 0:1');
     expect(root.children).toHaveLength(1);
     expect(root.children[0].textContent).toBe('fragment shader compile failed: ERROR: 0:1');
+  });
+});
+
+const withColors = (counts, colors) => ({ ...setOf(counts), colors });
+
+describe('parseStoredState', () => {
+  it('round trips one color per die, in add order', () => {
+    const raw = JSON.stringify(withColors({ d6: 2 }, { d6: ['#112233', '#445566'] }));
+    const { set, colors, generated } = parseStoredState(raw);
+    expect(set).toEqual(setOf({ d6: 2 }));
+    expect(colors.d6).toEqual(['#112233', '#445566']);
+    expect(colors.d4).toEqual([]);
+    expect(colors.d20).toEqual([]);
+    expect(generated).toBe(false);
+  });
+
+  it('gives an old value without colors a random color per die and asks to save it', () => {
+    const { set, colors, generated } = parseStoredState('{"d6":2,"d20":1}', () => 0.5);
+    expect(set).toEqual(setOf({ d6: 2, d20: 1 }));
+    expect(generated).toBe(true);
+    expect(colors.d6).toEqual(Array(2).fill(toHex(randomDieColor(() => 0.5))));
+    expect(colors.d20).toEqual([toHex(randomDieColor(() => 0.5))]);
+  });
+
+  it('keeps the colors it can and regenerates only the missing ones', () => {
+    const raw = JSON.stringify(withColors({ d6: 3 }, { d6: ['#112233'] }));
+    const { colors, generated } = parseStoredState(raw, () => 0.5);
+    expect(generated).toBe(true);
+    expect(colors.d6[0]).toBe('#112233');
+    expect(colors.d6).toHaveLength(3);
+    for (const hex of colors.d6.slice(1)) expect(hex).toMatch(/^#[0-9a-f]{6}$/);
+  });
+
+  it('drops a color that is not a hex value', () => {
+    const raw = JSON.stringify(withColors({ d6: 1 }, { d6: ['red'] }));
+    const { colors, generated } = parseStoredState(raw, () => 0.5);
+    expect(generated).toBe(true);
+    expect(colors.d6).toEqual([toHex(randomDieColor(() => 0.5))]);
+  });
+
+  it('falls back to the default setup without throwing', () => {
+    const cases = ['{not json', '', 'null', '[]', '42', JSON.stringify({ d6: 2, d100: 1 }), JSON.stringify(setOf({ d6: 11 }))];
+    for (const raw of cases) {
+      const { set, colors } = parseStoredState(raw, () => 0.5);
+      expect(set).toEqual(DEFAULT_SET);
+      expect(colors.d6).toHaveLength(2);
+    }
+  });
+
+  it('treats a corrupt colors entry as missing colors', () => {
+    const { set, colors, generated } = parseStoredState(JSON.stringify({ d6: 2, colors: 7 }), () => 0.5);
+    expect(set).toEqual(setOf({ d6: 2 }));
+    expect(generated).toBe(true);
+    expect(colors.d6).toHaveLength(2);
+  });
+});
+
+const memoryStorage = () => {
+  const map = new Map();
+  return {
+    map,
+    getItem: (key) => (map.has(key) ? map.get(key) : null),
+    setItem: (key, value) => map.set(key, String(value)),
+  };
+};
+
+const rowFor = (rows, type) =>
+  rows.children.find((row) => row.children[0]?.textContent === type);
+
+const storedColors = () => JSON.parse(globalThis.localStorage.getItem(STORAGE_KEY)).colors;
+
+describe('createPanel per-die colors', () => {
+  beforeEach(() => {
+    stubDocument.activeElement = null;
+    stubDocument.listeners.clear();
+    globalThis.document = stubDocument;
+    globalThis.localStorage = memoryStorage();
+  });
+
+  const mount = (options = {}) => {
+    const root = stubDocument.createElement('div');
+    const panel = createPanel(root, { initialSet: setOf({ d6: 2 }), ...options });
+    const container = root.children[0];
+    return { panel, rows: byClass(container, 'panel-rows') };
+  };
+
+  it('reports one color per die of each type, in add order', () => {
+    const { panel } = mount({ initialColors: { d6: ['#112233', '#445566'] } });
+    const colors = panel.getColors();
+    expect(colors.d6).toEqual([
+      [0x11 / 255, 0x22 / 255, 0x33 / 255],
+      [0x44 / 255, 0x55 / 255, 0x66 / 255],
+    ]);
+    expect(colors.d4).toEqual([]);
+  });
+
+  it('saves the generated colors on load so a reload keeps them', () => {
+    localStorage.setItem(STORAGE_KEY, '{"d6":2}');
+    createPanel(stubDocument.createElement('div'), { random: () => 0.5 });
+    const expected = toHex(randomDieColor(() => 0.5));
+    expect(storedColors().d6).toEqual([expected, expected]);
+  });
+
+  it('removes the newest color with its die and gives the added die a new one', () => {
+    const onAdd = vi.fn();
+    const onRemove = vi.fn();
+    const { rows } = mount({
+      initialColors: { d6: ['#112233', '#445566'] },
+      random: () => 0,
+      onAdd,
+      onRemove,
+    });
+    const row = rowFor(rows, 'd6');
+    const [, remove, count, add] = row.children;
+
+    remove.click();
+    expect(onRemove).toHaveBeenCalledWith('d6');
+    expect(count.textContent).toBe('1');
+    expect(storedColors().d6).toEqual(['#112233']);
+
+    add.click();
+    expect(onAdd).toHaveBeenCalledTimes(1);
+    const [type, rgb] = onAdd.mock.calls[0];
+    expect(type).toBe('d6');
+    expect(toHex(rgb)).not.toBe('#112233');
+    expect(storedColors().d6).toEqual(['#112233', toHex(rgb)]);
+  });
+
+  it('keeps the colors of the other dice across add and remove', () => {
+    const { rows } = mount({
+      initialSet: setOf({ d4: 1, d6: 1 }),
+      initialColors: { d4: ['#010203'], d6: ['#040506'] },
+      random: () => 0,
+    });
+    rowFor(rows, 'd6').children[1].click();
+    rowFor(rows, 'd4').children[3].click();
+    expect(storedColors().d4).toEqual(['#010203', toHex(randomDieColor(() => 0))]);
+    expect(storedColors().d6).toEqual([]);
   });
 });
 

@@ -13,6 +13,7 @@ import {
   rollVelocity,
 } from './physics/roll.js';
 import { createShape } from './dice/shapes.js';
+import { inkForDie } from './dice/colors.js';
 import { createRenderer } from './render/renderer.js';
 import { backingSize } from './render/canvas-size.js';
 import { createMotion, onFirstGesture, unlockOnFirstGesture } from './input/motion.js';
@@ -104,11 +105,13 @@ if (!gl) {
     );
   }
 
-  function spawnDie(type) {
+  function spawnDie(type, color) {
     const body = createBody(createShape(type, DIE_RADIUS), {
       position: freePosition(),
       orientation: quat.random(new Float64Array(4)),
     });
+    body.color = color;
+    body.ink = inkForDie(color);
     vec3.set(
       body.linearVelocity,
       randomRange(-SPAWN_SPEED, SPAWN_SPEED),
@@ -149,8 +152,8 @@ if (!gl) {
 
   const panel = createPanel(ui, { onAdd: spawnDie, onRemove: removeDie, onRoll: rollDice });
 
-  for (const [type, count] of Object.entries(panel.getSet())) {
-    for (let index = 0; index < count; index += 1) spawnDie(type);
+  for (const [type, list] of Object.entries(panel.getColors())) {
+    for (const color of list) spawnDie(type, color);
   }
 
   let dprQuery = null;

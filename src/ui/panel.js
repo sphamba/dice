@@ -1,10 +1,13 @@
 import { DICE_TYPES } from '../dice/shapes.js';
+import { fromHex, randomDieColor, toHex } from '../dice/colors.js';
 
 export const MAX_DICE = 10;
 
 export const DEFAULT_SET = { d4: 0, d6: 2, d8: 0, d10: 0, d12: 0, d20: 0 };
 
 export const STORAGE_KEY = 'dice.set';
+
+export const COLORS_KEY = 'colors';
 
 export const ROWS_ID = 'dice-rows';
 
@@ -14,24 +17,48 @@ const total = (set) => DICE_TYPES.reduce((sum, type) => sum + set[type], 0);
 
 const emptySet = () => Object.fromEntries(DICE_TYPES.map((type) => [type, 0]));
 
-export function parseStoredSet(raw) {
-  const fallback = () => ({ ...DEFAULT_SET });
-  if (typeof raw !== 'string') return fallback();
-
+function parseStoredObject(raw) {
+  if (typeof raw !== 'string') return null;
   let parsed;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return fallback();
+    return null;
   }
-  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return fallback();
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  return parsed;
+}
 
+function countsFrom(parsed) {
+  if (!parsed) return null;
   const set = emptySet();
   for (const [type, count] of Object.entries(parsed)) {
-    if (!isKnown(type) || !Number.isInteger(count) || count < 0) return fallback();
+    if (type === COLORS_KEY) continue;
+    if (!isKnown(type) || !Number.isInteger(count) || count < 0) return null;
     set[type] = count;
   }
-  return total(set) <= MAX_DICE ? set : fallback();
+  return total(set) <= MAX_DICE ? set : null;
+}
+
+// Counts plus one color per die. A value written before colors existed, or a
+// color that is not a hex string, gets a fresh random color; `generated` tells
+// the caller to save the result so a reload keeps it.
+export function parseStoredState(raw, random = Math.random) {
+  const parsed = parseStoredObject(raw);
+  const set = countsFrom(parsed);
+  const stored = set ? parsed[COLORS_KEY] : null;
+  const colors = {};
+  let generated = false;
+  for (const type of DICE_TYPES) {
+    const list = typeof stored === 'object' && stored !== null ? stored[type] : null;
+    colors[type] = Array.from({ length: (set ?? DEFAULT_SET)[type] }, (_, index) => {
+      const hex = Array.isArray(list) ? list[index] : undefined;
+      if (typeof hex === 'string' && fromHex(hex)) return hex.toLowerCase();
+      generated = true;
+      return toHex(randomDieColor(random));
+    });
+  }
+  return { set: set ?? { ...DEFAULT_SET }, colors, generated };
 }
 
 export function canAdd(set, type) {
@@ -50,9 +77,9 @@ function readStorage() {
   }
 }
 
-function writeStorage(set) {
+function writeStorage(state) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(set));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch {
     // Private mode or a full quota: the panel keeps working in memory.
   }
@@ -164,10 +191,16 @@ export function showMessage(root, message) {
   return element;
 }
 
-export function createPanel(root, { initialSet, onAdd, onRemove, onRoll } = {}) {
-  const set = parseStoredSet(
-    initialSet === undefined ? readStorage() : JSON.stringify(initialSet),
-  );
+export function createPanel(
+  root,
+  { initialSet, initialColors, random = Math.random, onAdd, onRemove, onRoll } = {},
+) {
+  const raw =
+    initialSet === undefined
+      ? readStorage()
+      : JSON.stringify({ ...initialSet, ...(initialColors ? { [COLORS_KEY]: initialColors } : {}) });
+  const { set, colors, generated } = parseStoredState(raw, random);
+  if (generated) writeStorage({ ...set, [COLORS_KEY]: colors });
 
   const panel = document.createElement('div');
   panel.className = 'panel';
@@ -203,10 +236,18 @@ export function createPanel(root, { initialSet, onAdd, onRemove, onRoll } = {}) 
   const syncAll = () => syncers.forEach((sync) => sync());
 
   const onChange = (action, type) => {
-    writeStorage(set);
+    if (action === 'add') {
+      const hex = toHex(randomDieColor(random));
+      colors[type].push(hex);
+      writeStorage({ ...set, [COLORS_KEY]: colors });
+      syncAll();
+      onAdd?.(type, fromHex(hex));
+      return;
+    }
+    colors[type].pop();
+    writeStorage({ ...set, [COLORS_KEY]: colors });
     syncAll();
-    if (action === 'add') onAdd?.(type);
-    else onRemove?.(type);
+    onRemove?.(type);
   };
 
   rows.append(
@@ -238,5 +279,9 @@ export function createPanel(root, { initialSet, onAdd, onRemove, onRoll } = {}) 
   root.append(panel);
   syncAll();
 
-  return { getSet: () => ({ ...set }) };
+  return {
+    getSet: () => ({ ...set }),
+    getColors: () =>
+      Object.fromEntries(DICE_TYPES.map((type) => [type, colors[type].map(fromHex)])),
+  };
 }

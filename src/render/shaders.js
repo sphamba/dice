@@ -341,6 +341,7 @@ export const diceFragmentSource = `#version 300 es
 precision highp float;
 
 uniform vec3 uColor;
+uniform vec3 uInk;
 uniform highp sampler2D uAtlas;
 uniform highp sampler2D uCarve;
 
@@ -377,7 +378,7 @@ void main() {
     vec3 c = carve.rgb * 2.0 - 1.0;
     n = normalize(t * c.x + b * c.y + nGeo * c.z);
   }
-  outColor = vec4(litColor(mix(uColor, label.rgb, label.a), n, carve.a, surface.z), alpha);
+  outColor = vec4(litColor(mix(uColor, uInk, label.a), n, carve.a, surface.z), alpha);
 }
 `;
 

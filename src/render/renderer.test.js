@@ -1,4 +1,6 @@
 import { beforeAll, describe, expect, it, afterAll, vi } from 'vitest';
+import { createShape } from '../dice/shapes.js';
+import { DIE_RADIUS } from '../physics/body.js';
 import { FLOOR_VERTICES, aoTargetSize, createRenderer } from './renderer.js';
 
 describe('aoTargetSize', () => {
@@ -26,6 +28,7 @@ function makeFakeGl() {
   let next = 0;
   const fresh = (kind) => ({ kind, id: (next += 1) });
   const boundFramebuffers = [];
+  const uniforms = [];
   const gl = {
     canvas,
     isContextLost: () => false,
@@ -78,9 +81,10 @@ function makeFakeGl() {
     drawBuffers: () => {},
     getUniformLocation: (program, name) => name,
     useProgram: () => {},
-    uniform3fv: () => {},
+    uniform3fv: (location, value) => { uniforms.push([location, [...value]]); },
     uniform1f: () => {},
     uniform2f: () => {},
+    uniform2fv: () => {},
     uniform1i: () => {},
     uniformMatrix4fv: () => {},
     activeTexture: () => {},
@@ -94,7 +98,7 @@ function makeFakeGl() {
     drawArrays: () => {},
     drawElements: () => {},
   };
-  return { gl, listeners, boundFramebuffers, state };
+  return { gl, listeners, boundFramebuffers, state, uniforms };
 }
 
 // buildLabelAtlas needs a canvas in node: a 2D context that records nothing.
@@ -180,6 +184,34 @@ describe('AO pipeline wiring (fake GL)', () => {
 function signedArea(a, b, c) {
   return (b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1]);
 }
+
+describe('per-die color uniforms (fake GL)', () => {
+  const body = (shape, color, ink, x) => ({
+    shape,
+    position: [x, 0, 0],
+    orientation: [0, 0, 0, 1],
+    color,
+    ink,
+  });
+
+  it('sends each die its own body color and ink color', () => {
+    const { gl, uniforms } = makeFakeGl();
+    const renderer = createRenderer(gl);
+    renderer.resize(1200, 2600, GL_BOX);
+    const shape = createShape('d6', DIE_RADIUS);
+    const bodies = [
+      body(shape, [0.2, 0.4, 0.6], [1, 1, 1], 0),
+      body(shape, [0.9, 0.9, 0.1], [0, 0, 0], 0.01),
+    ];
+    uniforms.length = 0;
+    renderer.draw(bodies);
+    const picked = (name) => uniforms.filter(([location]) => location === name).map(([, value]) => value);
+    // The floor pass writes uColor first, then the dice pass writes one per die.
+    expect(picked('uColor').slice(-2)).toEqual([[0.2, 0.4, 0.6], [0.9, 0.9, 0.1]]);
+    expect(picked('uInk')).toEqual([[1, 1, 1], [0, 0, 0]]);
+    renderer.dispose();
+  });
+});
 
 describe('floor mesh winding', () => {
   it('emits both strip triangles front-facing', () => {

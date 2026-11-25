@@ -3,8 +3,9 @@ import { BEVEL_RADIUS, DIE_RADIUS } from '../physics/body.js';
 
 export const ATLAS_SIZE = 1024;
 
-const INK_DARK = [0.08, 0.07, 0.07];
-const INK_LIGHT = [0.96, 0.95, 0.93];
+// The atlas holds a white ink mask: the shader tints it with the die's own
+// black or white label color, so one atlas per dice type serves every die.
+export const LABEL_INK = 'rgb(255,255,255)';
 
 // Arial bold metrics at a 100px reference size.
 const CAP_HEIGHT = 71;
@@ -97,15 +98,6 @@ export function faceVertexUvs(shape) {
   });
 }
 
-function luminance([r, g, b]) {
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-function inkFor(dieColor) {
-  const [r, g, b] = luminance(dieColor) > 0.5 ? INK_DARK : INK_LIGHT;
-  return `rgb(${Math.round(r * 255)},${Math.round(g * 255)},${Math.round(b * 255)})`;
-}
-
 function makeCanvas(size) {
   if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(size, size);
   return document.createElement('canvas');
@@ -114,12 +106,12 @@ function makeCanvas(size) {
 // Draws every face label into an atlas. The atlas is uploaded with
 // UNPACK_FLIP_Y_WEBGL, so inside a cell face-up is canvas-up: a label drawn
 // upright on the canvas reads upright on the face when the face basis points up.
-export function buildLabelAtlas(shape, dieColor, size = ATLAS_SIZE) {
+export function buildLabelAtlas(shape, size = ATLAS_SIZE) {
   const canvas = makeCanvas(size);
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');
-  const ink = inkFor(dieColor);
+  const ink = LABEL_INK;
   const rects = faceRects(shape.faces.length);
   shape.faces.forEach((face, f) => {
     drawFaceLabel(ctx, shape, face, rects[f], ink, size);

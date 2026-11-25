@@ -17,15 +17,9 @@ import {
 } from './gl.js';
 import { buildCarveAtlas } from '../dice/carve.js';
 
-// One color per dice type; label ink in the atlas contrasts via luminance.
-const DIE_COLORS = {
-  d4: [0.93, 0.87, 0.62],
-  d6: [0.78, 0.22, 0.18],
-  d8: [0.2, 0.55, 0.3],
-  d10: [0.2, 0.38, 0.75],
-  d12: [0.55, 0.3, 0.72],
-  d20: [0.9, 0.48, 0.13],
-};
+// Fallback for a body without a color: the live app always sets one at spawn.
+const FALLBACK_COLOR = [0.78, 0.78, 0.78];
+const FALLBACK_INK = [0, 0, 0];
 
 export const DEFAULT_LIGHT_OPTIONS = {
   // Unit vector pointing along the light travel direction, tilted ~30 deg from -z.
@@ -58,7 +52,7 @@ const GTAO_UNIFORMS = ['uNormalTex', 'uDepthTex', 'uHalfExtents', 'uTexelWorld',
 const BLUR_UNIFORMS = ['uAoTex', 'uDepthTex', 'uDepthRange', 'uBlurDz'];
 const LIGHT_UNIFORMS = ['uLightDir', 'uAmbient', 'uIntensity', 'uDirectAo', 'uAo', 'uAoDepth', 'uAoSize', 'uViewport', 'uDepthRange'];
 const FLOOR_UNIFORMS = ['uViewProj', 'uHalfExtents', 'uColor', ...LIGHT_UNIFORMS];
-const DICE_UNIFORMS = ['uViewProj', 'uModel', 'uColor', 'uAtlas', 'uCarve', 'uHull', 'uHullCount', 'uBevelRadius', ...LIGHT_UNIFORMS];
+const DICE_UNIFORMS = ['uViewProj', 'uModel', 'uColor', 'uInk', 'uAtlas', 'uCarve', 'uHull', 'uHullCount', 'uBevelRadius', ...LIGHT_UNIFORMS];
 
 function uniformMap(gl, program, names) {
   const map = {};
@@ -221,13 +215,12 @@ export function createRenderer(gl, { onError = (error) => console.error(error) }
       const shape = createShape(type, DIE_RADIUS);
       const bevel = faceInsetData(shape, BEVEL_RADIUS);
       const mesh = buildDieMesh(gl, shape, bevel);
-      const atlas = buildLabelAtlas(shape, DIE_COLORS[type]);
+      const atlas = buildLabelAtlas(shape);
       const carve = buildCarveAtlas(shape, atlas);
       dice.set(type, {
         mesh,
         texture: createLabelTexture(gl, atlas.canvas),
         carveTexture: createCarveTexture(gl, carve.size, carve.data),
-        color: DIE_COLORS[type],
         shape,
         bevelScale: bevel[0].scale,
       });
@@ -467,7 +460,8 @@ export function createRenderer(gl, { onError = (error) => console.error(error) }
       gl.bindTexture(gl.TEXTURE_2D, entry.carveTexture);
       gl.activeTexture(gl.TEXTURE1);
       gl.uniformMatrix4fv(u.uModel, false, model);
-      gl.uniform3fv(u.uColor, entry.color);
+      gl.uniform3fv(u.uColor, body.color ?? FALLBACK_COLOR);
+      gl.uniform3fv(u.uInk, body.ink ?? FALLBACK_INK);
       setHullUniform(gl, u, entry, model);
       gl.drawElements(gl.TRIANGLES, entry.mesh.indexCount, gl.UNSIGNED_SHORT, 0);
     }
