@@ -164,6 +164,7 @@ if (!gl) {
   function applySize() {
     const box = boxFromViewport(innerWidth, innerHeight, devicePixelRatio);
     world.setBox(box);
+    sound.setBox(box);
     const { width, height } = backingSize(canvas.clientWidth, canvas.clientHeight, devicePixelRatio);
     if (canvas.width !== width || canvas.height !== height) {
       canvas.width = width;
