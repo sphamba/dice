@@ -475,7 +475,7 @@ void main() {
   if (hullDistance(vWorldPos.xy) > uBevelRadius) discard;
   vec2 q = insetOffset(vFacePos);
   vec3 surface = roundedSurface(vWorldPos, normalize(vNormal), q);
-  float d = dot(uLightEye - surface, uLightForward);
+  float d = dot(surface - uLightEye, uLightForward);
   float depth = clamp((d - uShadowNearSpan.x) / uShadowNearSpan.y, 0.0, 1.0);
   gl_FragDepth = depth;
   float e = depth * 255.0;

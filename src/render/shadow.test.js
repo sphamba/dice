@@ -88,8 +88,27 @@ describe('shadow constants', () => {
 
   it('writes the rounded surface depth and the packed copy', () => {
     expect(shadowDepthFragmentSource).toContain('gl_FragDepth = depth;');
+    expect(shadowDepthFragmentSource).toContain('dot(surface - uLightEye, uLightForward)');
     expect(shadowDepthFragmentSource).toContain('vec4(floor(e) / 255.0, fract(e), 0.0, 1.0)');
     expect(shadowDepthVertexSource).toContain('uLightViewProj');
     expect(diceFragmentSource).toContain('const int SHADOW_PCF_TAPS = 8');
+  });
+
+  it('matches the fragment depth formula to the projection', () => {
+    // Mirror of the depth-pass formula: distance along the light travel from
+    // the eye, normalized by the near/span the projection was built with.
+    const mirror = (p) => {
+      const d = vec3.dot([p[0] - LP.eye[0], p[1] - LP.eye[1], p[2] - LP.eye[2]], LP.forward);
+      return (d - LP.near) / LP.span;
+    };
+    for (const x of [-BOX.W / 2, 0, BOX.W / 2]) {
+      for (const y of [-BOX.H / 2, 0, BOX.H / 2]) {
+        for (const z of [0, BOX.D / 2, BOX.D]) {
+          const c = vec3.transformMat4([0, 0, 0], [x, y, z], LP.viewProjection);
+          const projDepth = c[2] * 0.5 + 0.5;
+          expect(Math.abs(mirror([x, y, z]) - projDepth)).toBeLessThan(1e-6);
+        }
+      }
+    }
   });
 });
