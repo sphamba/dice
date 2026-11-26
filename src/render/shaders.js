@@ -17,6 +17,84 @@ import {
 // Fraction of the GTAO darkening kept in the forward pass (1 = full, 0 = none).
 export { AO_STRENGTH };
 
+// PCSS tap counts. The inner blocker search (16 taps over a 22 mm disk) has a
+// 10.1 mm covering radius, so a die silhouette centered within 11 mm of the
+// receiver is always caught: the contact and stacking zone stays leak-free.
+// The outer search (24 taps over the full search disk) is best effort: far
+// blockers lift the penumbra into a ~10% tint where a missed tap costs a
+// faint blotch.
+export const SHADOW_BLOCKER_INNER_TAPS = 16;
+export const SHADOW_BLOCKER_OUTER_TAPS = 24;
+export const SHADOW_PCF_TAPS = 8;
+
+// PCSS against the dice-only shadow map: a dense inner blocker search sizes
+// the Vogel-disk PCF kernel, a sparse outer search covers tall blockers, the
+// hardware depth compare does the filtering, and an interleaved-gradient
+// rotation decorrelates neighbouring fragments. The blocker depths come from
+// the 16-bit packed RGBA8 copy because a sampler2DShadow cannot return the
+// stored depth.
+const SHADOW_FS = `
+uniform highp sampler2DShadow uShadowMap;
+uniform highp sampler2D uShadowBlocker;
+uniform mat4 uShadowMatrix;
+uniform vec2 uShadowTexel;
+uniform vec4 uShadowParams; // uv scale xy, frustum depth span (m), tan(light angular radius)
+uniform vec3 uShadowSearch; // outer search radius in uv xy, inner search fraction
+uniform vec2 uShadowBias;   // normal offset (m), depth bias (ndc)
+uniform float uShadowEnabled;
+
+const int SHADOW_BLOCKER_INNER_TAPS = ${SHADOW_BLOCKER_INNER_TAPS};
+const int SHADOW_BLOCKER_OUTER_TAPS = ${SHADOW_BLOCKER_OUTER_TAPS};
+const int SHADOW_PCF_TAPS = ${SHADOW_PCF_TAPS};
+
+float shadowFactor(vec3 worldPos, vec3 n) {
+  if (uShadowEnabled < 0.5) return 1.0;
+  vec3 coord = (uShadowMatrix * vec4(worldPos + n * uShadowBias.x, 1.0)).xyz * 0.5 + 0.5;
+  if (coord.x < 0.0 || coord.x > 1.0 || coord.y < 0.0 || coord.y > 1.0 || coord.z <= 0.0 || coord.z >= 1.0) {
+    return 1.0;
+  }
+  float rot = 6.2831853 * fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+  float ref = coord.z - uShadowBias.y;
+  float blockerSum = 0.0;
+  float blockerCount = 0.0;
+  for (int i = 0; i < SHADOW_BLOCKER_INNER_TAPS; i++) {
+    float phi = float(i) * 2.39996323 + rot;
+    float r = sqrt((float(i) + 0.5) / float(SHADOW_BLOCKER_INNER_TAPS));
+    vec2 off = vec2(cos(phi), sin(phi)) * (r * uShadowSearch.xy * uShadowSearch.z);
+    vec2 e = texture(uShadowBlocker, coord.xy + off).rg;
+    float bd = e.x + e.y / 255.0;
+    if (bd < ref) {
+      blockerSum += bd;
+      blockerCount += 1.0;
+    }
+  }
+  if (blockerCount == 0.0) {
+    for (int i = 0; i < SHADOW_BLOCKER_OUTER_TAPS; i++) {
+      float phi = float(i) * 2.39996323 + rot;
+      float r = sqrt((float(i) + 0.5) / float(SHADOW_BLOCKER_OUTER_TAPS));
+      vec2 off = vec2(cos(phi), sin(phi)) * (r * uShadowSearch.xy);
+      vec2 e = texture(uShadowBlocker, coord.xy + off).rg;
+      float bd = e.x + e.y / 255.0;
+      if (bd < ref) {
+        blockerSum += bd;
+        blockerCount += 1.0;
+      }
+    }
+  }
+  if (blockerCount == 0.0) return 1.0;
+  float dist = max(ref - blockerSum / blockerCount, 0.0) * uShadowParams.z;
+  vec2 radius = max(dist * uShadowParams.w * uShadowParams.xy, uShadowTexel);
+  float lit = 0.0;
+  for (int i = 0; i < SHADOW_PCF_TAPS; i++) {
+    float phi = float(i) * 2.39996323 + rot;
+    float r = sqrt((float(i) + 0.5) / float(SHADOW_PCF_TAPS));
+    vec2 off = vec2(cos(phi), sin(phi)) * (r * radius);
+    lit += texture(uShadowMap, vec3(coord.xy + off, ref));
+  }
+  return lit / float(SHADOW_PCF_TAPS);
+}
+`;
+
 const LIGHTING_FS = `
 uniform vec3 uLightDir;
 uniform float uAmbient;
@@ -52,6 +130,8 @@ float sampleAo(float z) {
   }
   return weights > 0.0 ? total / weights : 1.0;
 }
+
+${SHADOW_FS}
 `;
 
 // Present display-space lighting of the floor. The dice material below does not
@@ -70,11 +150,13 @@ vec3 litColor(vec3 base, vec3 n, float cavity, float z) {
   float specular = pow(max(dot(n, halfDir), 0.0), 40.0) * 0.22 * step(0.0, ndotl);
   float ao = sampleAo(z);
   ao = mix(1.0, ao, AO_STRENGTH);
-  // Hemisphere ambient; the Schlick rim picks out the bevel band (zero on the
-  // flat top faces).
+  // The shadow attenuates the direct terms only; the hemisphere ambient keeps
+  // its AO. The Schlick rim picks out the bevel band and is zero on the flat
+  // top faces.
+  float shadow = shadowFactor(vWorldPos, n);
   vec3 hemi = mix(vec3(0.5, 0.45, 0.4), vec3(1.0), n.z * 0.5 + 0.5);
   float rim = pow(1.0 - clamp(n.z, 0.0, 1.0), 5.0) * 0.3;
-  return base * (uAmbient * hemi * ao * cavity + uIntensity * diffuse * mix(1.0, ao, uDirectAo)) + vec3((specular + rim) * uIntensity * ao);
+  return base * (uAmbient * hemi * ao * cavity + uIntensity * diffuse * mix(1.0, ao, uDirectAo) * shadow) + vec3((specular + rim) * uIntensity * ao * shadow);
 }
 `;
 
@@ -185,7 +267,7 @@ float specularRadiance(vec3 n, float ndotv, float irradiance) {
     * fresnel * irradiance;
 }
 
-vec3 diceLitColor(vec3 baseSrgb, vec3 n, float cavity, float z, float ink) {
+vec3 diceLitColor(vec3 baseSrgb, vec3 n, float cavity, float z, float ink, float shadow) {
   vec3 base = srgbToLinear(baseSrgb);
   float ao = sampleAo(z);
   ao = mix(1.0, ao, AO_STRENGTH);
@@ -198,7 +280,8 @@ vec3 diceLitColor(vec3 baseSrgb, vec3 n, float cavity, float z, float ink) {
   // the incoming light: the specular keeps only INK_SPECULAR_OCCLUSION of its
   // face value, otherwise the wide lobe fills the glyph with a sheen.
   float specularOcclusion = cavity * mix(1.0, INK_SPECULAR_OCCLUSION, clamp(ink, 0.0, 1.0));
-  vec3 direct = base * (irradiance / PI * directAo) + vec3(specularRadiance(n, ndotv, irradiance) * directAo * specularOcclusion);
+  // The shadow attenuates the direct terms only; the ambient keeps its AO.
+  vec3 direct = (base * (irradiance / PI * directAo) + vec3(specularRadiance(n, ndotv, irradiance) * directAo * specularOcclusion)) * shadow;
   vec3 ambient = base * hemi * ao * cavity + (F0 * ab.x + ab.y) * hemi * ao * specularOcclusion;
   return linearToSrgb(neutralToneMap(direct + ambient));
 }
@@ -346,6 +429,57 @@ void main() {
   vec3 surface = roundedSurface(vWorldPos, nGeo, q);
   gl_FragDepth = surfaceDepth(surface);
   outColor = vec4(bevelNormal(nGeo, q) * 0.5 + 0.5, 1.0);
+}
+`;
+
+// Shadow-map depth pass: dice only, from the disk light. Same rounded surface
+// as the AO prepass so the stored depth matches the visible silhouette, plus a
+// 16-bit fixed-point copy of the depth in the color target for the blocker
+// search (a sampler2DShadow cannot return the stored depth).
+export const shadowDepthVertexSource = `#version 300 es
+layout(location = 0) in vec3 aPosition;
+layout(location = 1) in vec3 aNormal;
+
+${BEVEL_VERT}
+
+uniform mat4 uLightViewProj;
+uniform mat4 uModel;
+
+out vec3 vWorldPos;
+out vec3 vNormal;
+
+void main() {
+  vec4 world = uModel * vec4(aPosition, 1.0);
+  vWorldPos = world.xyz;
+  vNormal = mat3(uModel) * aNormal;
+  gl_Position = uLightViewProj * world;
+  bevelVertex(mat3(uModel));
+}
+`;
+
+export const shadowDepthFragmentSource = `#version 300 es
+precision highp float;
+
+uniform vec3 uLightEye;
+uniform vec3 uLightForward;
+uniform vec2 uShadowNearSpan; // near plane distance and span along the light ray, meters
+uniform vec2 uDepthRange; // declared for the shared bevel helpers; unused here
+
+in vec3 vNormal;
+in vec3 vWorldPos;
+out vec4 outColor;
+
+${BEVEL_FRAG}
+
+void main() {
+  if (hullDistance(vWorldPos.xy) > uBevelRadius) discard;
+  vec2 q = insetOffset(vFacePos);
+  vec3 surface = roundedSurface(vWorldPos, normalize(vNormal), q);
+  float d = dot(uLightEye - surface, uLightForward);
+  float depth = clamp((d - uShadowNearSpan.x) / uShadowNearSpan.y, 0.0, 1.0);
+  gl_FragDepth = depth;
+  float e = depth * 255.0;
+  outColor = vec4(floor(e) / 255.0, fract(e), 0.0, 1.0);
 }
 `;
 
@@ -524,7 +658,8 @@ void main() {
     vec3 c = carve.rgb * 2.0 - 1.0;
     n = normalize(t * c.x + b * c.y + nGeo * c.z);
   }
-  outColor = vec4(diceLitColor(mix(uColor, uInk, label.a), n, carve.a, surface.z, label.a), alpha);
+  float shadow = shadowFactor(surface, n);
+  outColor = vec4(diceLitColor(mix(uColor, uInk, label.a), n, carve.a, surface.z, label.a, shadow), alpha);
 }
 `;
 

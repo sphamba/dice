@@ -54,7 +54,9 @@ function tryCreateRenderer(gl) {
   }
 }
 
-const gl = canvas.getContext('webgl2', { alpha: false });
+// preserveDrawingBuffer keeps the last frame visible: while the world sleeps
+// the renderer skips identical frames entirely.
+const gl = canvas.getContext('webgl2', { alpha: false, preserveDrawingBuffer: true });
 const renderer = gl ? tryCreateRenderer(gl) : null;
 
 if (!gl) {
@@ -191,7 +193,7 @@ if (!gl) {
     sound.playSteps(world.soundSteps, world.simTime);
     world.soundSteps.length = 0;
     haptics.play(world.events);
-    renderer.draw(world.bodies);
+    renderer.draw(world.bodies, {}, { dynamic: !world.asleep });
     requestAnimationFrame(frame);
   }
 

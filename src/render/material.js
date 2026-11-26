@@ -15,9 +15,11 @@ export const AMBIENT_SKY = [0.51, 0.51, 0.51];
 export const AMBIENT_GROUND = [0.128, 0.128, 0.128];
 
 // Fraction of the GTAO darkening kept in the forward pass (1 = full, 0 = none).
-export const AO_STRENGTH = 0.5;
+// 0.3 with cast shadows present: the direct and ambient terms both darken the
+// contact zones, so the ambient share stays light.
+export const AO_STRENGTH = 0.3;
 
-export const ROUGHNESS = 0.5;
+export const ROUGHNESS = 0.15;
 export const ALPHA = ROUGHNESS * ROUGHNESS;
 export const F0 = 0.04;
 
@@ -31,12 +33,14 @@ export const F0 = 0.04;
 export const INK_SPECULAR_OCCLUSION = 0.5;
 
 // Representative-point fit for a light much wider than the GGX lobe: the cone
-// eroded by the lobe half-width, the lobe widened by a tenth of the light
-// radius, and the energy normalization. Fitted for roughness 0.5 under the
-// 35 deg disk, where the fit holds to 15% against a quadrature of the disk; a
-// different roughness or light needs a refit.
-export const WIDEN_FRACTION = 0.1;
-export const SPECULAR_NORMALIZATION = 0.614;
+// eroded by the lobe half-width, the lobe widened by a fraction of the light
+// radius, and the energy normalization. Fitted for roughness 0.15 under the
+// 35 deg disk against a converged (512-ring) quadrature of the disk: the
+// widened representative point cannot match the true lobe's edge falloff and
+// tail at once at this roughness, and the constants sit at a 65% worst-case
+// tilt error. A different roughness or light needs a refit.
+export const WIDEN_FRACTION = 0.062;
+export const SPECULAR_NORMALIZATION = 0.0208;
 
 const PI = Math.PI;
 const TAN_LIGHT = Math.tan(LIGHT_ANGULAR_RADIUS);

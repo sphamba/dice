@@ -3,7 +3,8 @@ import { buildLabelAtlas, faceInsetData, faceVertexUvs } from '../dice/labels.js
 import * as mat4 from '../math/mat4.js';
 import * as vec3 from '../math/vec3.js';
 import { BEVEL_RADIUS, DIE_RADIUS, dieRadius } from '../physics/body.js';
-import { createCamera, floorClearDepth, worldZFromDepth } from './camera.js';
+import { createCamera, createLightProjection, floorClearDepth, worldZFromDepth } from './camera.js';
+import { LIGHT_ANGULAR_RADIUS, LIGHT_DIRECTION } from './material.js';
 import * as shaders from './shaders.js';
 import {
   compileProgram,
@@ -12,6 +13,7 @@ import {
   createFramebuffer,
   createLabelTexture,
   createCarveTexture,
+  createShadowDepthTexture,
   createVAO,
   deleteVAO,
 } from './gl.js';
@@ -33,12 +35,26 @@ export const AO_TEXEL = 0.0002;
 export const AO_SLICES = 2;
 export const AO_STEPS = 4;
 export const AO_SAMPLE_POWER = 2.0;
-export const AO_RADIUS_SCALE = 1.2;
+// Halved from 1.2 with cast shadows present: the shadows already darken the
+// contact zones.
+export const AO_RADIUS_SCALE = 0.6;
 export const AO_FALLOFF_RANGE = 0.615;
 export const AO_Z_FALLOFF_SCALE = 0.5;
 export const AO_FINAL_POWER = 2.2;
 export const AO_BLUR_DZ = 0.001;
 export const DIRECT_AO = 0.5;
+
+// Shadow map: 1024 covers the padded light frustum at ~0.2 mm texels for the
+// phone box; the dice rasterize ~1% of the map, so the pass is fill-cheap.
+export const SHADOW_MAP_SIZE = 1024;
+export const SHADOW_BIAS_TEXELS = 2.0;   // receiver depth bias, in shadow texels
+export const SHADOW_NORMAL_OFFSET = 1.5; // receiver offset along the normal, in shadow texels
+export const SHADOW_INNER_RADIUS = 0.022; // dense blocker search radius (m); see shadow.test.js
+
+// Travel direction of the shadow-casting disk light: the negated
+// LIGHT_DIRECTION of material.js. The floor's shading keeps the legacy
+// DEFAULT_LIGHT_OPTIONS direction; only its shadow comes from this light.
+const SHADOW_TRAVEL = [-LIGHT_DIRECTION[0], -LIGHT_DIRECTION[1], -LIGHT_DIRECTION[2]];
 
 export const AO_RADIUS = AO_RADIUS_SCALE * DIE_RADIUS;
 const AO_FALLOFF_MUL = -1 / (AO_FALLOFF_RANGE * AO_RADIUS);
@@ -50,7 +66,11 @@ const CLEAR_COLOR = [0.078, 0.082, 0.102];
 
 const GTAO_UNIFORMS = ['uNormalTex', 'uDepthTex', 'uHalfExtents', 'uTexelWorld', 'uAoSize', 'uDepthRange', 'uRadius', 'uFalloffMul', 'uFalloffAdd', 'uMinDist'];
 const BLUR_UNIFORMS = ['uAoTex', 'uDepthTex', 'uDepthRange', 'uBlurDz'];
-const LIGHT_UNIFORMS = ['uLightDir', 'uAmbient', 'uIntensity', 'uDirectAo', 'uAo', 'uAoDepth', 'uAoSize', 'uViewport', 'uDepthRange'];
+const LIGHT_UNIFORMS = [
+  'uLightDir', 'uAmbient', 'uIntensity', 'uDirectAo',
+  'uAo', 'uAoDepth', 'uAoSize', 'uViewport', 'uDepthRange',
+  'uShadowMap', 'uShadowBlocker', 'uShadowMatrix', 'uShadowTexel', 'uShadowParams', 'uShadowSearch', 'uShadowBias', 'uShadowEnabled',
+];
 const FLOOR_UNIFORMS = ['uViewProj', 'uHalfExtents', 'uColor', ...LIGHT_UNIFORMS];
 const DICE_UNIFORMS = ['uViewProj', 'uModel', 'uColor', 'uInk', 'uAtlas', 'uCarve', 'uHull', 'uHullCount', 'uBevelRadius', ...LIGHT_UNIFORMS];
 
@@ -204,6 +224,9 @@ export function aoTargetSize(box, backingW, backingH) {
 export function createRenderer(gl, { onError = (error) => console.error(error) } = {}) {
   let resources = null;
   let aoSetup = null;
+  let shadowSetup = null;
+  let shadowFresh = false;
+  let staticFresh = false;
   let box = null;
   let viewport = [0, 0];
   let viewProjection = null;
@@ -329,6 +352,17 @@ export function createRenderer(gl, { onError = (error) => console.error(error) }
     console.error('ambient occlusion unavailable, rendering without it', error);
     aoSetup = null;
   }
+  try {
+    shadowSetup = buildShadowSetup();
+  } catch (error) {
+    console.error('shadows unavailable, rendering without them', error);
+    try {
+      shadowSetup = buildShadowFallback();
+    } catch (fallbackError) {
+      onError(fallbackError);
+      shadowSetup = null;
+    }
+  }
 
   const canvas = gl.canvas;
   const handleContextLost = (event) => event.preventDefault();
@@ -348,6 +382,19 @@ export function createRenderer(gl, { onError = (error) => console.error(error) }
       console.error('ambient occlusion unavailable after a context restore', error);
       aoSetup = null;
     }
+    try {
+      shadowSetup = buildShadowSetup();
+    } catch (error) {
+      console.error('shadows unavailable after a context restore', error);
+      try {
+        shadowSetup = buildShadowFallback();
+      } catch (fallbackError) {
+        onError(fallbackError);
+        shadowSetup = null;
+      }
+    }
+    staticFresh = false;
+    shadowFresh = false;
   };
   canvas.addEventListener('webglcontextlost', handleContextLost);
   canvas.addEventListener('webglcontextrestored', handleContextRestored);
@@ -367,6 +414,23 @@ export function createRenderer(gl, { onError = (error) => console.error(error) }
     gl.activeTexture(gl.TEXTURE3);
     gl.bindTexture(gl.TEXTURE_2D, aoSetup?.targets ? aoSetup.targets.aoDepthTex : resources.whiteTex);
     gl.uniform1i(uniforms.uAoDepth, 3);
+    gl.activeTexture(gl.TEXTURE5);
+    gl.bindTexture(gl.TEXTURE_2D, shadowSetup?.depthTex ?? resources.whiteTex);
+    gl.uniform1i(uniforms.uShadowMap, 5);
+    gl.activeTexture(gl.TEXTURE6);
+    gl.bindTexture(gl.TEXTURE_2D, shadowSetup?.blockerTex ?? resources.whiteTex);
+    gl.uniform1i(uniforms.uShadowBlocker, 6);
+    const lp = shadowSetup?.lightProjection;
+    if (lp) {
+      gl.uniformMatrix4fv(uniforms.uShadowMatrix, false, lp.viewProjection);
+      gl.uniform2f(uniforms.uShadowTexel, 1 / SHADOW_MAP_SIZE, 1 / SHADOW_MAP_SIZE);
+      gl.uniform4f(uniforms.uShadowParams, lp.uvScale[0], lp.uvScale[1], lp.span, Math.tan(LIGHT_ANGULAR_RADIUS));
+      gl.uniform3f(uniforms.uShadowSearch, shadowPad(box) * lp.uvScale[0], shadowPad(box) * lp.uvScale[1], SHADOW_INNER_RADIUS / shadowPad(box));
+      gl.uniform2f(uniforms.uShadowBias, SHADOW_NORMAL_OFFSET * lp.texelWorld, SHADOW_BIAS_TEXELS / SHADOW_MAP_SIZE);
+      gl.uniform1f(uniforms.uShadowEnabled, 1);
+    } else {
+      gl.uniform1f(uniforms.uShadowEnabled, 0);
+    }
   }
 
   function drawAoPasses(bodies, depthRange) {
@@ -428,6 +492,93 @@ export function createRenderer(gl, { onError = (error) => console.error(error) }
     gl.enable(gl.DEPTH_TEST);
   }
 
+  // Die silhouette catch guarantee of the dense inner blocker search: see
+  // shadow.test.js and the tap-count comment in shaders.js.
+  function shadowPad(nextBox) {
+    const maxDieRadius = Math.max(...DICE_TYPES.map((type) => dieRadius(type)));
+    return nextBox.D * Math.tan(LIGHT_ANGULAR_RADIUS) + 2 * maxDieRadius;
+  }
+
+  // Shadow map programs and targets. Throws on compile/link/FBO failure; the
+  // caller catches and falls back to a 1x1 pair so the samplers stay valid.
+  function buildShadowSetup() {
+    let depthTex = null;
+    let blockerTex = null;
+    let shadowFramebuffer = null;
+    try {
+      depthTex = createShadowDepthTexture(gl, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
+      blockerTex = createColorTexture(gl, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE, gl.RGBA8);
+      shadowFramebuffer = createFramebuffer(gl, [blockerTex], depthTex);
+      const shadowProgram = compileProgram(gl, shaders.shadowDepthVertexSource, shaders.shadowDepthFragmentSource);
+      gl.useProgram(shadowProgram);
+      gl.uniform1f(gl.getUniformLocation(shadowProgram, 'uBevelRadius'), BEVEL_RADIUS);
+      return {
+        depthTex,
+        blockerTex,
+        shadowFramebuffer,
+        shadowProgram,
+        shadowUniforms: uniformMap(gl, shadowProgram, ['uLightViewProj', 'uModel', 'uHull', 'uHullCount', 'uLightEye', 'uLightForward', 'uShadowNearSpan']),
+        lightProjection: null,
+      };
+    } catch (error) {
+      if (depthTex) gl.deleteTexture(depthTex);
+      if (blockerTex) gl.deleteTexture(blockerTex);
+      if (shadowFramebuffer) gl.deleteFramebuffer(shadowFramebuffer);
+      throw error;
+    }
+  }
+
+  // 1x1 stand-ins so the forward samplers keep valid bindings when the shadow
+  // setup failed: the compare texture reads 1.0 (lit) and uShadowEnabled stays 0.
+  function buildShadowFallback() {
+    return {
+      depthTex: createShadowDepthTexture(gl, 1, 1),
+      blockerTex: createColorTexture(gl, 1, 1, gl.RGBA8),
+      shadowFramebuffer: null,
+      shadowProgram: null,
+      shadowUniforms: null,
+      lightProjection: null,
+    };
+  }
+
+  function destroyShadowSetup() {
+    if (shadowSetup.shadowFramebuffer) gl.deleteFramebuffer(shadowSetup.shadowFramebuffer);
+    if (shadowSetup.shadowProgram) gl.deleteProgram(shadowSetup.shadowProgram);
+    gl.deleteTexture(shadowSetup.depthTex);
+    gl.deleteTexture(shadowSetup.blockerTex);
+    shadowSetup = null;
+  }
+
+  // Rasterize the dice into the shadow map from the disk light.
+  function drawShadowPass(bodies) {
+    const s = shadowSetup;
+    if (!s.lightProjection) {
+      s.lightProjection = createLightProjection(box, SHADOW_TRAVEL, shadowPad(box));
+      s.lightProjection.texelWorld = Math.max(...s.lightProjection.uvScale.map((v) => 1 / v)) / SHADOW_MAP_SIZE;
+    }
+    const lp = s.lightProjection;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, s.shadowFramebuffer);
+    gl.viewport(0, 0, SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
+    gl.clearColor(1, 0, 0, 1);
+    gl.clearDepth(1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.useProgram(s.shadowProgram);
+    const u = s.shadowUniforms;
+    gl.uniformMatrix4fv(u.uLightViewProj, false, lp.viewProjection);
+    gl.uniform3fv(u.uLightEye, lp.eye);
+    gl.uniform3fv(u.uLightForward, lp.forward);
+    gl.uniform2f(u.uShadowNearSpan, lp.near, lp.span);
+    for (const body of bodies) {
+      const entry = resources.dice.get(body.shape.type);
+      if (!entry) continue;
+      mat4.fromRotationTranslation(model, body.orientation, body.position);
+      gl.bindVertexArray(entry.mesh.vao);
+      gl.uniformMatrix4fv(u.uModel, false, model);
+      setHullUniform(gl, u, entry, model);
+      gl.drawElements(gl.TRIANGLES, entry.mesh.indexCount, gl.UNSIGNED_SHORT, 0);
+    }
+  }
+
   function drawFloorPass(options, direction, depthRange) {
     gl.useProgram(resources.floorProgram);
     gl.bindVertexArray(resources.floorMesh.vao);
@@ -472,6 +623,8 @@ export function createRenderer(gl, { onError = (error) => console.error(error) }
     resize(pixelW, pixelH, nextBox) {
       viewport = [pixelW, pixelH];
       box = nextBox;
+      staticFresh = false;
+      shadowFresh = false;
       const camera = createCamera(box);
       viewProjection = mat4.multiply(mat4.create(), camera.projection, camera.view);
       if (!aoSetup) return;
@@ -483,8 +636,9 @@ export function createRenderer(gl, { onError = (error) => console.error(error) }
       }
     },
 
-    draw(bodies, lightOptions = {}) {
+    draw(bodies, lightOptions = {}, { dynamic = true } = {}) {
       if (!box || !resources || gl.isContextLost()) return;
+      if (!dynamic && staticFresh) return;
       const options = { ...DEFAULT_LIGHT_OPTIONS, ...lightOptions };
       const direction = vec3.normalize(vec3.create(), options.direction);
       const near = worldZFromDepth(0, box);
@@ -495,6 +649,8 @@ export function createRenderer(gl, { onError = (error) => console.error(error) }
       gl.cullFace(gl.BACK);
 
       if (aoSetup?.targets) drawAoPasses(bodies, depthRange);
+      if (shadowSetup?.shadowProgram && (dynamic || !shadowFresh)) drawShadowPass(bodies);
+      shadowFresh = true;
 
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.viewport(0, 0, viewport[0], viewport[1]);
@@ -504,12 +660,14 @@ export function createRenderer(gl, { onError = (error) => console.error(error) }
       drawFloorPass(options, direction, depthRange);
       drawDicePass(bodies, options, direction, depthRange);
       gl.bindVertexArray(null);
+      staticFresh = !dynamic;
     },
 
     dispose() {
       canvas.removeEventListener('webglcontextlost', handleContextLost);
       canvas.removeEventListener('webglcontextrestored', handleContextRestored);
       if (aoSetup) destroyAoSetup();
+      if (shadowSetup) destroyShadowSetup();
       if (resources) {
         destroyResources(resources);
         resources = null;

@@ -41,7 +41,8 @@ function makeFakeGl() {
     TEXTURE_MAG_FILTER: 21, TEXTURE_WRAP_S: 22, TEXTURE_WRAP_T: 23,
     UNPACK_FLIP_Y_WEBGL: 24, FRAMEBUFFER: 25, FRAMEBUFFER_COMPLETE: 26,
     COLOR_ATTACHMENT0: 27, DEPTH_ATTACHMENT: 28,
-    TEXTURE0: 29, TEXTURE1: 30, TEXTURE2: 31, TEXTURE3: 32, TEXTURE4: 90,
+    TEXTURE0: 29, TEXTURE1: 30, TEXTURE2: 31, TEXTURE3: 32, TEXTURE4: 90, TEXTURE5: 91, TEXTURE6: 92,
+    TEXTURE_COMPARE_MODE: 93, TEXTURE_COMPARE_FUNC: 94, COMPARE_REF_TO_TEXTURE: 95, LEQUAL: 96,
     TRIANGLES: 33, TRIANGLE_STRIP: 34, UNSIGNED_SHORT: 35,
     DEPTH_TEST: 36, CULL_FACE: 37, BACK: 38, COLOR_BUFFER_BIT: 39, DEPTH_BUFFER_BIT: 40,
     createShader: (type) => fresh('shader'),
@@ -84,6 +85,8 @@ function makeFakeGl() {
     uniform3fv: (location, value) => { uniforms.push([location, [...value]]); },
     uniform1f: () => {},
     uniform2f: () => {},
+    uniform3f: () => {},
+    uniform4f: () => {},
     uniform2fv: () => {},
     uniform1i: () => {},
     uniformMatrix4fv: () => {},
@@ -129,8 +132,8 @@ describe('AO pipeline wiring (fake GL)', () => {
     boundFramebuffers.length = 0;
     renderer.draw([]);
     const drawnTo = boundFramebuffers.filter((fb) => fb !== null);
-    expect(drawnTo).toHaveLength(3); // prepass, GTAO, blur targets
-    expect(new Set(drawnTo).size).toBe(3);
+    expect(drawnTo).toHaveLength(4); // prepass, GTAO, blur, shadow targets
+    expect(new Set(drawnTo).size).toBe(4);
     expect(boundFramebuffers.at(-1)).toBe(null); // scene renders to the canvas
     renderer.dispose();
   });
@@ -169,11 +172,11 @@ describe('AO pipeline wiring (fake GL)', () => {
     boundFramebuffers.length = 0;
     for (const fn of listeners.webglcontextrestored) fn({ preventDefault() {} });
     const restored = boundFramebuffers.filter((fb) => fb !== null);
-    expect(restored).toHaveLength(3); // targets recreated during restore
+    expect(restored).toHaveLength(4); // three AO targets plus the shadow target
     boundFramebuffers.length = 0;
     renderer.draw([]);
     const after = boundFramebuffers.filter((fb) => fb !== null);
-    expect(after).toHaveLength(3);
+    expect(after).toHaveLength(4);
     expect(after.every((fb) => !before.includes(fb))).toBe(true);
     renderer.dispose();
   });

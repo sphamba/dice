@@ -71,6 +71,21 @@ export function createDepthTexture(gl, width, height, format = gl.DEPTH_COMPONEN
   return texture;
 }
 
+// Depth-compare texture for hardware percentage-closer filtering: sampled as
+// sampler2DShadow, a reference <= stored depth returns 1 (lit).
+export function createShadowDepthTexture(gl, width, height) {
+  const texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, width, height);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return texture;
+}
+
 // Render-target color texture: format is an sized internal format (RGBA8, R8, ...).
 export function createColorTexture(gl, width, height, format) {
   const texture = gl.createTexture();

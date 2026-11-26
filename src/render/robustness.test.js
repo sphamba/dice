@@ -52,8 +52,8 @@ describe('shader source portability', () => {
 describe('render error path', () => {
   const main = read('../main.js');
 
-  it('requests an opaque canvas', () => {
-    expect(main).toContain("getContext('webgl2', { alpha: false })");
+  it('requests an opaque canvas that survives skipped frames', () => {
+    expect(main).toContain("getContext('webgl2', { alpha: false, preserveDrawingBuffer: true })");
   });
 
   it('reports a renderer creation failure on the page', () => {

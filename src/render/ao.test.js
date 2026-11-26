@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { DIE_RADIUS } from '../physics/body.js';
 import { AO_STRENGTH, aoPrepassFragmentSource, diceFragmentSource, floorFragmentSource } from './shaders.js';
@@ -67,10 +66,13 @@ describe('gtao slice integral (JS mirror of the shader)', () => {
     expect(Math.abs(v - 1)).toBeLessThan(1e-9);
   });
 
-  it('gives about 0.5 at the base of a vertical wall', () => {
+  it('gives about 0.92 at the base of a vertical wall', () => {
+    // 0.92 with AO_RADIUS_SCALE 0.6: the 10 mm wall now reaches past the
+    // halved search radius, so the base keeps most of its visibility. The
+    // contact darkening moved to the cast shadows.
     const wallHeight = 0.01;
     const v = gtaoVisibility({ slices: 64, sampleDepth: (x) => (x < 0 ? wallHeight : 0) });
-    expect(Math.abs(v - 0.5)).toBeLessThan(0.05);
+    expect(Math.abs(v - 0.92)).toBeLessThan(0.05);
   });
 });
 
@@ -81,8 +83,8 @@ describe('AO strength mix (JS mirror of the shader)', () => {
     expect(mix(1)).toBe(1);
   });
 
-  it('halves the darkening of an occluded sample', () => {
-    expect(mix(0.4)).toBeCloseTo(0.7, 12);
+  it('keeps 30% of the darkening of an occluded sample', () => {
+    expect(mix(0.4)).toBeCloseTo(0.82, 12);
   });
 });
 
@@ -98,18 +100,17 @@ describe('AO source check', () => {
     // The label mask is the last argument: the dice material needs it to occlude
     // the specular inside the engraving.
     expect(diceFragmentSource).toContain(
-      'diceLitColor(mix(uColor, uInk, label.a), n, carve.a, surface.z, label.a)',
+      'diceLitColor(mix(uColor, uInk, label.a), n, carve.a, surface.z, label.a, shadow)',
     );
     expect(floorFragmentSource).toContain('litColor(uColor, normalize(vNormal), 1.0, vWorldPos.z)');
     expect(aoPrepassFragmentSource).toContain('uniform vec2 uDepthRange;');
   });
 
-  it('keeps shadow uniforms and helpers out of the render sources', () => {
-    for (const file of ['shaders.js', 'renderer.js']) {
-      const source = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8');
-      for (const token of ['uShadowMap', 'uLightViewProj', 'shadowFactor', 'drawShadowPass', 'createLightViewProjection', 'uEye - vWorldPos']) {
-        expect(source, `${file} contains ${token}`).not.toContain(token);
-      }
+  it('declares the shadow sampler and PCSS helper in the forward shaders', () => {
+    for (const source of [diceFragmentSource, floorFragmentSource]) {
+      expect(source).toContain('uniform highp sampler2DShadow uShadowMap;');
+      expect(source).toContain('uniform mat4 uShadowMatrix;');
+      expect(source).toContain('float shadowFactor(vec3 worldPos, vec3 n)');
     }
   });
 });
