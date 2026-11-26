@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { DIE_RADIUS } from '../physics/body.js';
+import { DIE_RADIUS, dieRadius } from '../physics/body.js';
+import { DICE_TYPES } from '../dice/shapes.js';
 import * as vec3 from '../math/vec3.js';
 import { createLightProjection } from './camera.js';
 import { LIGHT_ANGULAR_RADIUS, LIGHT_DIRECTION } from './material.js';
@@ -8,7 +9,8 @@ import { SHADOW_INNER_RADIUS } from './renderer.js';
 
 // Mirrors renderer.shadowPad: frustum pad and blocker search radius.
 const BOX = { W: 0.0675, H: 0.1462, D: 0.05 };
-const PAD = BOX.D * Math.tan(LIGHT_ANGULAR_RADIUS) + 2 * DIE_RADIUS;
+const MAX_DIE_RADIUS = Math.max(...DICE_TYPES.map(dieRadius));
+const PAD = BOX.D * Math.tan(LIGHT_ANGULAR_RADIUS) + 2 * MAX_DIE_RADIUS;
 const TRAVEL = [-LIGHT_DIRECTION[0], -LIGHT_DIRECTION[1], -LIGHT_DIRECTION[2]];
 const LP = createLightProjection(BOX, TRAVEL, PAD);
 

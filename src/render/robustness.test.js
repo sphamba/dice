@@ -14,12 +14,14 @@ const FRAGMENTS = {
   blur: shaders.blurFragmentSource(),
   dice: shaders.diceFragmentSource,
   floor: shaders.floorFragmentSource,
+  shadowDepth: shaders.shadowDepthFragmentSource,
 };
 
 const VERTICES = {
   fullscreen: shaders.fullscreenVertexSource,
   dice: shaders.diceVertexSource,
   floor: shaders.floorVertexSource,
+  shadowDepth: shaders.shadowDepthVertexSource,
 };
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');

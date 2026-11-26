@@ -86,7 +86,7 @@ function makeFakeGl() {
     uniform1f: () => {},
     uniform2f: () => {},
     uniform3f: () => {},
-    uniform4f: () => {},
+    uniform4f: (location, x, y, z, w) => { uniforms.push([location, [x, y, z, w]]); },
     uniform2fv: () => {},
     uniform1i: () => {},
     uniformMatrix4fv: () => {},
@@ -159,6 +159,25 @@ describe('AO pipeline wiring (fake GL)', () => {
     boundFramebuffers.length = 0;
     renderer.draw([]);
     expect(boundFramebuffers).toHaveLength(0);
+    renderer.dispose();
+  });
+
+  it('rebuilds the shadow projection when the box changes', () => {
+    const { gl, uniforms } = makeFakeGl();
+    const renderer = createRenderer(gl);
+    renderer.resize(1200, 2600, GL_BOX);
+    uniforms.length = 0;
+    renderer.draw([]);
+    const spans = (recorded) => recorded
+      .filter(([location]) => location === 'uShadowParams')
+      .map(([, value]) => value[2]);
+    const before = spans(uniforms);
+    renderer.resize(800, 2000, { W: 0.05, H: 0.13, D: 0.04 });
+    uniforms.length = 0;
+    renderer.draw([]);
+    const after = spans(uniforms);
+    expect(before.length).toBeGreaterThan(0);
+    expect(after[0]).not.toBe(before[0]); // frustum depth span follows the box
     renderer.dispose();
   });
 

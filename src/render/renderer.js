@@ -625,6 +625,9 @@ export function createRenderer(gl, { onError = (error) => console.error(error) }
       box = nextBox;
       staticFresh = false;
       shadowFresh = false;
+      // The light frustum is fitted to the box: a box change (rotation, resize)
+      // invalidates the cached projection.
+      if (shadowSetup) shadowSetup.lightProjection = null;
       const camera = createCamera(box);
       viewProjection = mat4.multiply(mat4.create(), camera.projection, camera.view);
       if (!aoSetup) return;
